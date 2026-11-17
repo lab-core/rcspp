@@ -92,18 +92,23 @@ local `prototype/column-generation-example` (kept); the old `f31257f0` kept as `
 `../rcspp-rebase` detached; `_core` built in `../rcspp-dev/build-python-highs`, imports and source guard checked.
 `T-1.10`'s design done (`benchmark-runner.md`, `D-177`–`D-187`): runners per layer, a benchmark of processes, TOML
 blocks, a folder per run; master solver benchmark set aside (`D-179`).
-`T-1.10` steps 1–4 done 2026-11-16 (`F-62`): worktree `../rcspp-benchmark`, local branch
-`feature/column-generation-benchmark` from #88 `0597e768` (upstream unset, not pushed), commits `534bd6d3`, `5d315b9f`,
-`c3437270`, `a07d65a4`, 68 tests; `_core` built in its `build-python-highs`; `tomli-w` installed in `.venv`. For steps
+`T-1.10` steps 1–4 done 2026-11-16 (`F-62`): branch `feature/column-generation-benchmark` from #88 `0597e768`, in
+`../rcspp-dev` (`../rcspp-benchmark` is a stale detached worktree of the first version); `tomli-w` in `.venv`. For steps
 5–9: the runners parse `--file`, `--output`, `--build`, `--machine` themselves and the rest with
 `options.parse_assignments`; `[benchmark]` takes whole numbers only (step 7 adds `timeout`, `machine`, `logs`); check
 every run's instance file before the first run; the artificial cost is `cost_factor` × max(1, `cost_scale()`), passed
 to both layers; gurobipy's free row as ≥ −1e30; the README gains its runner, benchmark and output sections with steps
-5, 7, 8. **Next:** the user decides `D-188` and the `greedy` preset's cap (`F-62` (5)); then steps 5–9 (a PR on #88);
-then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`).
+5, 7, 8. Options code and docs decided (`D-195`, `D-196`, `D-188` accepted); `D-190`–`D-196` and the rename folded
+into steps 1–4, force-pushed 2026-11-16: `58a9071b`, `6c3b19cc`, `67822d53`, `f1aff5e7` (old head kept as local
+`backup/benchmark-steps-1-4-8e944acd`; 75 tests). 2026-11-17: pyright strict clean (`76c4f444`, not pushed); the
+options as dataclasses and the full `OPTIONS.md` (`D-197`–`D-202`, `589966ad`, on top, pushed; 119 tests).
+**Next:** steps 5–9 (a PR on #88); then `T-1.18`, `T-1.19`,
+`T-1.16`, `T-1.21`,
+`T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
-`feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues drafted in
-`benchmark-results/colgen/presentation/benchmark/` (not committed, the user is reading them).
+`feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
+`benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
+before running, presets `exact` only, `cpp-native`'s share, `from` (`D-190`–`D-194`, amending steps 2–3).
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
