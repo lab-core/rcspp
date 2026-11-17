@@ -132,9 +132,29 @@ class Instance(Block):
         return cls(kind(given, cls.TYPES, "instance", where), name)
 
 
+#: The solver parameters every master solve sets from the layer's own, by solver (Gurobi's
+#: names in lower case: it ignores their case); where a run option sets them instead.
+SET_BY_EVERY_SOLVE = {
+    "highs": {
+        "threads": "column_generation.threads",
+        "time_limit": "column_generation.timeout_s",
+        "output_flag": None,
+        "solve_relaxation": None,
+        "mip_rel_gap": None,
+    },
+    "gurobi": {
+        "threads": "column_generation.threads",
+        "timelimit": "column_generation.timeout_s",
+        "outputflag": None,
+        "mipgap": None,
+    },
+}
+
+
 @dataclass(frozen=True)
 class Master(Block):
-    """The master solver; `parameters` go to the solver as they are."""
+    """The master solver; `parameters` go to the solver as they are, except those every
+    solve sets (:data:`SET_BY_EVERY_SOLVE`), which are refused."""
 
     type: str
     parameters: dict[str, Any]
@@ -144,9 +164,22 @@ class Master(Block):
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
         only_keys(given, ("type", "parameters"), "master", where)
-        return cls(
-            kind(given, cls.TYPES, "master", where), table(given.get("parameters", {}), where)
-        )
+        master = kind(given, cls.TYPES, "master", where)
+        parameters = table(given.get("parameters", {}), where)
+        set_by_every_solve = SET_BY_EVERY_SOLVE["gurobi" if master == "gurobipy" else "highs"]
+
+        for name in parameters:
+            key = name.lower() if master == "gurobipy" else name
+
+            if key in set_by_every_solve:
+                option = set_by_every_solve[key]
+                instead = f": use {option}" if option else ""
+                raise OptionsError(
+                    f"{where}: master.parameters.{name} is set by every solve, from the layer's "
+                    f"own parameters{instead}"
+                )
+
+        return cls(master, parameters)
 
 
 @dataclass(frozen=True)
@@ -223,19 +256,26 @@ class Graph(Block):
 
 @dataclass(frozen=True)
 class ColumnGeneration(Block):
-    """The package's own parameters, None for the package's default; tolerances as ``{
-    type = ..., ...
+    """The layer's own parameters, None for the layer's default.
 
-    }`` (a name alone is read as its type).
+    `tolerances` is a table with a ``type``, or a name alone, read as the type. `threads`
+    goes to every master solve; 0 lets the solver choose.
     """
 
     max_iterations: int | None = None
     timeout_s: float | None = None
     tolerances: dict[str, Any] | None = None
+    threads: int | None = None
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("max_iterations", "timeout_s", "tolerances"), "column_generation", where)
+        names = ("max_iterations", "timeout_s", "tolerances", "threads")
+        only_keys(given, names, "column_generation", where)
+        threads = integer(given.get("threads"), where)
+
+        if threads is not None and threads < 0:
+            raise OptionsError(f"{where}: column_generation.threads must be 0 or more")
+
         tolerances = given.get("tolerances")
 
         if isinstance(tolerances, str):
@@ -249,6 +289,7 @@ class ColumnGeneration(Block):
             integer(given.get("max_iterations"), where),
             number(given.get("timeout_s"), where),
             tolerances,
+            threads,
         )
 
 

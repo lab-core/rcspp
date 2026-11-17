@@ -42,9 +42,6 @@ RESULTS = Path(__file__).resolve().parents[1] / "results"
 #: What stops a runner with a message instead of a traceback.
 ERRORS = (OptionsError, InstanceError, source_tree.SourceTreeError, run_folder.RunFolderError)
 
-#: The parameter that sets a master solver's threads, by master.
-THREAD_PARAMETERS = {"highspy": "threads", "gurobipy": "Threads", "highs": "threads"}
-
 
 def parse_arguments(description: str | None, arguments: Sequence[str]) -> argparse.Namespace:
     """A runner's flags and run options."""
@@ -125,8 +122,7 @@ def finish_folder(
     """The end and the record in ``metadata.json``, the solution in ``solution.json``
     when it was read, then ``result.json`` with the collectors' fields."""
     fields = {**result, **collect(run.statistics.to_table(), solution)}
-    threads = run.master.parameters.get(THREAD_PARAMETERS[run.master.type])
-    record = make_record(build, arguments.machine, solver_threads=threads)
+    record = make_record(build, arguments.machine, solver_threads=run.column_generation.threads)
     run_folder.update_metadata(folder, {"end": now(), **record})
 
     if solution is not None:
