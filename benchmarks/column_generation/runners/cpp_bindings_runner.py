@@ -1,13 +1,16 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""One run of rcspp's column generation package, written to its run folder.
+"""One run of the C++ column generation example through its Python bindings, written to
+its run folder.
 
-    python package_runner.py --instance C101_25         # into results/<run name>
-    python package_runner.py --file results/<run name>/run.toml --output results/again
+    python runners/cpp_bindings_runner.py --instance C101_25    # into results/<run name>
+    python runners/cpp_bindings_runner.py --file results/<run name>/run.toml --output results/again
 
-The instance gives the pricing graph, the master's rows and its own starting columns; this file
-holds only the column generation calls: a master over a highspy or gurobipy model, a graph pricer
-with the run's stages, the start, the loop.
+The instance gives the pricing graph, the master's rows and its own starting columns;
+this file holds only the column generation calls of the example's package,
+cpp_column_generation: a master over a C++ HiGHS model or a highspy or gurobipy one, a
+graph pricer with the run's stages, the start, the loop. The loop and the pricer run in
+C++; so does the master, except over gurobipy.
 """
 
 from __future__ import annotations
@@ -19,79 +22,96 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from column_generation_benchmark import runner
-from column_generation_benchmark.instances import make_instance
-from column_generation_benchmark.options import OptionsError, Run, make_algorithm_params
+
+# The code the runners share is in the folder above.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from column_generation_benchmark import runner, source_tree  # noqa: E402
+from column_generation_benchmark.instances import make_instance  # noqa: E402
+from column_generation_benchmark.options import (  # noqa: E402
+    OptionsError,
+    Run,
+    make_algorithm_params,
+)
 
 if TYPE_CHECKING:
-    from rcspp.column_generation import ColumnGeneration, MasterProblem, MasterSolver
+    from cpp_column_generation import ColumnGeneration, MasterProblem, MasterSolver
 
-LAYER = "package"
+LAYER = "cpp-bindings"
 
 
 # MARK: Building
 
 
 def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> MasterSolver:
-    """The master solver over a model of the instance's rows, without columns; the run's
-    parameters go to the solver after its log is turned off, so they can turn it on."""
-    from rcspp.column_generation import GurobipyMasterSolver, HighspyMasterSolver
+    """The master solver over a model of the instance's rows, without columns, with the
+    run's parameters set on it (its log is off unless they turn it on)."""
+    import cpp_column_generation
 
-    if run.master.type == "highspy":
+    solver: MasterSolver
+
+    if run.master.type == "gurobipy":
+        import gurobipy
+        from gurobipy import GRB
+
+        model = gurobipy.Model()
+        model.Params.OutputFlag = 0
+
+        for low, up in zip(lower, upper, strict=True):
+            if low == up:
+                model.addLConstr(gurobipy.LinExpr(), GRB.EQUAL, low)
+            elif math.isinf(up):
+                # Gurobi reads -1e30 as no bound: a free row.
+                model.addLConstr(gurobipy.LinExpr(), GRB.GREATER_EQUAL, max(low, -1e30))
+            elif math.isinf(low):
+                model.addLConstr(gurobipy.LinExpr(), GRB.LESS_EQUAL, up)
+            else:
+                raise ValueError(f"gurobipy: a row with two different finite bounds ({low}, {up})")
+
+        solver = cpp_column_generation.GurobipyMasterSolver(model)
+    elif not hasattr(cpp_column_generation, "HighsMasterSolver"):
+        raise source_tree.SourceTreeError(
+            f"master {run.master.type} needs the example built with "
+            "USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON"
+        )
+    elif run.master.type == "highspy":
         import highspy
 
+        # The master solver copies the model, not its options: they go to the copy below.
         model = highspy.Highs()
         model.setOptionValue("output_flag", False)
-
-        for name, value in run.master.parameters.items():
-            if model.setOptionValue(name, value) != highspy.HighsStatus.kOk:
-                raise OptionsError(f"master: highspy refuses {name} = {value!r}")
 
         for low, up in zip(lower, upper, strict=True):
             model.addRow(low, up, 0, [], [])
 
-        return HighspyMasterSolver(model)
-
-    import gurobipy
-    from gurobipy import GRB
-
-    model = gurobipy.Model()
-    model.Params.OutputFlag = 0
+        solver = cpp_column_generation.HighspyMasterSolver(model)
+    else:
+        solver = cpp_column_generation.HighsMasterSolver(row_lower=lower, row_upper=upper)
 
     for name, value in run.master.parameters.items():
         try:
-            model.setParam(name, value)
-        except gurobipy.GurobiError as error:
-            raise OptionsError(f"master: gurobipy refuses {name} = {value!r} ({error})") from None
+            solver.set_option(name, value)
+        except ValueError as error:
+            raise OptionsError(
+                f"master: {run.master.type} refuses {name} = {value!r} ({error})"
+            ) from None
 
-    for low, up in zip(lower, upper, strict=True):
-        if low == up:
-            model.addLConstr(gurobipy.LinExpr(), GRB.EQUAL, low)
-        elif math.isinf(up):
-            # Gurobi reads -1e30 as no bound: a free row.
-            model.addLConstr(gurobipy.LinExpr(), GRB.GREATER_EQUAL, max(low, -1e30))
-        elif math.isinf(low):
-            model.addLConstr(gurobipy.LinExpr(), GRB.LESS_EQUAL, up)
-        else:
-            raise ValueError(f"gurobipy: a row with two different finite bounds ({low}, {up})")
-
-    return GurobipyMasterSolver(model)
+    return solver
 
 
 def build(run: Run) -> tuple[MasterProblem, ColumnGeneration]:
     """The master and its loop, ready to run: instance, graph, master, pricer and start
     built."""
-    from rcspp.column_generation import (
+    from cpp_column_generation import (
         ArtificialColumns,
         ColumnGeneration,
         ColumnGenerationParams,
         GraphPricer,
-        MasterInitialization,
         MasterProblem,
         NoInitialization,
         PricingStage,
         RelaxationParams,
-        registry,
+        make_tolerances,
     )
 
     instance = make_instance(run.instance.to_table())
@@ -100,37 +120,36 @@ def build(run: Run) -> tuple[MasterProblem, ColumnGeneration]:
     stages = [PricingStage(*make_algorithm_params(stage)) for stage in run.pricing.stages]
     graph_pricer = GraphPricer(graph, stages)
     pricer = master.add_pricer(graph_pricer)
-    initialization: MasterInitialization
+
+    # The example's parameters are set one by one: what the run leaves out keeps its default.
+    params = ColumnGenerationParams()
 
     if run.start.type == "artificial":
         # One artificial column per row, costing the factor times the largest arc cost.
         assert run.start.cost_factor is not None
-        initialization = ArtificialColumns(
+        params.initialization = ArtificialColumns(
             cost=run.start.cost_factor * max(1.0, graph_pricer.cost_scale())
         )
     else:
         master.add_columns(pricer, instance.starting_columns(run.start.type))
-        initialization = NoInitialization()
+        params.initialization = NoInitialization()
 
-    # Only what the run sets: the package's defaults hold for the rest.
-    given: dict[str, Any] = {}
     settings = run.column_generation
 
     if settings.max_iterations is not None:
-        given["max_iterations"] = settings.max_iterations
+        params.max_iterations = settings.max_iterations
 
     if settings.timeout_s is not None:
-        given["timeout_s"] = settings.timeout_s
+        params.timeout_s = settings.timeout_s
 
     if settings.tolerances is not None:
         tolerances = dict(settings.tolerances)
-        given["tolerances"] = registry.make_tolerances(tolerances.pop("type"), **tolerances)
+        params.tolerances = make_tolerances(tolerances.pop("type"), **tolerances)
 
     # Every master solve sets the solver's threads from these.
     if settings.threads is not None:
-        given["relaxation"] = RelaxationParams(threads=settings.threads)
+        params.relaxation = RelaxationParams(threads=settings.threads)
 
-    params = ColumnGenerationParams(initialization=initialization, **given)
     return master, ColumnGeneration(master, params)
 
 
@@ -143,9 +162,11 @@ def solve(loop: ColumnGeneration) -> dict[str, Any]:
     result = loop.run()
     seconds = time.perf_counter() - started
     statistics = result.statistics
+    # The example's objective is infinite until an LP is solved; the package's is None.
+    objective = None if math.isinf(result.objective) else result.objective
     return {
         "status": result.status.name,
-        "objective": result.objective,
+        "objective": objective,
         "iterations": result.iterations,
         "columns": statistics.generated_columns,
         "artificial_columns": statistics.artificial_columns,
@@ -164,20 +185,23 @@ def read_solution(master: MasterProblem, objective: float | None) -> dict[str, A
     added columns: the master solvers drop the last solution's values when columns are
     added, so ``missing`` then says why.
     """
+    from cpp_column_generation import MasterProblem
+
     if objective is None:
         return {"lp": None, "missing": "no master LP was solved"}
 
-    # highspy raises RuntimeError, gurobipy GurobiError, when the values are gone.
+    # The C++ master solvers raise RuntimeError, gurobipy GurobiError, when the values are gone.
     gone: tuple[type[Exception], ...] = (RuntimeError,)
 
     if "gurobipy" in sys.modules:
         gone += (sys.modules["gurobipy"].GurobiError,)
 
-    columns = master.columns
+    columns = master.columns()
+    solver = master.solver()
 
     try:
-        values = master.solver.primal(np.array([column.id for column in columns], np.uint64))
-        duals = master.solver.duals()
+        values = solver.primal(np.array([column.id for column in columns], np.uint64))
+        duals = solver.duals()
     except gone as error:
         missing = f"columns were added after the last LP solve ({error})"
         return {"lp": None, "missing": missing}
@@ -189,7 +213,7 @@ def read_solution(master: MasterProblem, objective: float | None) -> dict[str, A
         if value == 0.0:
             continue
 
-        if column.pricer is None:
+        if column.pricer == MasterProblem.no_pricer:
             artificial.append({"id": column.id, "value": value})
             continue
 
@@ -220,6 +244,7 @@ def main(arguments: list[str] | None = None) -> int:
 
     try:
         run, build_folder = runner.read_run(parsed, LAYER)
+        source_tree.use_example()
         # Built first: wrong options stop the runner before its folder is touched.
         master, loop = build(run)
 
