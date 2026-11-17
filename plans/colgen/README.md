@@ -107,9 +107,12 @@ Solutions designed 2026-11-17 (`benchmark-solutions.md`, `D-203`–`D-206`, `Q-6
 as step 5's fixup; the integer solve and the instance's resolved, checked solution after step 6; per-iteration data
 with `T-1.20`. Step 5's fixup done and folded 2026-11-17 (`F-64`, `D-207`, `D-208`): the runner is `374d2ea6`
 (replaces `61cf282c`, not pushed; 140 tests); `solution.json` has no LP after a limit hit after pricing.
-**Next:** steps 6–9 (a PR on #88), the integer solve after step 6; then `T-1.18`, `T-1.19`,
-`T-1.16`, `T-1.21`,
-`T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
+Step 6 done 2026-11-17 (`F-65`): the `cpp-bindings` runner `f97e6f73` on top (pushed; 170 tests, pyright and
+pre-commit clean); every layer equal on C101_25 (16 / 599, 23 / 691, 18 / 666, 29 / 723; `highs` = `highspy`).
+Then `D-209` (`column_generation.threads`; a master's own thread parameter never reached a solve) and `D-210`
+(runners in `runners/`): `36c9490b`, `4ddc513e` on top (`F-66`, 177 tests); branch pushed 2026-11-17 (head
+`4ddc513e`). **Next:** the integer solve (`benchmark-solutions.md` §2), steps 7–9 (a PR on #88); then `T-1.18`,
+`T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
