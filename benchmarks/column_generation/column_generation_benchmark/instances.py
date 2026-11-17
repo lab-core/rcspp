@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Any
 from .source_tree import TREE
 
 if TYPE_CHECKING:
-    from rcspp.graph import ResourceGraph, Solution
+    from rcspp._core.graph import Solution
+    from rcspp.graph import ResourceGraph
 
 #: Where an instance named in the options is read from.
 INSTANCES_DIRECTORY = TREE / "instances"
@@ -138,7 +139,8 @@ class SolomonInstance(Instance):
         return len(self.customers)
 
     def build_graph(self, options: Mapping[str, Any]) -> "ResourceGraph":
-        from rcspp.graph import ResourceGraph, Row
+        from rcspp._core.graph import Row
+        from rcspp.graph import ResourceGraph
         from rcspp.resource import (
             AdditionExtensionFunction,
             MinMaxFeasibilityFunction,
@@ -185,7 +187,7 @@ class SolomonInstance(Instance):
                 graph.add_node(self.sink, False, True)
 
         for origin in self.customers:
-            rows = [] if origin is depot else [Row(origin.number, 1.0)]
+            rows: list[Row] = [] if origin is depot else [Row(origin.number, 1.0)]
             targets = [(customer.number, customer) for customer in self.customers[1:]]
 
             if origin is not depot:
@@ -210,7 +212,7 @@ class SolomonInstance(Instance):
         if start not in self.STARTS:
             raise InstanceError(f"instance {self.name}: no {start!r} start")
 
-        from rcspp.graph import Column, Row, Solution
+        from rcspp._core.graph import Column, Row, Solution
 
         depot = self.customers[0]
         routes: list[Solution] = []

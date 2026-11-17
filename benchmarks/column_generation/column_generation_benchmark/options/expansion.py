@@ -24,7 +24,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .naming import run_name, unique_names
 from .schema import (
@@ -62,7 +62,7 @@ class Expansion:
 
     benchmark: dict[str, int]
     runs: list[Run]
-    dropped: list[str] = field(default_factory=list)
+    dropped: list[str] = field(default_factory=list[str])
 
     def rounds(self) -> list[tuple[int, Run]]:
         """Every run of every round, round by round; rounds count from 1."""
@@ -80,12 +80,14 @@ def merge(lower: Any, upper: Any) -> Any:
     if not isinstance(lower, dict) or not isinstance(upper, dict):
         return copy.deepcopy(upper)
 
-    if "type" in upper and upper["type"] != lower.get("type"):
-        return copy.deepcopy(upper)
+    below, above = cast(dict[str, Any], lower), cast(dict[str, Any], upper)
 
-    merged = copy.deepcopy(lower)
+    if "type" in above and above["type"] != below.get("type"):
+        return copy.deepcopy(above)
 
-    for name, value in upper.items():
+    merged = copy.deepcopy(below)
+
+    for name, value in above.items():
         merged[name] = merge(merged.get(name), value)
 
     return merged
@@ -121,13 +123,15 @@ def apply(stack: dict[str, Any], source: Source, definitions: Definitions) -> No
             stack[option] = merge(stack.get(option), given)
 
     for option, path, value in dotted:
-        inner = stack.setdefault(option, {})
+        inner: dict[str, Any] = stack.setdefault(option, {})
 
         for name in path[:-1]:
-            inner = inner.setdefault(name, {})
+            nested = inner.setdefault(name, {})
 
-            if not isinstance(inner, dict):
+            if not isinstance(nested, dict):
                 raise OptionsError(f"{source.where}: {option}.{name} is not a table")
+
+            inner = cast(dict[str, Any], nested)
 
         inner[path[-1]] = copy.deepcopy(value)
 
@@ -167,15 +171,17 @@ def matrix_points(matrix: Any, where: str) -> list[dict[str, Any]]:
     if not isinstance(matrix, dict):
         raise OptionsError(f"{where}: [matrix] is a table of lists")
 
-    for name, values in matrix.items():
+    lists = cast(dict[str, Any], matrix)
+
+    for name, values in lists.items():
         if not isinstance(values, list) or not values:
             raise OptionsError(
                 f"{where}: matrix {name!r} must be a non-empty list (quote a dotted name: "
                 '"start.cost_factor" = [...])'
             )
 
-    names = list(matrix)
-    return [dict(zip(names, point)) for point in itertools.product(*matrix.values())]
+    names = list(lists)
+    return [dict(zip(names, point)) for point in itertools.product(*lists.values())]
 
 
 def entry_sources(read: BenchmarkFile, index: int, entry: Any, where: str) -> list[Source]:
@@ -186,7 +192,7 @@ def entry_sources(read: BenchmarkFile, index: int, entry: Any, where: str) -> li
     if not isinstance(entry, dict):
         raise OptionsError(f"{place}: a run is a table of options")
 
-    own = dict(entry)
+    own = dict(cast(dict[str, Any], entry))
     sources: list[Source] = []
 
     if "from" in own:
