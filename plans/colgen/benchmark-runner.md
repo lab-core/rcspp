@@ -131,7 +131,8 @@ One collector per statistic: a name, its cost, an option turning it on; it adds 
 per-iteration file. Now: the totals, the process measures and the summary's per-cell figures, and
 `summary --compare A B` (`D-139`'s verdict, extra seconds per iteration). Later, each with the task that needs it:
 per-iteration values through the package's `on_iteration` (`T-1.20`), a per-iteration time split (if `T-1.20`
-fails), per-stage and engine counts and the Lagrangian bound (`T-2.5`).
+fails), per-stage and engine counts and the Lagrangian bound (`T-2.5`). Solutions, the integer solve at the end and
+per-iteration data: `benchmark-solutions.md` (`D-203`–`D-206`).
 
 ## 7. What each run records (`D-180`)
 
@@ -163,7 +164,7 @@ lists them and checks `D-164`'s same solver versions across the layers per cell.
 | `T-1.19` | the `cpp-native` runner and its build in the README |
 | `T-1.16` | `graph.ng_size` |
 | `T-1.21` | the engine's features as stage keys, or one key each in `graph` or `pricing` |
-| `T-1.20` | presets of truncated stages; `--compare` over three layers; maybe per-iteration values |
+| `T-1.20` | presets of truncated stages; `--compare` over three layers; per-iteration data (`D-206`) |
 
 Out of scope (`D-183`): `T-1.9`; phase 5's grid and `T-2.5`'s records. The master solver benchmark is set aside
 (`D-179`): the runner serves for now. The runner moves no new sparse data (`D-16` not triggered).
@@ -180,6 +181,11 @@ old head local `backup/benchmark-steps-1-4-8e944acd`): 1 `58a9071b` the README w
 Then, on top (2026-11-17, pushed): `76c4f444` pyright strict; `589966ad` the options as dataclasses (`D-197`–`D-200`:
 `RunOptions`, `Run`, `Benchmark`, argparse; places; `cost_factor` in the presets; names from the complete run),
 `OPTIONS.md` as the full reference (`D-201`), tests at 100 % of `options/` (`D-202`).
+
+Step 5 done 2026-11-17 (`F-63`, `61cf282c`): the flags and the folder writing are in the shared `runner.py`, for
+step 6 too. Then (`benchmark-solutions.md`): step 5's fixup (`--overwrite`, `solution.json`, `D-203`) before step 6;
+the integer solve and the instance's resolved solution after step 6 (`D-204`, `D-205`); per-iteration data with
+`T-1.20` (`D-206`).
 
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
