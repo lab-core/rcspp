@@ -215,14 +215,14 @@ def main(arguments: list[str] | None = None) -> int:
 
     try:
         run, build_folder = runner.read_run(parsed, LAYER)
+        # Built first: wrong options stop the runner before its folder is touched.
+        master, loop = build(run)
 
         if parsed.check:
-            build(run)
             print(f"{run.name}: built")
             return 0
 
         folder = runner.start_folder(parsed, run, [str(Path(__file__).resolve()), *arguments])
-        master, loop = build(run)
         result = solve(loop)
         solution = read_solution(master, result["objective"]) if run.statistics.solution else None
         runner.finish_folder(folder, parsed, run, build_folder, result, solution)

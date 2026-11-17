@@ -12,6 +12,7 @@ wheel does not have it.
 | path                           | contents                                                           |
 | ------------------------------ | ------------------------------------------------------------------ |
 | `package_runner.py`            | one run of the `package` layer                                     |
+| `cpp_bindings_runner.py`       | one run of the `cpp-bindings` layer                                |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
 | `tests/`                       | the tests                                                          |
 | `results/`                     | where runs go unless told otherwise; ignored by git (`.gitignore`) |
@@ -59,7 +60,8 @@ run's options come from, examples, and every option's parameters.
 ## Run once
 
 Each layer has a runner, a script that does one run and writes its folder. `package_runner.py` runs the `package`
-layer; its body is the column generation calls, the place to read how the package is used.
+layer, `cpp_bindings_runner.py` the `cpp-bindings` layer; a runner's body is the column generation calls, the place
+to read how its layer is used. Both take the same flags and options; the run's layer is the runner's.
 
 ```bash
 cd benchmarks/column_generation
@@ -67,7 +69,12 @@ python package_runner.py --instance C101_25 # into results/C101_25-package-highs
 python package_runner.py --instance R201_25 --master gurobipy --start single-customer
 python package_runner.py --file results/C101_25-package-highspy-exact-artificial/run.toml --output results/again
 python package_runner.py --instance C101_25 --check build # build, do not solve
+python cpp_bindings_runner.py --instance C101_25 --master highs
+python cpp_bindings_runner.py --file results/C101_25-package-highspy-exact-artificial/run.toml --layer cpp-bindings
 ```
+
+`cpp_bindings_runner.py` needs the build to have the column generation example, and its HiGHS part for the masters
+`highs` and `highspy`; it stops with a message otherwise.
 
 | flag            | what                                                                                          |
 | --------------- | --------------------------------------------------------------------------------------------- |
@@ -102,4 +109,6 @@ pytest benchmarks/column_generation/tests
 ```
 
 The tests find the build as the benchmark does; `RCSPP_BENCHMARK_BUILD=<folder>` chooses one among several. Without a
-build, the tests that need rcspp skip.
+build, the tests that need rcspp skip; without the column generation example in it, those of `cpp-bindings` skip. One
+test checks that every layer the build has gives the same objective, iterations and columns on C101_25. The tests
+use HiGHS only: run a Gurobi master by hand.

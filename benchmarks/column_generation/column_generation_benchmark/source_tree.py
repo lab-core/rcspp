@@ -157,3 +157,27 @@ def use_tree(build: str | Path | None = None, tree: Path = TREE) -> Path:
 
     check_rcspp(folder)
     return folder
+
+
+def use_example(tree: Path = TREE) -> None:
+    """Makes the column generation example's package, ``cpp_column_generation``,
+    importable from this tree; call it after :func:`use_tree`.
+
+    The package sits in ``examples/column_generation/python`` and wraps the example's
+    bindings, which the build has only when built with the example on.
+
+    Raises:
+        SourceTreeError: When the build has no column generation example.
+    """
+    import rcspp._core
+
+    if not hasattr(rcspp._core, "cpp_column_generation"):
+        raise SourceTreeError(
+            "the build has no column generation example: build it with "
+            "USE_COLUMN_GENERATION_EXAMPLE=ON (see benchmarks/column_generation/README.md)"
+        )
+
+    python = str(tree / "examples" / "column_generation" / "python")
+
+    if python not in sys.path:
+        sys.path.insert(0, python)

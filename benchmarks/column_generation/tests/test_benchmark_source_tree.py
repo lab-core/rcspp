@@ -104,3 +104,15 @@ def test_rcspp_comes_from_the_build(build: Path):
 def test_rcspp_from_elsewhere_is_refused(build: Path, tmp_path: Path):
     with pytest.raises(SourceTreeError, match="not from the build"):
         source_tree.check_rcspp(tmp_path)
+
+
+def test_the_example_comes_from_this_tree(build: Path):
+    try:
+        source_tree.use_example()
+    except SourceTreeError:
+        pytest.skip("the build has no column generation example")
+
+    import cpp_column_generation
+
+    example = source_tree.TREE / "examples" / "column_generation" / "python"
+    assert source_tree.is_inside(cpp_column_generation.__file__ or "", example)
