@@ -3,6 +3,7 @@
 """The run folder: ``run.toml`` runs the same again, ``result.json`` has its fields, and the
 record has every group."""
 
+import dataclasses
 import importlib
 import math
 import sys
@@ -55,12 +56,12 @@ def result(**changes: Any) -> dict[str, Any]:
 
 
 def test_the_run_file_runs_the_same_run_again(tmp_path: Path):
-    (run,) = options.expand_benchmark(tomllib.loads(BENCHMARK), {}).runs
-    run_folder.write_run_file(tmp_path, run.options)
-    again = options.expand_run(run_folder.read_run_file(tmp_path), {})
+    (run,) = options.Benchmark.from_table(tomllib.loads(BENCHMARK)).expand().runs
+    run_folder.write_run_file(tmp_path, run.to_table())
+    again = options.expand_run(run_folder.read_run_file(tmp_path))
 
-    assert again.options == run.options
-    assert again.options["column_generation"]["timeout_s"] == math.inf
+    assert again == run
+    assert again.column_generation.timeout_s == math.inf
     assert "heuristics-first" not in (tmp_path / "run.toml").read_text()
 
 
@@ -128,7 +129,7 @@ def test_a_missing_field_is_refused():
 
 
 def test_every_collector_has_its_statistics_option():
-    keys = options.BLOCKS["statistics"].parameters
+    keys = [item.name for item in dataclasses.fields(options.BLOCKS["statistics"])]
 
     assert set(collectors.COLLECTORS) == set(keys)
 
@@ -176,3 +177,33 @@ def test_the_source_is_this_tree():
 def test_a_missing_build_cache_records_nothing(tmp_path: Path):
     assert record.read_cmake_cache(tmp_path) == {}
     assert record.compiler_version(tmp_path) == {}
+
+
+def test_what_cannot_be_found_is_recorded_as_none(tmp_path: Path):
+    assert record.git(["rev-parse", "HEAD"], tmp_path) is None
+    assert record.package_version("not-a-package-of-this-environment") is None
+    assert record.tree_version(tmp_path) is None
+
+
+def test_the_gurobi_versions_are_recorded_when_imported():
+    pytest.importorskip("gurobipy")
+
+    versions = record.version_record()
+
+    assert versions["gurobipy"] is not None
+    assert versions["gurobi"].count(".") == 2
+
+
+# MARK: Writing
+
+
+def test_a_failed_write_leaves_no_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def refuse(source: str, target: Path) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(run_folder.os, "replace", refuse)
+
+    with pytest.raises(OSError, match="disk full"):
+        run_folder.write_atomically(tmp_path / "result.json", "{}")
+
+    assert list(tmp_path.iterdir()) == []

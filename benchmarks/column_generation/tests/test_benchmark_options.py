@@ -1,24 +1,57 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""The options: blocks and names, the levels that override each other, the matrix and the
-runs, and the errors raised before any run starts."""
+"""The options: blocks, run options and complete runs, benchmark files, the command line,
+run names, and the errors raised before any run starts."""
 
+from __future__ import annotations
+
+import argparse
 import math
+import re
 import tomllib
+from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 import pytest
 from column_generation_benchmark import options
-from column_generation_benchmark.options import OptionsError
+from column_generation_benchmark.options import Benchmark, OptionsError, Run, RunOptions
+from column_generation_benchmark.options.blocks import (
+    ColumnGeneration,
+    Instance,
+    Master,
+    Pricing,
+    Start,
+    Statistics,
+)
+from column_generation_benchmark.options.command_line import toml_value
 
 # Checking the stages and tolerances imports rcspp: every test needs the tree's build.
 pytestmark = pytest.mark.usefixtures("build")
 
+#: A fingerprint in a run's name.
+FINGERPRINT = "[0-9a-f]{6}"
 
-def expand(text: str, command_line: dict[str, Any] | None = None) -> options.Expansion:
-    """A benchmark file written as `text`, expanded."""
-    return options.expand_benchmark(tomllib.loads(text), command_line or {})
+
+def parse(arguments: list[str]) -> argparse.Namespace:
+    """The command line of a benchmark: its own options and the run options."""
+    parser = argparse.ArgumentParser(prog="benchmark", exit_on_error=False)
+    options.add_benchmark_options(parser)
+    options.add_run_options(parser)
+    return parser.parse_args(arguments)
+
+
+def expand(text: str, arguments: list[str] | None = None) -> options.Expansion:
+    """A benchmark file written as `text`, with a command line, expanded."""
+    benchmark = Benchmark.from_table(tomllib.loads(text))
+    command_line = options.run_from_arguments(parse(arguments or []), benchmark.names)
+    return benchmark.expand(command_line)
+
+
+def run_of(text: str) -> Run:
+    """The one run of a benchmark file."""
+    (run,) = expand(text).runs
+    return run
 
 
 # MARK: Presets
@@ -28,9 +61,9 @@ def test_the_presets_expand_to_one_run():
     expansion = expand('[defaults]\ninstance = "C101_25"\n')
     (run,) = expansion.runs
 
-    assert expansion.benchmark == {"processes": 1, "repeats": 1}
+    assert (expansion.processes, expansion.repeats) == (1, 1)
     assert run.name == "C101_25-package-highspy-exact-artificial"
-    assert run.options == {
+    assert run.to_table() == {
         "instance": {"type": "solomon", "name": "C101_25"},
         "layer": "package",
         "master": {"type": "highspy", "parameters": {}},
@@ -42,17 +75,47 @@ def test_the_presets_expand_to_one_run():
     }
 
 
-def test_the_only_pricing_preset_is_exact():
-    (run,) = expand('[defaults]\ninstance = "C101_25"\npricing = "exact"\n').runs
+def test_the_presets_hold_only_names_and_defaults(tmp_path: Path):
+    path = tmp_path / "presets.toml"
+    path.write_text('[defaults]\nlayer = "package"\n[matrix]\nmaster = ["highspy"]\n')
 
-    assert run.options["pricing"] == {"stages": [{"algorithm": "simple"}]}
+    with pytest.raises(OptionsError, match="presets hold named blocks and"):
+        options.read_presets(path)
+
+    assert set(options.read_presets()) <= {"defaults", *options.BLOCKS}
+
+
+def test_the_only_pricing_preset_is_exact():
+    run = run_of('[defaults]\ninstance = "C101_25"\npricing = "exact"\n')
+
+    assert run.pricing == Pricing([{"algorithm": "simple"}])
 
     with pytest.raises(OptionsError, match="unknown pricing 'tabu'"):
         expand('[defaults]\ninstance = "C101_25"\npricing = "tabu"\n')
 
 
-# MARK: Matrix, runs, rounds
+def test_the_artificial_start_preset_gives_the_cost_factor():
+    assert run_of('[defaults]\ninstance = "C101_25"\n').start == Start("artificial", 1e4)
 
+    # A table merges into the presets' start: the cost factor comes from below.
+    text = '[defaults]\ninstance = "C101_25"\nstart = { type = "artificial" }\n'
+
+    assert run_of(text).start == Start("artificial", 1e4)
+
+    with pytest.raises(OptionsError, match="start.cost_factor is missing"):
+        Start.from_table({"type": "artificial"}, "start")
+
+
+def test_a_block_alone_must_be_complete():
+    with pytest.raises(OptionsError, match="pricing.stages is missing"):
+        Pricing.from_table({}, "pricing")
+
+    run = run_of('[defaults]\ninstance = "C101_25"\npricing = {}\n')
+
+    assert run.pricing.stages == [{"algorithm": "simple"}]
+
+
+# MARK: Matrix, runs, rounds
 
 BENCHMARK = """
 [benchmark]
@@ -61,7 +124,7 @@ repeats = 3
 
 [pricing.heuristics-first]
 stages = [
-  { algorithm = "greedy", max_solutions = 100 },
+  { algorithm = "greedy", max_solutions = 100, timeout_s = 60 },
   { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
   { algorithm = "simple" },
 ]
@@ -78,7 +141,6 @@ instance = ["C101_25", "R201_25"]
 layer = ["package", "cpp-bindings"]
 master = ["highspy", "one-thread"]
 pricing = ["exact", "heuristics-first"]
-"start.cost_factor" = [1e4]
 
 [[runs]]
 instance = "R201_50"
@@ -88,26 +150,28 @@ pricing = { stages = [ { algorithm = "simple", max_solutions = 5 }, { algorithm 
 
 
 def test_the_matrix_multiplies_and_runs_follow():
-    text = BENCHMARK.replace('"start.cost_factor" = [1e4]\n', "")
-    expansion = expand(text)
+    expansion = expand(BENCHMARK)
     names = [run.name for run in expansion.runs]
 
-    assert expansion.benchmark == {"processes": 2, "repeats": 3}
+    assert (expansion.processes, expansion.repeats) == (2, 3)
     assert len(names) == 2 * 2 * 2 * 2 + 1
     assert names[0] == "C101_25-package-highspy-exact-single-customer"
     assert names[1] == "C101_25-package-highspy-heuristics-first-single-customer"
-    assert names[-1].startswith("R201_50-package-gurobipy-pricing_")
+    assert names[2] == "C101_25-package-one-thread-exact-single-customer"
+    assert re.fullmatch(
+        f"R201_50-package-gurobipy-pricing_{FINGERPRINT}-single-customer", names[-1]
+    )
     assert len(set(names)) == len(names)
-
-    one_thread = expansion.runs[2].options["master"]
-    assert one_thread == {"type": "gurobipy", "parameters": {"Threads": 1}}
-
-    heuristics = expansion.runs[1].options["pricing"]["stages"]
-    assert [stage["algorithm"] for stage in heuristics] == ["greedy", "tabu", "simple"]
+    assert expansion.runs[2].master == Master("gurobipy", {"Threads": 1})
+    assert [stage["algorithm"] for stage in expansion.runs[1].pricing.stages] == [
+        "greedy",
+        "tabu",
+        "simple",
+    ]
 
 
 def test_rounds_run_the_whole_list_each_time():
-    expansion = expand(BENCHMARK.replace('"start.cost_factor" = [1e4]\n', ""))
+    expansion = expand(BENCHMARK)
     rounds = expansion.rounds()
 
     assert len(rounds) == 3 * len(expansion.runs)
@@ -116,7 +180,7 @@ def test_rounds_run_the_whole_list_each_time():
     assert options.folder_name(expansion.runs[0], 2) == expansion.runs[0].name + "-r2"
 
 
-def test_a_dotted_key_sets_one_key_of_a_block():
+def test_a_dotted_name_sets_one_parameter():
     text = """
 [defaults]
 instance = "C101_25"
@@ -126,23 +190,57 @@ instance = "C101_25"
 """
     runs = expand(text).runs
 
-    assert [run.options["start"]["cost_factor"] for run in runs] == [1e3, 1e5]
-    assert runs[0].options["master"]["parameters"] == {"Method": 0}
-    assert runs[0].name == "C101_25-package-highspy-Method-0-exact-artificial-cost_factor-1000.0"
+    assert [run.start.cost_factor for run in runs] == [1e3, 1e5]
+    assert runs[0].master.parameters == {"Method": 0}
 
 
 def test_runs_that_expand_alike_are_kept_once():
     text = '[defaults]\ninstance = "C101_25"\n[matrix]\nmaster = ["highspy", "gurobipy"]\n'
-    runs = expand(text, {"master": "gurobipy"}).runs
+    runs = expand(text, ["--master", "gurobipy"]).runs
 
     assert [run.name for run in runs] == ["C101_25-package-gurobipy-exact-artificial"]
 
 
-def test_a_block_apart_from_the_defaults_is_named():
-    text = '[[runs]]\ninstance = "C101_25"\ncolumn_generation = { max_iterations = 5 }\n'
+def test_without_a_matrix_or_runs_the_defaults_make_one_run():
+    run = run_of('[defaults]\ninstance = "R201_25"\nlayer = "cpp-bindings"\n')
+
+    assert (run.instance.name, run.layer) == ("R201_25", "cpp-bindings")
+
+
+# MARK: Names
+
+
+def test_a_run_is_named_after_its_options_however_they_were_written():
+    text = """
+[master.one-thread]
+type = "gurobipy"
+parameters = { Threads = 1 }
+[[runs]]
+instance = "C101_25"
+master = "one-thread"
+[[runs]]
+instance = "C101_25"
+master = { type = "gurobipy", parameters = { Threads = 1 } }
+start = { type = "artificial", cost_factor = 1e4 }
+"""
     (run,) = expand(text).runs
 
-    assert run.name.startswith("C101_25-package-highspy-exact-artificial-column_generation_")
+    assert run.name == "C101_25-package-one-thread-exact-artificial"
+
+
+def test_a_block_without_a_name_gets_its_type_and_a_fingerprint():
+    text = '[[runs]]\ninstance = "C101_25"\nmaster = { type = "highspy", parameters = { a = 1 } }\n'
+    name = run_of(text).name
+
+    assert re.fullmatch(f"C101_25-package-highspy_{FINGERPRINT}-exact-artificial", name)
+
+
+def test_a_block_apart_from_the_defaults_is_named():
+    text = '[[runs]]\ninstance = "C101_25"\ncolumn_generation = { max_iterations = 5 }\n'
+    name = run_of(text).name
+    expected = f"C101_25-package-highspy-exact-artificial-column_generation_{FINGERPRINT}"
+
+    assert re.fullmatch(expected, name)
 
 
 def test_same_names_get_a_fingerprint():
@@ -163,52 +261,259 @@ instance = "C101_25"
     assert names[0] != names[1]
 
 
-# MARK: Overrides
+# MARK: Merging, names lookup
 
 
-def test_the_command_line_overrides_the_file():
-    text = '[defaults]\ninstance = "C101_25"\nmaster = "gurobipy"\n'
-    command_line = options.parse_assignments(
-        ["--master", "highspy", "--repeats=2", "--column_generation.max_iterations", "7"]
-    )
-    expansion = expand(text, command_line)
-    (run,) = expansion.runs
+def test_a_block_merges_into_the_one_below_unless_it_names_another_type():
+    text = """
+[defaults]
+instance = "C101_25"
+column_generation = { max_iterations = 5, timeout_s = 60 }
+master = { type = "gurobipy", parameters = { Threads = 1 } }
+[[runs]]
+column_generation = { max_iterations = 10 }
+master = { type = "gurobipy", parameters = { Method = 0 } }
+[[runs]]
+master = "highspy"
+[[runs]]
+master = { parameters = { Method = 1 } }
+start.cost_factor = 1e3
+"""
+    merged, replaced, untyped = expand(text).runs
 
-    assert run.options["master"]["type"] == "highspy"
-    assert run.options["column_generation"] == {"max_iterations": 7}
-    assert expansion.benchmark["repeats"] == 2
+    assert merged.column_generation == ColumnGeneration(10, 60.0)
+    assert merged.master.parameters == {"Threads": 1, "Method": 0}
+    assert replaced.master == Master("highspy", {})
+    assert untyped.master.parameters == {"Threads": 1, "Method": 1}
+    assert untyped.start == Start("artificial", 1e3)
+
+
+def test_a_definition_comes_before_a_type_and_an_instance_name():
+    text = """
+[master.highspy]
+type = "highspy"
+parameters = { threads = 1 }
+[instance.C101_25]
+type = "solomon"
+name = "R201_25"
+[[runs]]
+instance = "C101_25"
+master = "highspy"
+"""
+    run = run_of(text)
+
+    assert run.master.parameters == {"threads": 1}
+    assert run.instance == Instance("solomon", "R201_25")
 
 
 def test_a_file_definition_replaces_a_preset():
     text = '[pricing.exact]\nstages = [{ algorithm = "astar" }]\n[defaults]\ninstance = "C101_25"\n'
-    (run,) = expand(text).runs
 
-    assert run.options["pricing"] == {"stages": [{"algorithm": "astar"}]}
+    assert run_of(text).pricing.stages == [{"algorithm": "astar"}]
 
 
-def test_a_run_file_and_the_command_line_make_one_run():
-    heuristic = [{"algorithm": "tabu", "max_solutions": 20, "max_iterations": 1000}]
-    stages = [*heuristic, {"algorithm": "simple"}]
-    run_file = {"instance": "R201_25", "pricing": {"stages": stages}, "start": "single-customer"}
-    command_line = options.parse_assignments(
-        ["--stage", "tabu:max_solutions=20,max_iterations=1000", "--stage", "simple"]
+# MARK: Layers
+
+
+def test_a_matrix_drops_a_master_its_layer_has_not():
+    text = """
+[defaults]
+instance = "C101_25"
+[matrix]
+layer = ["package", "cpp-bindings"]
+master = ["highspy", "highs"]
+"""
+    expansion = expand(text)
+
+    assert [(run.layer, run.master.type) for run in expansion.runs] == [
+        ("package", "highspy"),
+        ("cpp-bindings", "highspy"),
+        ("cpp-bindings", "highs"),
+    ]
+    assert len(expansion.dropped) == 1
+    assert "layer package has no master highs" in expansion.dropped[0]
+
+
+def test_a_run_asking_for_a_master_its_layer_has_not_is_refused():
+    with pytest.raises(OptionsError, match="layer package has no master highs"):
+        expand('[[runs]]\ninstance = "C101_25"\nmaster = "highs"\n')
+
+    command_line = RunOptions.from_table({"master": "highs"}, "command line")
+
+    with pytest.raises(OptionsError, match="layer package has no master highs"):
+        options.expand_run({"instance": "C101_25"}, command_line)
+
+
+# MARK: Run files
+
+
+def test_a_run_entry_can_start_from_a_run_file(tmp_path: Path):
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "run.toml").write_text(
+        'instance = "R201_25"\nmaster = { type = "gurobipy", parameters = { Threads = 1 } }\n'
     )
+    text = '[[runs]]\nfrom = "old/run.toml"\nmaster = "highspy"\n'
+    benchmark = Benchmark.from_table(tomllib.loads(text), folder=tmp_path)
+    (run,) = benchmark.expand().runs
+
+    assert run.instance.name == "R201_25"
+    assert run.master == Master("highspy", {})
+
+    absolute = f'[[runs]]\nfrom = "{(tmp_path / "old" / "run.toml").as_posix()}"\n'
+    (again,) = Benchmark.from_table(tomllib.loads(absolute)).expand().runs
+
+    assert again.master == Master("gurobipy", {"Threads": 1})
+
+
+def test_a_missing_run_file_is_refused(tmp_path: Path):
+    with pytest.raises(OptionsError, match="missing.toml"):
+        Benchmark.from_table({"runs": [{"from": "missing.toml"}]}, folder=tmp_path)
+
+
+def test_a_recorded_run_file_reads_back_the_same():
+    stages = [{"algorithm": "tabu", "max_iterations": 10}, {"algorithm": "simple"}]
+    run = options.expand_run(
+        {
+            "instance": "R201_25",
+            "layer": "cpp-bindings",
+            "master": {"type": "highs", "parameters": {"threads": 1}},
+            "pricing": {"stages": stages},
+            "start": "single-customer",
+            "column_generation": {"max_iterations": 5, "timeout_s": 60, "tolerances": "relative"},
+            "statistics": {"process": False},
+        }
+    )
+    again = options.expand_run(run.to_table())
+
+    assert again == run
+    assert again.name == run.name
+
+
+def test_a_hand_written_run_file_needs_only_what_differs():
+    text = 'instance = "R201_25"\nmaster = "gurobipy"\n"column_generation.timeout_s" = 600\n'
+    run = options.expand_run(tomllib.loads(text))
+    expected = f"R201_25-package-gurobipy-exact-artificial-column_generation_{FINGERPRINT}"
+
+    assert re.fullmatch(expected, run.name)
+    assert run.column_generation.timeout_s == 600.0
+
+
+def test_a_run_file_holds_run_options_only():
+    with pytest.raises(OptionsError, match="unknown option 'defaults'"):
+        options.expand_run({"instance": "C101_25", "defaults": {}})
+
+    with pytest.raises(OptionsError, match="'one-thread' is not a parameter of master"):
+        options.expand_run({"instance": "C101_25", "master.one-thread": {}})
+
+
+# MARK: Command line
+
+
+def test_the_command_line_overrides_the_file():
+    text = '[defaults]\ninstance = "C101_25"\nmaster = "gurobipy"\n'
+    arguments = parse(
+        ["--master", "highspy", "--repeats", "2", "--column_generation.max_iterations", "7"]
+    )
+    benchmark = Benchmark.from_table(tomllib.loads(text))
+    benchmark = replace(benchmark, repeats=arguments.repeats or benchmark.repeats)
+    expansion = benchmark.expand(options.run_from_arguments(arguments, benchmark.names))
+    (run,) = expansion.runs
+
+    assert run.master.type == "highspy"
+    assert run.column_generation.max_iterations == 7
+    assert expansion.repeats == 2
+
+
+def test_a_runner_command_line_overrides_its_run_file_and_can_name_a_preset():
+    arguments = parse(["--pricing", "exact", "--master", "gurobipy", "--start", "single-customer"])
+    run_file = {"instance": "C101_25", "pricing": {"stages": [{"algorithm": "astar"}]}}
+    run = options.expand_run(run_file, options.run_from_arguments(arguments))
+
+    assert run.pricing.stages == [{"algorithm": "simple"}]
+    assert run.master.type == "gurobipy"
+    assert run.start == Start("single-customer")
+
+
+PARAMETERS: list[tuple[str, str, Callable[[Run], bool]]] = [
+    ("--instance.name", "R201_25", lambda run: run.instance.name == "R201_25"),
+    ("--master.parameters", "{ Threads = 1 }", lambda run: run.master.parameters == {"Threads": 1}),
+    ("--start.cost_factor", "1e3", lambda run: run.start.cost_factor == 1e3),
+    (
+        "--column_generation.max_iterations",
+        "5",
+        lambda run: run.column_generation.max_iterations == 5,
+    ),
+    ("--column_generation.timeout_s", "60", lambda run: run.column_generation.timeout_s == 60.0),
+    (
+        "--column_generation.tolerances",
+        "relative",
+        lambda run: run.column_generation.tolerances == {"type": "relative"},
+    ),
+    ("--statistics.process", "false", lambda run: run.statistics == Statistics(False)),
+    ("--layer", "cpp-bindings", lambda run: run.layer == "cpp-bindings"),
+    ("--graph", "{}", lambda run: run.graph.to_table() == {}),
+]
+
+
+@pytest.mark.parametrize(("argument", "value", "check"), PARAMETERS)
+def test_every_parameter_has_its_command_line_option(
+    argument: str, value: str, check: Callable[[Run], bool]
+):
+    command_line = options.run_from_arguments(parse([argument, value]))
+
+    assert check(options.expand_run({"instance": "C101_25"}, command_line))
+
+
+def test_stages_on_the_command_line():
+    arguments = parse(["--stage", "tabu:max_solutions=20,max_iterations=1000", "--stage", "simple"])
+    run = options.expand_run({"instance": "R201_25"}, options.run_from_arguments(arguments))
+
+    assert run.pricing.stages == [
+        {"algorithm": "tabu", "max_solutions": 20, "max_iterations": 1000},
+        {"algorithm": "simple"},
+    ]
 
     with pytest.raises(OptionsError, match="not both"):
-        options.parse_assignments(["--stage", "simple", "--pricing", "exact"])
-
-    run = options.expand_run({"instance": "R201_25"}, command_line)
-    tabu = options.expand_run(run_file, {})
-
-    assert run.options["pricing"] == tabu.options["pricing"]
-    assert tabu.name.startswith("R201_25-package-highspy-pricing_")
-    assert tabu.name.endswith("-single-customer")
+        options.run_from_arguments(parse(["--stage", "simple", "--pricing", "exact"]))
 
 
 def test_command_line_values_are_read_as_toml():
-    assert options.parse_assignments(
-        ["--a", "8", "--b", "true", "--c", "C101_25", "--d", "{ type = 'gurobipy' }", "--e", "inf"]
-    ) == {"a": 8, "b": True, "c": "C101_25", "d": {"type": "gurobipy"}, "e": math.inf}
+    texts = ("8", "true", "C101_25", "{ type = 'gurobipy' }", "inf")
+
+    assert [toml_value(text) for text in texts] == [
+        8,
+        True,
+        "C101_25",
+        {"type": "gurobipy"},
+        math.inf,
+    ]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--instance"],
+        ["--instance", "--master", "highspy"],
+        ["--ngsize", "8"],
+        ["--stage", "tabu:max_solutions"],
+        ["--processes", "two"],
+    ],
+)
+def test_argparse_refuses_what_it_does_not_know(arguments: list[str]):
+    with pytest.raises((SystemExit, argparse.ArgumentError)):
+        parse(arguments)
+
+
+def test_the_help_lists_every_option_and_parameter():
+    parser = argparse.ArgumentParser(prog="runner")
+    options.add_run_options(parser)
+    text = parser.format_help()
+
+    for name in ("--instance", "--master", "--start.cost_factor", "--master.parameters", "--stage"):
+        assert name in text
+
+
+# MARK: Checks
 
 
 def test_stages_take_any_algorithm_params_field():
@@ -226,6 +531,9 @@ def test_stages_take_any_algorithm_params_field():
     assert params.tabu_exempt_node_ids == {0, 26}
     assert params.timeout_s == 2.0
 
+    with pytest.raises(OptionsError, match="direction 'up' is not one of"):
+        options.make_algorithm_params({"algorithm": "simple", "direction": "up"})
+
 
 def test_tolerances_by_name_or_table():
     text = """
@@ -238,64 +546,62 @@ column_generation = { tolerances = { type = "absolute", reduced_cost = 1e-6 } }
 """
     runs = expand(text).runs
 
-    assert runs[0].options["column_generation"]["tolerances"] == {"type": "relative"}
-    assert runs[1].options["column_generation"]["tolerances"]["reduced_cost"] == 1e-6
+    assert runs[0].column_generation.tolerances == {"type": "relative"}
+    assert runs[1].column_generation.tolerances == {"type": "absolute", "reduced_cost": 1e-6}
 
 
-# MARK: Errors
+def test_a_run_without_a_layer_is_refused():
+    with pytest.raises(OptionsError, match="layer is missing"):
+        RunOptions().complete()
+
+
+RUN = '[defaults]\ninstance = "C101_25"\n'
 
 
 @pytest.mark.parametrize(
     ("text", "message"),
     [
+        # Options and names.
         ('[defaults]\nmaster = "highspy"\n', "instance is missing"),
-        ('[defaults]\ninstance = "C101_25"\nlayer = "cpp"\n', "layer 'cpp' is not one of"),
-        ('[defaults]\ninstance = "C101_25"\nmaster = "cplex"\n', "unknown master 'cplex'"),
+        (RUN + 'layer = "cpp"\n', "layer 'cpp' is not one of"),
+        (RUN + '"layer.x" = 1\n', "layer has no parameters"),
+        (RUN + 'master = "cplex"\n', "unknown master 'cplex'"),
+        (RUN + "master = 3\n", "master is a name or a table"),
+        (RUN + "ngsize = 8\n", "unknown option 'ngsize'"),
+        (RUN + 'master = "highspy"\n"master.type.x" = 1\n', "master.type is not a table"),
+        # Blocks.
         ('[defaults]\ninstance = { name = "C101_25" }\n', "instance needs a type"),
+        ('[defaults]\ninstance = { type = "solomon" }\n', "instance.name is missing"),
+        ('[defaults]\ninstance = { type = "solomon", name = 3 }\n', "3 is not a string"),
+        (RUN + "master = { Threads = 1 }\n", "'Threads' is not a parameter"),
+        (RUN + 'master = { type = "highspy", threads = 1 }\n', "'threads' is not a parameter"),
+        (RUN + 'master = { type = "highspy", parameters = 1 }\n', "1 is not a table"),
+        (RUN + 'start = { type = "single-customer", cost_factor = 1 }\n', "has no cost_factor"),
+        (RUN + 'start = { type = "artificial", cost_factor = "big" }\n', "'big' is not a number"),
+        (RUN + '"graph.ng_size" = 8\n', "'ng_size' is not a parameter of graph"),
+        (RUN + "statistics = { process = 3 }\n", "3 is not true or false"),
+        (RUN + "pricing = { stages = [] }\n", "non-empty list"),
+        (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
+        (RUN + 'pricing = { stages = [{ algorithm = "dijkstra" }] }\n', "algorithm 'dijkstra'"),
         (
-            '[defaults]\ninstance = "C101_25"\nmaster = { Threads = 1 }\n',
-            "'Threads' is not a parameter",
-        ),
-        (
-            '[defaults]\ninstance = "C101_25"\nmaster = { type = "highspy", threads = 1 }\n',
-            "'threads' is not a parameter of master",
-        ),
-        (
-            '[defaults]\ninstance = "C101_25"\n"graph.ng_size" = 8\n',
-            "'ng_size' is not a parameter of graph",
-        ),
-        ('[defaults]\ninstance = "C101_25"\nngsize = 8\n', "unknown option 'ngsize'"),
-        ('[defaults]\ninstance = "C101_25"\npricing = { stages = [] }\n', "non-empty list"),
-        (
-            '[defaults]\ninstance = "C101_25"\n'
-            'pricing = { stages = [{ algorithm = "dijkstra" }] }\n',
-            "algorithm 'dijkstra'",
-        ),
-        (
-            '[defaults]\ninstance = "C101_25"\n'
-            'pricing = { stages = [{ algorithm = "simple", max_solution = 5 }] }\n',
+            RUN + 'pricing = { stages = [{ algorithm = "simple", max_solution = 5 }] }\n',
             "'max_solution' is not a field of AlgorithmParams",
         ),
         (
-            '[defaults]\ninstance = "C101_25"\n'
-            'pricing = { stages = [{ algorithm = "simple", max_solutions = "five" }] }\n',
+            RUN + 'pricing = { stages = [{ algorithm = "simple", max_solutions = "five" }] }\n',
             "max_solutions = 'five' is refused",
         ),
-        (
-            '[defaults]\ninstance = "C101_25"\ncolumn_generation = { max_iterations = 1.5 }\n',
-            "1.5 is not a whole number",
-        ),
-        (
-            '[defaults]\ninstance = "C101_25"\ncolumn_generation = { tolerances = "loose" }\n',
-            "tolerances 'loose' is not one of",
-        ),
-        (
-            '[defaults]\ninstance = "C101_25"\n'
-            'column_generation = { tolerances = { type = "relative", gap = 1 } }\n',
-            "gap",
-        ),
-        ('[defaults]\ninstance = "C101_25"\n[matrix]\nmaster = "highspy"\n', "non-empty list"),
-        ('[defaults]\ninstance = "C101_25"\n[matrix]\ngraph.ng_size = [0, 8]\n', "quote a dotted"),
+        (RUN + "column_generation = { max_iterations = 1.5 }\n", "1.5 is not a whole number"),
+        (RUN + 'column_generation = { tolerances = "loose" }\n', "tolerances 'loose' is not one"),
+        (RUN + 'column_generation = { tolerances = { type = "relative", gap = 1 } }\n', "gap"),
+        # Benchmark files.
+        (RUN + '[matrix]\nmaster = "highspy"\n', "non-empty list"),
+        (RUN + "[matrix]\ngraph.ng_size = [0, 8]\n", "quote a dotted"),
+        ("matrix = [1]\n", r"\[matrix\] is a table of lists"),
+        ("[runs]\nmaster = 1\n", "runs is a list of tables"),
+        ("runs = [1]\n", "a run is a table of options"),
+        ("[master]\none-thread = 1\n", r"\[master\] holds named master tables"),
+        ('master = "highspy"\n', r"\[master\] holds named master tables"),
         ("[benchmark]\nprocesses = 0\n", "at least 1"),
         ("[benchmark]\nthreads = 2\n", "unknown benchmark option 'threads'"),
         ("[machine]\nlabel = 'laptop'\n", "unknown section 'machine'"),
@@ -306,111 +612,9 @@ def test_wrong_options_are_refused(text: str, message: str):
         expand(text)
 
 
-def test_command_line_errors():
-    with pytest.raises(OptionsError, match="needs a value"):
-        options.parse_assignments(["--instance"])
-
-    with pytest.raises(OptionsError, match="--instance needs a value"):
-        options.parse_assignments(["--instance", "--master", "highspy"])
-
-    with pytest.raises(OptionsError, match="is not an option"):
-        options.parse_assignments(["C101_25"])
-
-    with pytest.raises(OptionsError, match="not name=value"):
-        options.parse_assignments(["--stage", "tabu:max_solutions"])
-
-    with pytest.raises(OptionsError, match="option of a benchmark"):
-        options.expand_run({"instance": "C101_25"}, {"processes": 2})
-
-
 def test_a_malformed_file_is_refused(tmp_path: Path):
     path = tmp_path / "benchmark.toml"
     path.write_text("[defaults\n")
 
     with pytest.raises(OptionsError, match="benchmark.toml"):
         options.read_toml(path)
-
-
-# MARK: Merging, layers, run files, help
-
-
-def test_a_table_merges_into_a_block_of_the_same_type():
-    text = """
-[defaults]
-instance = "C101_25"
-column_generation = { max_iterations = 5, timeout_s = 60 }
-master = { type = "gurobipy", parameters = { Threads = 1 } }
-[[runs]]
-column_generation = { max_iterations = 10 }
-master = { type = "gurobipy", parameters = { Method = 0 } }
-[[runs]]
-master = "highspy"
-[[runs]]
-master = { parameters = { Method = 1 } }
-start.cost_factor = 1e3
-"""
-    merged, replaced, untyped = expand(text).runs
-
-    assert merged.options["column_generation"] == {"max_iterations": 10, "timeout_s": 60.0}
-    assert merged.options["master"]["parameters"] == {"Threads": 1, "Method": 0}
-    assert replaced.options["master"] == {"type": "highspy", "parameters": {}}
-    assert untyped.options["master"] == {
-        "type": "gurobipy",
-        "parameters": {"Threads": 1, "Method": 1},
-    }
-    assert untyped.options["start"] == {"type": "artificial", "cost_factor": 1e3}
-
-
-def test_a_matrix_drops_a_master_its_layer_has_not():
-    text = """
-[defaults]
-instance = "C101_25"
-[matrix]
-layer = ["package", "cpp-bindings"]
-master = ["highspy", "highs"]
-"""
-    expansion = expand(text)
-
-    assert [run.name.split("-exact")[0] for run in expansion.runs] == [
-        "C101_25-package-highspy",
-        "C101_25-cpp-bindings-highspy",
-        "C101_25-cpp-bindings-highs",
-    ]
-    assert len(expansion.dropped) == 1
-    assert "layer package has no master highs" in expansion.dropped[0]
-
-
-def test_a_run_asking_for_a_master_its_layer_has_not_is_refused():
-    with pytest.raises(OptionsError, match="layer package has no master highs"):
-        expand('[[runs]]\ninstance = "C101_25"\nmaster = "highs"\n')
-
-    with pytest.raises(OptionsError, match="layer package has no master highs"):
-        options.expand_run({"instance": "C101_25"}, {"master": "highs"})
-
-
-def test_a_run_entry_can_start_from_a_run_file(tmp_path: Path):
-    (tmp_path / "old").mkdir()
-    (tmp_path / "old" / "run.toml").write_text(
-        'instance = { type = "solomon", name = "R201_25" }\nmaster = { type = "gurobipy" }\n'
-    )
-    text = '[[runs]]\nfrom = "old/run.toml"\nmaster = "highspy"\n'
-    (run,) = options.expand_benchmark(tomllib.loads(text), {}, folder=tmp_path).runs
-
-    assert run.options["instance"]["name"] == "R201_25"
-    assert run.options["master"]["type"] == "highspy"
-
-
-def test_the_help_lists_every_option():
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="runner")
-    parser.add_argument("--output")
-    flags, given = options.split_command_line(
-        parser, ["--output", "out", "--master", "gurobipy", "--start.cost_factor", "1e3"]
-    )
-
-    assert flags.output == "out"
-    assert given == {"master": "gurobipy", "start.cost_factor": 1e3}
-
-    for option in options.RUN_OPTIONS:
-        assert option in options.describe()
