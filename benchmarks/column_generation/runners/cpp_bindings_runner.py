@@ -57,23 +57,7 @@ def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> Mast
     solver: MasterSolver
 
     if run.master.type == "gurobipy":
-        import gurobipy
-        from gurobipy import GRB
-
-        model = gurobipy.Model()
-        model.Params.OutputFlag = 0
-
-        for low, up in zip(lower, upper, strict=True):
-            if low == up:
-                model.addLConstr(gurobipy.LinExpr(), GRB.EQUAL, low)
-            elif math.isinf(up):
-                # Gurobi reads -1e30 as no bound: a free row.
-                model.addLConstr(gurobipy.LinExpr(), GRB.GREATER_EQUAL, max(low, -1e30))
-            elif math.isinf(low):
-                model.addLConstr(gurobipy.LinExpr(), GRB.LESS_EQUAL, up)
-            else:
-                raise ValueError(f"gurobipy: a row with two different finite bounds ({low}, {up})")
-
+        model = runner.gurobipy_model(lower, upper)
         solver = cpp_column_generation.GurobipyMasterSolver(model)
     elif not hasattr(cpp_column_generation, "HighsMasterSolver"):
         raise source_tree.SourceTreeError(
@@ -107,7 +91,13 @@ def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> Mast
 
 def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
     """The instance, the master and its loop, ready to run: graph, master, pricer and
-    start built."""
+    start built.
+
+    Raises:
+        SourceTreeError: When the build has not the example, or not the part a master needs.
+    """
+    source_tree.use_example()
+
     from cpp_column_generation import (
         ArtificialColumns,
         ColumnGeneration,
@@ -183,17 +173,6 @@ def solve(loop: ColumnGeneration) -> dict[str, Any]:
     }
 
 
-def gone() -> tuple[type[Exception], ...]:
-    """What a master solver raises when it has no values to give: the C++ master solvers
-    RuntimeError, gurobipy GurobiError."""
-    errors: tuple[type[Exception], ...] = (RuntimeError,)
-
-    if "gurobipy" in sys.modules:
-        errors += (sys.modules["gurobipy"].GurobiError,)
-
-    return errors
-
-
 def describe_columns(
     columns: list[MasterColumn], values: list[float]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -242,7 +221,7 @@ def read_solution(master: MasterProblem, objective: float | None) -> dict[str, A
     try:
         values = master.solver().primal(np.array([column.id for column in columns], np.uint64))
         duals = master.solver().duals()
-    except gone() as error:
+    except runner.values_gone() as error:
         missing = f"columns were added after the last LP solve ({error})"
         return {"lp": None, "lp_missing": missing}
 
@@ -309,7 +288,7 @@ def solve_integer(loop: ColumnGeneration, master: MasterProblem, run: Run) -> di
     try:
         values = master.solver().primal(np.array([column.id for column in columns], np.uint64))
         objective = master.solver().objective()
-    except gone():
+    except runner.values_gone():
         return {**found, "objective": None, "columns": [], "artificial_columns": []}
 
     used, artificial = describe_columns(columns, values.tolist())
@@ -317,45 +296,17 @@ def solve_integer(loop: ColumnGeneration, master: MasterProblem, run: Run) -> di
 
 
 def main(arguments: list[str] | None = None) -> int:
-    arguments = sys.argv[1:] if arguments is None else arguments
-    parsed = runner.parse_arguments(__doc__, arguments)
-
-    try:
-        run, build_folder = runner.read_run(parsed, LAYER)
-        source_tree.use_example()
-        # Built first: wrong options stop the runner before its folder is touched.
-        instance, master, loop = build(run)
-
-        if parsed.check:
-            print(f"{run.name}: built")
-            return 0
-
-        folder = runner.start_folder(parsed, run, [str(Path(__file__).resolve()), *arguments])
-        result = solve(loop)
-        result["lp_solved_again_seconds"] = None
-        solution = None
-
-        # Read before the integer solve, which drops the LP's values.
-        if run.statistics.solution:
-            solution = read_solution(master, result["objective"])
-
-            # Stopped at a limit after pricing: the added columns took the LP's values.
-            if solution["lp"] is None and result["objective"] is not None:
-                solution, result["lp_solved_again_seconds"] = solve_lp_again(master, run)
-
-        integer = solve_integer(loop, master, run) if run.integer.solve else None
-        fields, parts = runner.integer_results(instance, result, integer)
-        result.update(fields)
-
-        if solution is not None:
-            solution.update(parts)
-
-        runner.finish_folder(folder, parsed, run, build_folder, result, solution)
-    except runner.ERRORS as error:
-        print(f"{Path(__file__).name}: {error}", file=sys.stderr)
-        return 2
-
-    return runner.report(Path(__file__).name, run, result, parts)
+    return runner.main(
+        __doc__,
+        Path(__file__),
+        sys.argv[1:] if arguments is None else arguments,
+        layer=LAYER,
+        build=build,
+        solve=solve,
+        read_solution=read_solution,
+        solve_lp_again=solve_lp_again,
+        solve_integer=solve_integer,
+    )
 
 
 if __name__ == "__main__":
