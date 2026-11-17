@@ -8,6 +8,8 @@ is a vehicle routing idea, so it belongs here). An instance block's ``type`` pic
 :data:`INSTANCE_TYPES`.
 """
 
+from __future__ import annotations
+
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
@@ -39,7 +41,7 @@ class Instance(ABC):
     STARTS: tuple[str, ...] = ()
 
     @abstractmethod
-    def build_graph(self, options: Mapping[str, Any]) -> "ResourceGraph":
+    def build_graph(self, options: Mapping[str, Any]) -> ResourceGraph:
         """The pricing graph, built with the run's ``graph`` options; its arcs give the
         rows they cover."""
 
@@ -48,7 +50,7 @@ class Instance(ABC):
         """The lower and upper bound of every master row, by row index."""
 
     @abstractmethod
-    def starting_columns(self, start: str) -> list["Solution"]:
+    def starting_columns(self, start: str) -> list[Solution]:
         """The columns a start of type `start` adds before the first master solve, each
         a solution with its column set.
 
@@ -102,7 +104,7 @@ class SolomonInstance(Instance):
         self.vehicles, self.capacity, self.customers = self.parse(text)
 
     @classmethod
-    def from_options(cls, block: Mapping[str, Any]) -> "SolomonInstance":
+    def from_options(cls, block: Mapping[str, Any]) -> SolomonInstance:
         """The instance a block names: ``instances/<name>.txt`` of the tree."""
         return cls(INSTANCES_DIRECTORY / f"{block['name']}.txt", block["name"])
 
@@ -138,7 +140,7 @@ class SolomonInstance(Instance):
         """The sink's node: the number after the last customer."""
         return len(self.customers)
 
-    def build_graph(self, options: Mapping[str, Any]) -> "ResourceGraph":
+    def build_graph(self, options: Mapping[str, Any]) -> ResourceGraph:
         from rcspp._core.graph import Row
         from rcspp.graph import ResourceGraph
         from rcspp.resource import (
@@ -208,7 +210,7 @@ class SolomonInstance(Instance):
         upper = [math.inf] + [1.0] * (len(self.customers) - 1)
         return lower, upper
 
-    def starting_columns(self, start: str) -> list["Solution"]:
+    def starting_columns(self, start: str) -> list[Solution]:
         if start not in self.STARTS:
             raise InstanceError(f"instance {self.name}: no {start!r} start")
 
