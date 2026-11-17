@@ -1,6 +1,6 @@
 # Benchmark runner (`T-1.10`): design
 
-Design chat 2026-11-16, decided by the user (`D-177`–`D-187`). Starting point, kept on the plan branch as records:
+Design chat 2026-11-16, decided by the user (`D-177`–`D-187`, `D-189`–`D-194`). Starting point, kept as records:
 `benchmark-results/colgen/drivers.py`, `run_matrix.py`, `full_comparison_verdict.py`. Coding steps: §9.
 
 ## 1. Shape (`D-177`, `D-178`, `D-189`)
@@ -14,11 +14,11 @@ Design chat 2026-11-16, decided by the user (`D-177`–`D-187`). Starting point,
 | contract | a runner takes options and/or a run file and an output folder, does one run, writes its files there (§4); the benchmark knows only this, never imports a runner |
 | docs | the folder's `README.md`: install the dependencies, build `_core` with the example on, build the C++ runner when it exists, run one runner, run a benchmark, read the output (`D-187`) |
 
-| layer | runner | what runs |
-|---|---|---|
-| `package` | `package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package |
-| `cpp-bindings` | `cpp_bindings_runner.py` | the C++ example layer through its bindings: C++ master, pricer and loop |
-| `cpp-native` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` |
+| layer | runner | what runs | masters (`D-190`) |
+|---|---|---|---|
+| `package` | `package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package | `highspy`, `gurobipy` |
+| `cpp-bindings` | `cpp_bindings_runner.py` | the C++ example layer through its bindings: C++ pricer and loop | `highs`; `highspy`, `gurobipy` through the Python master adapter |
+| `cpp-native` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` | `highs`; `gurobi` when built with it |
 
 Dropped: the example's Python loop over the bindings (measured only loop against loop) and the old Python VRP
 example (`T-1.18` compares it once, then ports it onto the package).
@@ -41,9 +41,9 @@ example (`T-1.18` compares it once, then ports it onto the package).
 |---|---|---|
 | `instance` | `{ type = "solomon", name = "C101_25" }`, shorthand `"C101_25"` | §5 |
 | `graph` | `{ ng_size = 8 }` | `T-1.16` adds `ng_size` |
-| `master` | `{ type = "gurobipy", parameters = { Method = 0 } }` | `highspy`, `gurobipy`; `parameters` passed to the solver as they are |
-| `pricing` | `{ stages = [ { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" } ] }` | stage keys are the engine's `AlgorithmParams` fields; presets `exact`, `tabu`, `greedy` |
-| `start` | `{ type = "single-customer" }`, `{ type = "artificial", cost_factor = 1e4 }` | `single-customer`: one route per customer |
+| `master` | `{ type = "gurobipy", parameters = { Method = 0 } }` | per layer (§1); `parameters` passed to the solver as they are |
+| `pricing` | `{ stages = [ { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" } ] }` | stage keys are the engine's `AlgorithmParams` fields, `timeout_s` caps a stage; preset `exact` only (`D-192`) |
+| `start` | `{ type = "single-customer" }`, `{ type = "artificial", cost_factor = 1e4 }` | `artificial` from the layer; `single-customer` (one route per customer) from the instance (`D-191`) |
 | `column_generation` | tolerances, limits | the package's own parameters |
 | `statistics` | `{ per_iteration = true }` | collectors on or off (§6) |
 
@@ -58,7 +58,7 @@ repeats = 3                     # rounds: every run once, then again (§3)
 
 [pricing.heuristics-first]
 stages = [
-  { algorithm = "greedy", max_solutions = 100 },
+  { algorithm = "greedy", max_solutions = 100, timeout_s = 60 },
   { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
   { algorithm = "simple" },
 ]
@@ -69,7 +69,7 @@ start = { type = "single-customer" }
 [matrix]                        # the product of these lists; any key, dotted for a block's key
 instance = ["C101_25", "R201_25"]
 layer = ["package", "cpp-bindings"]
-master = ["highspy", "gurobipy"]
+master = ["highspy", "gurobipy", "highs"]   # package × highs dropped and listed (D-190)
 pricing = ["exact", "heuristics-first"]
 "graph.ng_size" = [0, 8]
 
@@ -78,10 +78,16 @@ instance = "R201_50"
 layer = "package"
 master = "gurobipy"
 pricing = { stages = [ { algorithm = "simple", max_solutions = 5 }, { algorithm = "simple" } ] }
+
+[[runs]]                        # a recorded run again, one option changed (D-194)
+from = "old/runs/R201_50-package-gurobipy-exact-artificial-r1/run.toml"
+master = "highspy"
 ```
 
 The benchmark expands everything before the first run; a run's `run.toml` holds the expanded values, not the names,
-so it runs the same after a preset changes.
+so it runs the same after a preset changes. Then it checks (`D-191`): `options` always (layer × master, instance
+files, starts; lists the runs and their folders), and `build` unless `--no-check`: each runner with `--check build`
+builds instance, graph, master, pricer and starting columns without solving, once per run.
 
 ## 3. Repeats (`D-184`)
 
@@ -115,7 +121,8 @@ min, max and spread over the rounds.
 ## 5. Instances (`D-186`)
 
 An interface in the shared module: read the instance, build the graph and the master's rows, give starting columns
-(`single-customer` belongs here: it is a VRP idea). One implementation, Solomon VRPTW, picked by `type` from a dict.
+(`single-customer` belongs here: it is a VRP idea; each type declares its starts, `D-191`). One implementation,
+Solomon VRPTW, picked by `type` from a dict.
 No discovery. Later, if users need their own: `type = "module:Class"`, an import path, without changing the format.
 
 ## 6. Statistics (`D-181`)
@@ -145,8 +152,8 @@ lists them and checks `D-164`'s same solver versions across the layers per cell.
 - Shared, never duplicated: options and TOML, instances and graphs, record, collectors, the run folder, the
   `result.json` fields. A runner holds only the column generation calls (about 100 lines). `package` and
   `cpp-bindings` look alike on purpose: merged, they would hide the code a reader looks for.
-- `cpp-native` shares no Python: the benchmark resolves everything and passes it plain options; the program writes
-  `result.json` itself. Settled in `T-1.19`.
+- `cpp-native` shares no Python (`D-193`): it reads an expanded `run.toml`, writes `result.json`, supports
+  `--check build`; it ports the instance (tested arc for arc against Python's); `benchmark.py` writes its record.
 - A test keeps the layers from drifting: every runner built gives the same objective, iterations and columns on
   C101_25.
 
@@ -165,6 +172,21 @@ Out of scope (`D-183`): `T-1.9`; phase 5's grid and `T-2.5`'s records. The maste
 
 Steps 1–4 done 2026-11-16 (`F-62`); what they change for steps 5–9: `F-62`, the README status.
 
+`D-190`–`D-196` folded into steps 1–4 2026-11-16 (rebuilt from `0597e768`, the rename folded too; force-pushed,
+old head local `backup/benchmark-steps-1-4-8e944acd`): 1 `58a9071b` the README without options; 2 `6c3b19cc` the
+`options/` package (`D-195`; a table merges unless it names another `type`), `presets.toml` with `exact` only,
+`OPTIONS.md`; 3 `67822d53` `STARTS` per instance type (`D-191`); 4 `f1aff5e7`. Tests and hooks pass at each; 75 tests.
+
+Then, on top (2026-11-17, pushed): `76c4f444` pyright strict; `589966ad` the options as dataclasses (`D-197`–`D-200`:
+`RunOptions`, `Run`, `Benchmark`, argparse; places; `cost_factor` in the presets; names from the complete run),
+`OPTIONS.md` as the full reference (`D-201`), tests at 100 % of `options/` (`D-202`).
+
+Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
+them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
+`add_benchmark_options`, checks `options` then `build` unless `--no-check`, prints the dropped matrix points, passes
+the file's folder for `from` (7); the integration tests of `D-202` (5–7); `OPTIONS.md` and the README grow with each
+step.
+
 | # | commit | contents | tests |
 |---|---|---|---|
 | 1 | the folder and its docs | `README.md` (install, build `_core` with the example, run), `requirements.txt` (psutil, tomli-w), the source guard | the guard |
@@ -182,8 +204,7 @@ runner's own imports stay inside the folder and the tree.
 
 ## 10. For the implementer
 
-First chat: "Task: `T-1.10`, coding steps 1–4 of `benchmark-runner.md` §9, on a new branch based on #88" (branch name
-the user's; push and PR only when asked). Facts to port, from `benchmark-results/colgen/drivers.py`:
+Push and PR only when asked. Facts to port, from `benchmark-results/colgen/drivers.py`:
 
 - `master_model`: the depot is node 0, so master row 0 is free and rows 1..n are `= 1`; arcs out of customer `i`
   cover row `i`. highspy: `addRow(lower, upper, 0, [], [])`; gurobipy: `= 1` rows, the free row as `≥ -1e30`.
