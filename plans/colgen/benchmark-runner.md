@@ -16,8 +16,8 @@ Design chat 2026-11-16, decided by the user (`D-177`–`D-187`, `D-189`–`D-194
 
 | layer | runner | what runs | masters (`D-190`) |
 |---|---|---|---|
-| `package` | `package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package | `highspy`, `gurobipy` |
-| `cpp-bindings` | `cpp_bindings_runner.py` | the C++ example layer through its bindings: C++ pricer and loop | `highs`; `highspy`, `gurobipy` through the Python master adapter |
+| `package` | `runners/package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package | `highspy`, `gurobipy` |
+| `cpp-bindings` | `runners/cpp_bindings_runner.py` | the C++ example layer through its bindings: C++ pricer and loop | `highs`; `highspy`, `gurobipy` through the Python master adapter |
 | `cpp-native` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` | `highs`; `gurobi` when built with it |
 
 Dropped: the example's Python loop over the bindings (measured only loop against loop) and the old Python VRP
@@ -187,6 +187,13 @@ step 6 too. Then (`benchmark-solutions.md`): step 5's fixup (`--overwrite`, `sol
 folded 2026-11-17 (`F-64`; step 5 is now `374d2ea6`);
 the integer solve and the instance's resolved solution after step 6 (`D-204`, `D-205`); per-iteration data with
 `T-1.20` (`D-206`).
+
+Step 6 done 2026-11-17 (`F-65`, `f97e6f73` on `374d2ea6`; 170 tests): `cpp_bindings_runner.py`; the
+example's package via `source_tree.use_example()`; a run's layer defaults to the runner's; both runners build before
+touching the folder (`F-63` (1) corrected); the runner tests parametrized over both layers, with the drift test.
+Then (2026-11-17, `F-66`): `36c9490b` `column_generation.threads` (`D-209`, `Q-62`), `4ddc513e` the runners in
+`runners/` (`D-210`, `Q-63`); 177 tests; pushed 2026-11-17, head `4ddc513e`. Step 7 sets
+`column_generation.threads = 1` when `processes` > 1 and starts the runners as `runners/<layer>_runner.py`.
 
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
