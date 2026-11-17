@@ -12,7 +12,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from .schema import RUN_OPTIONS
 
@@ -21,7 +21,10 @@ NAMED_OPTIONS = ("instance", "layer", "master", "pricing", "start")
 
 
 class Source(Protocol):
-    options: Mapping[str, Any]
+    @property
+    def options(self) -> Mapping[str, Any]:
+        """The options the source gives."""
+        ...
 
 
 def label_part(value: Any) -> str:
@@ -51,8 +54,8 @@ def labels(sources: Sequence[Source]) -> dict[str, list[str]]:
                 dotted.append((option, f"{rest.split('.')[-1]}-{label_part(value)}"))
             elif isinstance(value, str):
                 found[option] = [value]
-            elif isinstance(value, dict) and list(value) == ["type"]:
-                found[option] = [value["type"]]
+            elif isinstance(value, dict) and list(cast(dict[str, Any], value)) == ["type"]:
+                found[option] = [cast(dict[str, Any], value)["type"]]
             else:
                 found[option] = [""]
 

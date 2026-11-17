@@ -3,6 +3,7 @@
 """The run folder: ``run.toml`` runs the same again, ``result.json`` has its fields, and the
 record has every group."""
 
+import importlib
 import math
 import sys
 import tomllib
@@ -144,7 +145,7 @@ def test_collectors_measure_only_when_on():
 
 
 def test_the_record_has_every_group(build: Path):
-    import highspy  # noqa: F401  (imported, so its versions are recorded)
+    importlib.import_module("highspy")  # imported, so its versions are recorded
 
     made = record.make_record(build, machine_label="laptop", processes=2, solver_threads=1)
 

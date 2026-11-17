@@ -31,6 +31,9 @@ def measure_process() -> dict[str, Any]:
     peak = getattr(memory, "peak_wset", None)
 
     if peak is None:
+        if sys.platform == "win32":
+            raise RuntimeError("psutil gave no peak memory on Windows")
+
         import resource
 
         # Kibibytes on Linux, bytes on macOS.

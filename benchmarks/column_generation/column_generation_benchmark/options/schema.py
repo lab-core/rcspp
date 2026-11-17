@@ -15,7 +15,7 @@ parameters per type; an untyped block has one set of parameters.
 import copy
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 
 class OptionsError(Exception):
@@ -60,7 +60,7 @@ def table(value: Any, where: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise OptionsError(f"{where}: {value!r} is not a table")
 
-    return copy.deepcopy(value)
+    return copy.deepcopy(cast(dict[str, Any], value))
 
 
 def make_algorithm_params(stage: Mapping[str, Any], where: str = "stage") -> tuple[str, Any]:
@@ -71,7 +71,8 @@ def make_algorithm_params(stage: Mapping[str, Any], where: str = "stage") -> tup
     Raises:
         OptionsError: For an unknown algorithm or field, or a value the field refuses.
     """
-    from rcspp.graph import ALGORITHMS, AlgorithmParams, SearchDirection
+    from rcspp._core.graph import AlgorithmParams, SearchDirection
+    from rcspp.graph import ALGORITHMS
 
     algorithm = stage.get("algorithm")
 
@@ -107,7 +108,7 @@ def make_algorithm_params(stage: Mapping[str, Any], where: str = "stage") -> tup
             value = directions[value]
 
         if isinstance(value, list) and isinstance(getattr(params, name), set):
-            value = set(value)
+            value = set(cast(list[Any], value))
 
         try:
             setattr(params, name, value)
@@ -123,13 +124,15 @@ def stages(value: Any, where: str) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
         raise OptionsError(f"{where}: stages must be a non-empty list of tables")
 
-    for index, stage in enumerate(value):
+    items = cast(list[Any], value)
+
+    for index, stage in enumerate(items):
         if not isinstance(stage, dict):
             raise OptionsError(f"{where}[{index}]: a stage is a table")
 
-        make_algorithm_params(stage, f"{where}[{index}]")
+        make_algorithm_params(cast(dict[str, Any], stage), f"{where}[{index}]")
 
-    return copy.deepcopy(value)
+    return cast(list[dict[str, Any]], copy.deepcopy(items))
 
 
 def tolerances(value: Any, where: str) -> dict[str, Any]:
@@ -139,9 +142,15 @@ def tolerances(value: Any, where: str) -> dict[str, Any]:
     """
     from rcspp.column_generation import registry
 
-    given = {"type": value} if isinstance(value, str) else value
+    if isinstance(value, str):
+        value = {"type": value}
 
-    if not isinstance(given, dict) or not isinstance(given.get("type"), str):
+    if not isinstance(value, dict):
+        raise OptionsError(f"{where}: tolerances are a name or a table with a type")
+
+    given = cast(dict[str, Any], value)
+
+    if not isinstance(given.get("type"), str):
         raise OptionsError(f"{where}: tolerances are a name or a table with a type")
 
     names = registry.tolerance_names()
@@ -182,8 +191,10 @@ class Block:
     instance's ``"C101_25"`` is ``{ type = "solomon", name = "C101_25" }``.
     """
 
-    types: Mapping[str, Mapping[str, Parameter]] = field(default_factory=dict)
-    parameters: Mapping[str, Parameter] = field(default_factory=dict)
+    types: Mapping[str, Mapping[str, Parameter]] = field(
+        default_factory=dict[str, Mapping[str, Parameter]]
+    )
+    parameters: Mapping[str, Parameter] = field(default_factory=dict[str, Parameter])
     shorthand: tuple[str, str] | None = None
 
     @property

@@ -19,7 +19,7 @@ import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .schema import BLOCKS, OptionsError, describe
 
@@ -54,17 +54,17 @@ class Definitions:
         if not isinstance(tables, dict):
             raise OptionsError(f"{where}: [{option}] holds named {option} tables")
 
-        for name, given in tables.items():
+        for name, given in cast(dict[str, Any], tables).items():
             if not isinstance(given, dict):
                 raise OptionsError(f"{where}: {option} {name!r} is not a table")
 
-            self.named[option][name] = given
+            self.named[option][name] = cast(dict[str, Any], given)
 
     def resolve(self, option: str, value: Any, where: str) -> dict[str, Any]:
         """The table a value gives for a block: a table as it is; a name looked up as a
         definition, then a type, then the block's shorthand."""
         if isinstance(value, dict):
-            return copy.deepcopy(value)
+            return copy.deepcopy(cast(dict[str, Any], value))
 
         if not isinstance(value, str):
             raise OptionsError(f"{where}: {option} is a name or a table, not {value!r}")
@@ -90,10 +90,10 @@ class BenchmarkFile:
     """A benchmark file read: its sections, and its definitions added to the presets'."""
 
     definitions: Definitions
-    benchmark: dict[str, Any] = field(default_factory=dict)
-    defaults: dict[str, Any] = field(default_factory=dict)
+    benchmark: dict[str, Any] = field(default_factory=dict[str, Any])
+    defaults: dict[str, Any] = field(default_factory=dict[str, Any])
     matrix: dict[str, Any] | None = None
-    runs: list[Any] = field(default_factory=list)
+    runs: list[Any] = field(default_factory=list[Any])
     folder: Path | None = None
 
 
@@ -112,14 +112,16 @@ def read_benchmark_file(
             definitions.add(name, value, where)
         elif name == "matrix":
             read.matrix = value
+        elif name == "runs":
+            if not isinstance(value, list):
+                raise OptionsError(f"{where}: runs is a list of tables ([[runs]])")
+
+            read.runs = cast(list[Any], value)
         elif name in SECTIONS:
             setattr(read, name, value)
         else:
             known = ", ".join([*SECTIONS, *BLOCKS])
             raise OptionsError(f"{where}: unknown section {name!r} (sections: {known})")
-
-    if not isinstance(read.runs, list):
-        raise OptionsError(f"{where}: runs is a list of tables ([[runs]])")
 
     return read
 
