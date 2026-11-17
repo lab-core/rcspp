@@ -54,6 +54,11 @@ optimum (no branching). Named so everywhere ("integer master over the generated 
   re-solves the LP for `solution.json`, labelled as such.
 - `cpp-native` (`T-1.19`) gets the integer solve and the raw solution; the resolved solution and its check stay in
   Python (`benchmark.py` can run them on its `solution.json`).
+- Done 2026-11-17 (`094beacd`, `F-67`): both checks pass (`F-67` (1)–(2)); the LP solved again after a limit
+  (`D-211`), the gap (`D-212`), defaults and a failed check (`D-213`). `solution.json`: `lp` (with `solved_again`),
+  `lp_missing`, `integer`, `resolved` (with its `errors`), `resolved_missing`; `result.json` also has
+  `lp_solved_again_seconds` and `solution_check`. For `benchmark.py`: `SolomonInstance.check_solution(resolved,
+  objective)` reruns the check on a `solution.json`; exit code 1 is a finished run with a wrong solution.
 
 ## 3. Per-iteration data (`D-206`)
 
