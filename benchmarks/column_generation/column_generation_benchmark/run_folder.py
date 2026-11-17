@@ -6,15 +6,19 @@
 - ``command.txt``: the command line that started the run.
 - ``metadata.json``: start, end and the record of the run (:mod:`.record`); the benchmark adds
   the exit code and the load.
+- ``solution.json``: the last LP solution, when the ``solution`` statistic is on.
 - ``result.json``: the fields of :data:`RESULT_FIELDS`, and those of the collectors that ran.
   Infinite numbers are written as JSON's ``Infinity``, which Python reads back.
 
-``result.json`` is written last, and whole: a folder that has one holds a finished run.
+``result.json`` is written last, and whole: a folder that has one holds a finished run. A
+folder that holds any of these files holds a run: a runner refuses it unless told to remove
+it first (:func:`prepare_folder`).
 """
 
 import json
 import os
 import shlex
+import shutil
 import subprocess  # nosec B404: only to quote a command line on Windows
 import sys
 import tempfile
@@ -29,6 +33,10 @@ RUN_FILE = "run.toml"
 COMMAND_FILE = "command.txt"
 METADATA_FILE = "metadata.json"
 RESULT_FILE = "result.json"
+SOLUTION_FILE = "solution.json"
+
+#: The files a runner writes: a folder with any of them holds a run.
+RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
 
 #: The fields of every ``result.json``, with their kinds; ``objective`` is null when no master
 #: LP was solved.
@@ -50,7 +58,32 @@ COLLECTOR_FIELDS: dict[str, str] = {
 }
 
 
+class RunFolderError(Exception):
+    """An output folder that already holds a run."""
+
+
 # MARK: Writing
+
+
+def prepare_folder(folder: Path, overwrite: bool = False) -> None:
+    """Makes `folder` ready for a run: made when missing; when it holds a run, refused,
+    or removed first with `overwrite`. A folder without run files is kept as it is.
+
+    Raises:
+        RunFolderError: When `folder` holds a run and `overwrite` is not set.
+    """
+    found = [name for name in RUN_FILES if (folder / name).exists()]
+
+    if found and not overwrite:
+        raise RunFolderError(
+            f"{folder} already holds a run ({', '.join(found)}): choose another folder, or "
+            "remove it first with --overwrite"
+        )
+
+    if found:
+        shutil.rmtree(folder)
+
+    folder.mkdir(parents=True, exist_ok=True)
 
 
 def write_atomically(path: Path, text: str) -> None:
@@ -119,8 +152,11 @@ def update_metadata(folder: Path, fields: Mapping[str, Any]) -> dict[str, Any]:
 
 def kind_matches(kind: str, value: Any) -> bool:
     """Whether `value` is of `kind`, as :data:`RESULT_FIELDS` names kinds."""
-    if kind == "number or null" and value is None:
-        return True
+    if kind.endswith(" or null"):
+        if value is None:
+            return True
+
+        kind = kind.removesuffix(" or null")
 
     if kind == "string":
         return isinstance(value, str)
@@ -160,6 +196,11 @@ def write_result(folder: Path, result: Mapping[str, Any]) -> None:
         raise OptionsError(f"{folder / RESULT_FILE}: {'; '.join(problems)}")
 
     write_json(folder / RESULT_FILE, result)
+
+
+def write_solution(folder: Path, solution: Mapping[str, Any]) -> None:
+    """``solution.json``: the solution as the runner read it from its master."""
+    write_json(folder / SOLUTION_FILE, solution)
 
 
 def read_result(folder: Path) -> dict[str, Any] | None:

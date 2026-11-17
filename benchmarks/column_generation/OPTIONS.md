@@ -57,7 +57,7 @@ pricing = { stages = [{ algorithm = "simple" }] }
 start = { type = "single-customer" }
 graph = {}
 column_generation = { timeout_s = 600.0 }
-statistics = { process = true }
+statistics = { process = true, solution = true }
 ```
 
 ## Where a run's options come from
@@ -212,6 +212,7 @@ No type. One parameter per statistic, on or off:
 | parameter | what it adds to `result.json` | costs the run | default |
 |---|---|---|---|
 | `process` | the process's peak memory and processor time | two system calls once the run is over | on |
+| `solution` | `solution_columns`; writes `solution.json`, the last LP solution (see the README) | the LP's values and duals, read once the run is over | on |
 
 ## A benchmark file
 
@@ -266,6 +267,8 @@ A script's `--help` lists them all, with its own flags.
 - A value is read as a TOML value (`8`, `true`, `inf`, `{ ... }`), else as text: `--instance C101_25`.
   `--name=value` works too.
 - `--stage` and `--pricing` do not go together.
+- A runner's flags (`--file`, `--output`, `--overwrite`, `--build`, `--machine`, `--check build`) are in the
+  [README](README.md#run-once).
 - An unknown option, or one without its value, stops the command.
 - Quote a table as one argument, with single quotes inside for its strings: `"{ type = 'gurobipy' }"` reads the same
   in bash and in PowerShell. Double quotes inside single quotes (`'{ type = "gurobipy" }'`) work in bash and in

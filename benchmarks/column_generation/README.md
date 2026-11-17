@@ -4,16 +4,18 @@ Runs column generation on rcspp's layers and records how they do. It measures th
 Python sources in `python/src` and the compiled `_core` of one of this tree's builds. Nothing here is installed; the
 wheel does not have it.
 
-| layer | what runs |
-|---|---|
-| `package` | `rcspp.column_generation`, the column generation package rcspp ships |
+| layer          | what runs                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| `package`      | `rcspp.column_generation`, the column generation package rcspp ships                           |
 | `cpp-bindings` | the C++ column generation example of `examples/column_generation`, through its Python bindings |
 
-| path | contents |
-|---|---|
-| `column_generation_benchmark/` | the code the runners and the benchmark share |
-| `tests/` | the tests |
-| `OPTIONS.md` | the options of a run and of a benchmark |
+| path                           | contents                                                           |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `package_runner.py`            | one run of the `package` layer                                     |
+| `column_generation_benchmark/` | the code the runners and the benchmark share                       |
+| `tests/`                       | the tests                                                          |
+| `results/`                     | where runs go unless told otherwise; ignored by git (`.gitignore`) |
+| `OPTIONS.md`                   | the options of a run and of a benchmark                            |
 
 ## Install
 
@@ -54,14 +56,42 @@ A run is a layer and its blocks (`instance`, `master`, `pricing`, `start`, ...),
 line, or both; a benchmark file makes many runs. [`OPTIONS.md`](OPTIONS.md) has the words, the TOML they need, where a
 run's options come from, examples, and every option's parameters.
 
+## Run once
+
+Each layer has a runner, a script that does one run and writes its folder. `package_runner.py` runs the `package`
+layer; its body is the column generation calls, the place to read how the package is used.
+
+```bash
+cd benchmarks/column_generation
+python package_runner.py --instance C101_25 # into results/C101_25-package-highspy-exact-artificial
+python package_runner.py --instance R201_25 --master gurobipy --start single-customer
+python package_runner.py --file results/C101_25-package-highspy-exact-artificial/run.toml --output results/again
+python package_runner.py --instance C101_25 --check build # build, do not solve
+```
+
+| flag            | what                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `--file`        | a run file; the command line's run options go over it                                         |
+| `--output`      | the run folder, made when missing; by default `results/<run name>` here                       |
+| `--overwrite`   | remove the run folder first when it already holds a run                                       |
+| `--build`       | the build folder to import rcspp from, when the tree has several                              |
+| `--machine`     | the machine's label, for `metadata.json`                                                      |
+| `--check build` | build the instance, graph, master, pricer and starting columns without solving; write nothing |
+
+`--help` lists them with every run option. Wrong options stop the runner with a message and exit code 2, before
+anything is written. So does an output folder that already holds a run (any of the files below), unless
+`--overwrite` is given: the folder is then removed and written again. A folder without them, or with other files
+only, is used as it is.
+
 ## A run's folder
 
-| file | contents |
-|---|---|
-| `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
-| `command.txt` | the command line that started the run |
-| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
-| `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`) |
+| file            | contents                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run.toml`      | the run's options, expanded: the runner's `--file run.toml` runs it again                                                                                                                                                                                                                                                                                                                                                                                   |
+| `command.txt`   | the command line that started the run                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory                                                                                                                                                                                                                                                        |
+| `solution.json` | with the statistic `solution` (on by default), the last master LP solution: `lp` holds its `objective`, the `columns` with a value (`id`, `value`, `cost`, `path` as node ids, `rows` as `[index, coefficient]`), the `artificial_columns` still in use (`id`, `value`) and the `duals`, one per row. `lp` is null when the run stopped at a limit after pricing added columns: the master solvers drop the last solution's values then; `missing` says why |
+| `result.json`   | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value)                                                                                                                          |
 
 `result.json` is written last: a folder that has one holds a finished run.
 
