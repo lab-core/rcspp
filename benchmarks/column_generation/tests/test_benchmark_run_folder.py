@@ -27,7 +27,7 @@ stages = [
 [[runs]]
 instance = "R201_25"
 layer = "cpp-bindings"
-master = { type = "gurobipy", parameters = { Threads = 1, Method = 0 } }
+master = { type = "gurobipy", parameters = { Presolve = 1, Method = 0 } }
 pricing = "heuristics-first"
 start = { type = "artificial", cost_factor = 1e5 }
 column_generation = { timeout_s = inf, tolerances = { type = "relative", reduced_cost = 1e-6 } }

@@ -102,6 +102,7 @@ def build(run: Run) -> tuple[MasterProblem, ColumnGeneration]:
         MasterProblem,
         NoInitialization,
         PricingStage,
+        RelaxationParams,
         make_tolerances,
     )
 
@@ -136,6 +137,10 @@ def build(run: Run) -> tuple[MasterProblem, ColumnGeneration]:
     if settings.tolerances is not None:
         tolerances = dict(settings.tolerances)
         params.tolerances = make_tolerances(tolerances.pop("type"), **tolerances)
+
+    # Every master solve sets the solver's threads from these.
+    if settings.threads is not None:
+        params.relaxation = RelaxationParams(threads=settings.threads)
 
     return master, ColumnGeneration(master, params)
 

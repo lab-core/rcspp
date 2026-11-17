@@ -99,13 +99,22 @@ def test_a_run_goes_to_the_results_folder_by_default(
     assert run_folder.read_result(tmp_path / f"C101_5-{layer}-highspy-exact-artificial")
 
 
+# HiGHS keeps the thread count of the first solve in a process: the tests' process has solved
+# before, a runner's own process has not.
+@pytest.mark.filterwarnings("ignore:HighspyMasterSolver. HiGHS keeps the thread count")
 @pytest.mark.parametrize(
     "arguments",
     [
         ("--start", "single-customer"),
         ("--stage", "tabu:max_solutions=5,max_iterations=100", "--stage", "simple"),
         ("--column_generation.max_iterations", "3"),
-        ("--column_generation.tolerances", "relative", "--master.parameters", "{ threads = 1 }"),
+        ("--column_generation.threads", "1"),
+        (
+            "--column_generation.tolerances",
+            "relative",
+            "--master.parameters",
+            "{ simplex_strategy = 1 }",
+        ),
     ],
 )
 def test_the_run_options_reach_the_layer(
@@ -114,6 +123,10 @@ def test_the_run_options_reach_the_layer(
     result = run(layer, build, tmp_path, "--instance", "C101_5", *arguments)
 
     assert run_folder.result_problems(result) == []
+
+    if "--column_generation.threads" in arguments:
+        metadata = run_folder.read_json(tmp_path / run_folder.METADATA_FILE)
+        assert metadata["benchmark"]["solver_threads"] == 1
 
     if "--column_generation.max_iterations" in arguments:
         assert (result["status"], result["iterations"]) == ("IterationLimit", 3)
@@ -305,7 +318,7 @@ def test_a_run_from_a_run_file_runs_again(layer: str, build: Path, tmp_path: Pat
         layer,
         build,
         tmp_path / "first",
-        *("--file", str(path), "--master.parameters", "{ threads = 1 }"),
+        *("--file", str(path), "--master.parameters", "{ simplex_strategy = 1 }"),
     )
     again = run(layer, build, tmp_path / "again", "--file", str(tmp_path / "first" / "run.toml"))
 
@@ -341,7 +354,12 @@ def test_the_cpp_highs_master_takes_parameters(
 ):
     arguments = ["--instance", "C101_5", "--master", "highs"]
     result = run(
-        "cpp-bindings", build, tmp_path, *arguments, "--master.parameters", "{ threads = 1 }"
+        "cpp-bindings",
+        build,
+        tmp_path,
+        *arguments,
+        "--master.parameters",
+        "{ simplex_strategy = 1 }",
     )
 
     assert result["status"] == "Optimal"

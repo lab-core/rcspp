@@ -3,7 +3,7 @@
 """The command line's options, declared with argparse from the blocks' dataclasses.
 
 Every option is ``--<option> <value>`` and every parameter ``--<option>.<parameter> <value>``;
-a value is read as a TOML value (``8``, ``true``, ``{ Threads = 1 }``), else as text.
+a value is read as a TOML value (``8``, ``true``, ``{ Presolve = 1 }``), else as text.
 ``--stage`` gives the pricing's stages, in order. A runner adds its own flags to the parser.
 """
 

@@ -168,7 +168,7 @@ class RunOptions:
             else:
                 blocks[option] = resolve(option, value, names, where)
 
-        # Dotted names after whole blocks: "master.parameters.Threads" = 1 sets one key.
+        # Dotted names after whole blocks: "master.parameters.Presolve" = 1 sets one key.
         for key, value in given.items():
             option, _, path = key.partition(".")
 

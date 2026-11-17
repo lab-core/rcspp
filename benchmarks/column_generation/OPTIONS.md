@@ -8,7 +8,7 @@ or both. The first sections explain how options are given; [the reference](#refe
 | word | what | example |
 |---|---|---|
 | option | a top-level name of a run | `instance`, `layer`, `master` |
-| block | the table an option holds; every option but `layer` | `{ type = "gurobipy", parameters = { Threads = 1 } }` |
+| block | the table an option holds; every option but `layer` | `{ type = "gurobipy", parameters = { Presolve = 1 } }` |
 | type | the key of a block that picks its object, for the blocks that have several | `type = "gurobipy"` |
 | parameter | any other key of a block | `cost_factor` in `start` |
 | name | a word standing for a whole block: a preset, a definition of your own, a type, an instance's name | `master = "one-thread"` |
@@ -42,7 +42,7 @@ A run file is one run: its options at the top level. Write only what differs fro
 
 ```toml
 instance = "R201_25"
-master = { type = "gurobipy", parameters = { Threads = 1 } }
+master = { type = "gurobipy", parameters = { Presolve = 1 } }
 start = "single-customer"
 "column_generation.timeout_s" = 600     # quoted: one parameter of the block
 ```
@@ -52,7 +52,7 @@ The `run.toml` a run records holds every option, expanded, so the run reads the 
 ```toml
 instance = { type = "solomon", name = "R201_25" }
 layer = "package"
-master = { type = "gurobipy", parameters = { Threads = 1 } }
+master = { type = "gurobipy", parameters = { Presolve = 1 } }
 pricing = { stages = [{ algorithm = "simple" }] }
 start = { type = "single-customer" }
 graph = {}
@@ -76,9 +76,9 @@ below, keeping nothing of it.
 
 ```toml
 [defaults]
-master = { type = "gurobipy", parameters = { Threads = 1 } }
+master = { type = "gurobipy", parameters = { Presolve = 1 } }
 
-[[runs]]                                  # gurobipy, Threads = 1 and Method = 0: merged
+[[runs]]                                  # gurobipy, Presolve = 1 and Method = 0: merged
 master = { parameters = { Method = 0 } }
 
 [[runs]]                                  # highspy, no parameters: another type replaces
@@ -106,7 +106,7 @@ Define your own in a benchmark file, under the option's name, and use it anywher
 ```toml
 [master.one-thread]
 type = "gurobipy"
-parameters = { Threads = 1 }
+parameters = { Presolve = 1 }
 
 [pricing.heuristic-first]
 stages = [{ algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" }]
@@ -122,13 +122,13 @@ command line can use the presets' names, not define any.
 ## Dotted names
 
 `<option>.<parameter> = value` sets one parameter and leaves the block's others as they are. Deeper tables work too:
-`master.parameters.Threads`.
+`master.parameters.Presolve`.
 
 | where | how |
 |---|---|
 | a run file, `[defaults]`, a `[[runs]]` entry | `"start.cost_factor" = 1e3`, quoted |
 | `[matrix]` | `"start.cost_factor" = [1e3, 1e5]`, quoted: unquoted, TOML reads a table and the matrix refuses it |
-| the command line | `--start.cost_factor 1e3`, `--master.parameters "{ Threads = 1 }"` |
+| the command line | `--start.cost_factor 1e3`, `--master.parameters "{ Presolve = 1 }"` |
 
 Unquoted in a run file, `start.cost_factor = 1e3` is TOML for `start = { cost_factor = 1e3 }`: a block without a
 type, which merges the same way. In one place, dotted names apply after the whole blocks: `master = "one-thread"`
@@ -157,9 +157,17 @@ file's, so a run of one layer runs again on another.
 | `gurobipy` | Gurobi through its Python package; needs a licence | `package`, `cpp-bindings` |
 | `highs` | HiGHS from C++, the example's own master; needs the example built with HiGHS | `cpp-bindings` |
 
-`parameters` (a table, empty by default) goes to the solver as it is: `{ Threads = 1, Method = 0 }` for Gurobi. In
+`parameters` (a table, empty by default) goes to the solver as it is: `{ Presolve = 1, Method = 0 }` for Gurobi. In
 a `[matrix]`, a layer and a master that do not go together are dropped and listed before the first run; anywhere
 else they are an error.
+
+Every master solve sets some of the solver's parameters from the layer's own, and puts the given values back after
+it: they would never reach a solve, so they are refused here. Threads and the time limit have run options instead.
+
+| solver | refused | instead |
+|---|---|---|
+| HiGHS (`highspy`, `highs`) | `threads`, `time_limit`, `output_flag`, `solve_relaxation`, `mip_rel_gap` | `column_generation.threads`, `column_generation.timeout_s` |
+| Gurobi (`gurobipy`; names in any case) | `Threads`, `TimeLimit`, `OutputFlag`, `MIPGap` | `column_generation.threads`, `column_generation.timeout_s` |
 
 ### `pricing`
 
@@ -204,6 +212,7 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 | `max_iterations` | the most LP solves | no limit |
 | `timeout_s` | the run's wall-clock limit, in seconds | no limit |
 | `tolerances` | `absolute` or `relative`, by name or as a table with `reduced_cost`, `feasibility`, `optimality_gap` | the layer's (the package's: `absolute`) |
+| `threads` | the master solver's threads in every solve, a whole number; 0 lets the solver choose | 0 |
 
 `tolerances = "relative"` is `{ type = "relative" }`; `{ type = "absolute", reduced_cost = 1e-6 }` sets one value.
 
@@ -259,9 +268,9 @@ A script's `--help` lists them all, with its own flags.
 
 ```bash
 --master gurobipy                                   # a name
---master "{ type = 'gurobipy', parameters = { Threads = 1 } }"   # a table
+--master "{ type = 'gurobipy', parameters = { Presolve = 1 } }"   # a table
 --start.cost_factor 1e3                             # one parameter
---master.parameters "{ Threads = 1, Method = 0 }"   # a solver's parameters: one table
+--master.parameters "{ Presolve = 1, Method = 0 }"   # a solver's parameters: one table
 --stage tabu:max_solutions=20,max_iterations=1000 --stage simple   # the pricing's stages, in order
 --processes 2 --repeats 3                           # benchmark.py only
 ```

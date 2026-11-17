@@ -131,7 +131,7 @@ stages = [
 
 [master.one-thread]
 type = "gurobipy"
-parameters = { Threads = 1 }
+parameters = { Presolve = 1 }
 
 [defaults]
 start = { type = "single-customer" }
@@ -162,7 +162,7 @@ def test_the_matrix_multiplies_and_runs_follow():
         f"R201_50-package-gurobipy-pricing_{FINGERPRINT}-single-customer", names[-1]
     )
     assert len(set(names)) == len(names)
-    assert expansion.runs[2].master == Master("gurobipy", {"Threads": 1})
+    assert expansion.runs[2].master == Master("gurobipy", {"Presolve": 1})
     assert [stage["algorithm"] for stage in expansion.runs[1].pricing.stages] == [
         "greedy",
         "tabu",
@@ -214,13 +214,13 @@ def test_a_run_is_named_after_its_options_however_they_were_written():
     text = """
 [master.one-thread]
 type = "gurobipy"
-parameters = { Threads = 1 }
+parameters = { Presolve = 1 }
 [[runs]]
 instance = "C101_25"
 master = "one-thread"
 [[runs]]
 instance = "C101_25"
-master = { type = "gurobipy", parameters = { Threads = 1 } }
+master = { type = "gurobipy", parameters = { Presolve = 1 } }
 start = { type = "artificial", cost_factor = 1e4 }
 """
     (run,) = expand(text).runs
@@ -269,7 +269,7 @@ def test_a_block_merges_into_the_one_below_unless_it_names_another_type():
 [defaults]
 instance = "C101_25"
 column_generation = { max_iterations = 5, timeout_s = 60 }
-master = { type = "gurobipy", parameters = { Threads = 1 } }
+master = { type = "gurobipy", parameters = { Presolve = 1 } }
 [[runs]]
 column_generation = { max_iterations = 10 }
 master = { type = "gurobipy", parameters = { Method = 0 } }
@@ -282,9 +282,9 @@ start.cost_factor = 1e3
     merged, replaced, untyped = expand(text).runs
 
     assert merged.column_generation == ColumnGeneration(10, 60.0)
-    assert merged.master.parameters == {"Threads": 1, "Method": 0}
+    assert merged.master.parameters == {"Presolve": 1, "Method": 0}
     assert replaced.master == Master("highspy", {})
-    assert untyped.master.parameters == {"Threads": 1, "Method": 1}
+    assert untyped.master.parameters == {"Presolve": 1, "Method": 1}
     assert untyped.start == Start("artificial", 1e3)
 
 
@@ -292,7 +292,7 @@ def test_a_definition_comes_before_a_type_and_an_instance_name():
     text = """
 [master.highspy]
 type = "highspy"
-parameters = { threads = 1 }
+parameters = { simplex_strategy = 1 }
 [instance.C101_25]
 type = "solomon"
 name = "R201_25"
@@ -302,7 +302,7 @@ master = "highspy"
 """
     run = run_of(text)
 
-    assert run.master.parameters == {"threads": 1}
+    assert run.master.parameters == {"simplex_strategy": 1}
     assert run.instance == Instance("solomon", "R201_25")
 
 
@@ -350,7 +350,7 @@ def test_a_run_asking_for_a_master_its_layer_has_not_is_refused():
 def test_a_run_entry_can_start_from_a_run_file(tmp_path: Path):
     (tmp_path / "old").mkdir()
     (tmp_path / "old" / "run.toml").write_text(
-        'instance = "R201_25"\nmaster = { type = "gurobipy", parameters = { Threads = 1 } }\n'
+        'instance = "R201_25"\nmaster = { type = "gurobipy", parameters = { Presolve = 1 } }\n'
     )
     text = '[[runs]]\nfrom = "old/run.toml"\nmaster = "highspy"\n'
     benchmark = Benchmark.from_table(tomllib.loads(text), folder=tmp_path)
@@ -362,7 +362,7 @@ def test_a_run_entry_can_start_from_a_run_file(tmp_path: Path):
     absolute = f'[[runs]]\nfrom = "{(tmp_path / "old" / "run.toml").as_posix()}"\n'
     (again,) = Benchmark.from_table(tomllib.loads(absolute)).expand().runs
 
-    assert again.master == Master("gurobipy", {"Threads": 1})
+    assert again.master == Master("gurobipy", {"Presolve": 1})
 
 
 def test_a_missing_run_file_is_refused(tmp_path: Path):
@@ -376,7 +376,7 @@ def test_a_recorded_run_file_reads_back_the_same():
         {
             "instance": "R201_25",
             "layer": "cpp-bindings",
-            "master": {"type": "highs", "parameters": {"threads": 1}},
+            "master": {"type": "highs", "parameters": {"simplex_strategy": 1}},
             "pricing": {"stages": stages},
             "start": "single-customer",
             "column_generation": {"max_iterations": 5, "timeout_s": 60, "tolerances": "relative"},
@@ -436,7 +436,11 @@ def test_a_runner_command_line_overrides_its_run_file_and_can_name_a_preset():
 
 PARAMETERS: list[tuple[str, str, Callable[[Run], bool]]] = [
     ("--instance.name", "R201_25", lambda run: run.instance.name == "R201_25"),
-    ("--master.parameters", "{ Threads = 1 }", lambda run: run.master.parameters == {"Threads": 1}),
+    (
+        "--master.parameters",
+        "{ Presolve = 1 }",
+        lambda run: run.master.parameters == {"Presolve": 1},
+    ),
     ("--start.cost_factor", "1e3", lambda run: run.start.cost_factor == 1e3),
     (
         "--column_generation.max_iterations",
@@ -573,8 +577,11 @@ RUN = '[defaults]\ninstance = "C101_25"\n'
         ('[defaults]\ninstance = { name = "C101_25" }\n', "instance needs a type"),
         ('[defaults]\ninstance = { type = "solomon" }\n', "instance.name is missing"),
         ('[defaults]\ninstance = { type = "solomon", name = 3 }\n', "3 is not a string"),
-        (RUN + "master = { Threads = 1 }\n", "'Threads' is not a parameter"),
-        (RUN + 'master = { type = "highspy", threads = 1 }\n', "'threads' is not a parameter"),
+        (RUN + "master = { Presolve = 1 }\n", "'Presolve' is not a parameter"),
+        (
+            RUN + 'master = { type = "highspy", simplex_strategy = 1 }\n',
+            "'simplex_strategy' is not a parameter",
+        ),
         (RUN + 'master = { type = "highspy", parameters = 1 }\n', "1 is not a table"),
         (RUN + 'start = { type = "single-customer", cost_factor = 1 }\n', "has no cost_factor"),
         (RUN + 'start = { type = "artificial", cost_factor = "big" }\n', "'big' is not a number"),
@@ -594,6 +601,20 @@ RUN = '[defaults]\ninstance = "C101_25"\n'
         (RUN + "column_generation = { max_iterations = 1.5 }\n", "1.5 is not a whole number"),
         (RUN + 'column_generation = { tolerances = "loose" }\n', "tolerances 'loose' is not one"),
         (RUN + 'column_generation = { tolerances = { type = "relative", gap = 1 } }\n', "gap"),
+        (RUN + "column_generation = { threads = -1 }\n", "threads must be 0 or more"),
+        (RUN + "column_generation = { threads = 1.5 }\n", "1.5 is not a whole number"),
+        (
+            RUN + 'master = { type = "highs", parameters = { threads = 1 } }\n',
+            "master.parameters.threads is set by every solve.*use column_generation.threads",
+        ),
+        (
+            RUN + 'master = { type = "highspy", parameters = { output_flag = true } }\n',
+            "master.parameters.output_flag is set by every solve, from the layer's own parameters$",
+        ),
+        (
+            RUN + 'master = { type = "gurobipy", parameters = { timeLIMIT = 5 } }\n',
+            "master.parameters.timeLIMIT is set by every solve.*use column_generation.timeout_s",
+        ),
         # Benchmark files.
         (RUN + '[matrix]\nmaster = "highspy"\n', "non-empty list"),
         (RUN + "[matrix]\ngraph.ng_size = [0, 8]\n", "quote a dotted"),
