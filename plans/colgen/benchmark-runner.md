@@ -183,7 +183,8 @@ Then, on top (2026-11-17, pushed): `76c4f444` pyright strict; `589966ad` the opt
 `OPTIONS.md` as the full reference (`D-201`), tests at 100 % of `options/` (`D-202`).
 
 Step 5 done 2026-11-17 (`F-63`, `61cf282c`): the flags and the folder writing are in the shared `runner.py`, for
-step 6 too. Then (`benchmark-solutions.md`): step 5's fixup (`--overwrite`, `solution.json`, `D-203`) before step 6;
+step 6 too. Then (`benchmark-solutions.md`): step 5's fixup (`--overwrite`, `solution.json`, `D-203`), done and
+folded 2026-11-17 (`F-64`; step 5 is now `374d2ea6`);
 the integer solve and the instance's resolved solution after step 6 (`D-204`, `D-205`); per-iteration data with
 `T-1.20` (`D-206`).
 
