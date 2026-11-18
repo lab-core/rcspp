@@ -143,6 +143,7 @@ def test_runs_go_round_after_round(build: Path, tmp_path: Path, capsys: pytest.C
 
     record = run_folder.read_json(output / benchmark.METADATA_FILE)
     assert (record["processes"], record["runs"], record["rounds"]) == (1, 2, 2)
+    assert "repeats" not in record
     assert record["record"]["benchmark"]["processes"] == 1
     assert [event["event"] for event in record["events"]] == ["started", "finished"]
     assert (record["events"][0]["to_run"], record["events"][1]["finished"]) == (4, 4)
@@ -206,7 +207,8 @@ def test_a_benchmark_resumes_with_its_unfinished_runs(
         "resumed",
         "finished",
     ]
-    assert (resumed["finished"], resumed["to_run"], resumed["cut_off"]) == (1, 1, 1)
+    assert (resumed["total"], resumed["finished"], resumed["to_run"]) == (2, 1, 1)
+    assert resumed["cut_off"] == 1
     assert "changed" not in resumed
 
     assert run(build, tmp_path, TWO_RUNS, "--check", "options") == 0
@@ -301,7 +303,8 @@ def test_a_stop_file_stops_after_the_runs_in_progress(build: Path, tmp_path: Pat
     assert runner_log(tmp_path)[2:] == ["start C101_25-r1", "end C101_25-r1"]
     kinds = [event["event"] for event in events(tmp_path)]
     assert kinds == ["started", "stopped", "resumed", "finished"]
-    assert events(tmp_path)[1]["runs_left"] == 1
+    stopped = events(tmp_path)[1]
+    assert (stopped["total"], stopped["finished"], stopped["runs_left"]) == (2, 1, 1)
 
 
 # MARK: Ctrl-C and errors

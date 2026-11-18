@@ -183,10 +183,10 @@ other runs; the benchmark says so and names the folder's `--processes`.
 
 | event | other fields |
 | --- | --- |
-| `started`, `resumed` | `finished` and `to_run` (runs), `cut_off` (unfinished folders removed), `timeouts_to_run_again`; `retry_timeouts` and `allow_mixed` when given; on a resume, `changed`: the benchmark options changed since the folder's last start, as `[before, after]` |
+| `started`, `resumed` | `total`, `finished` and `to_run` (runs), `cut_off` (unfinished folders removed), `timeouts_to_run_again`; `retry_timeouts` and `allow_mixed` when given; on a resume, `changed`: the benchmark options changed since the folder's last start, as `[before, after]` |
 | `stopped` | by `STOP`: `runs_left`, and the counts |
 | `interrupted` | by Ctrl-C or an error: `reason`, `killed` (the run folders it killed), and the counts |
-| `finished` | the counts: `finished`, `timeouts`, `failed_checks`, `crashed` |
+| `finished` | the counts: `total` (runs of every round, as this start saw them), `finished`, `timeouts`, `failed_checks`, `crashed` |
 
 A start refused (another benchmark's runs, mixed, a failed check) writes nothing.
 

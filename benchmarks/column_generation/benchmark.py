@@ -146,7 +146,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         traceback.print_exc()
         return FAILED
 
-    return carry_out(expansion, output, run_files, build, parsed.retry_timeouts, opening)
+    return carry_out(expansion, output, run_files, build, opening)
 
 
 def runner_command(layer: str) -> list[str]:
@@ -349,12 +349,39 @@ def differences(old: Mapping[str, Any], new: Mapping[str, Any], prefix: str = ""
     return found
 
 
+@dataclass
+class Opening:
+    """The event that opens a start: ``started`` for a new folder, ``resumed`` for one
+    that holds these runs; with the flags given and, on a resume, the benchmark options
+    changed since the folder's last start, as ``[before, after]``."""
+
+    event: str
+    retry_timeouts: bool
+    allow_mixed: bool
+    changed: dict[str, list[Any]] = field(default_factory=dict[str, list[Any]])
+
+    def details(self) -> dict[str, Any]:
+        """The fields the event writes: the flags only when given, the changes only when
+        some."""
+        details: dict[str, Any] = {}
+
+        if self.retry_timeouts:
+            details["retry_timeouts"] = True
+
+        if self.allow_mixed:
+            details["allow_mixed"] = True
+
+        if self.changed:
+            details["changed"] = self.changed
+
+        return details
+
+
 def open_folder(
     output: Path, expansion: Expansion, build: Path, arguments: argparse.Namespace
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, Any], Opening]:
     """The benchmark folder's ``metadata.json`` to write, and the event that opens this
-    start: ``started`` for a new folder, ``resumed`` for one that holds these runs.
-    Writes nothing.
+    start. Writes nothing.
 
     Raises:
         BenchmarkError: When the folder holds other runs, or was started on another
@@ -362,17 +389,10 @@ def open_folder(
     """
     table = benchmark_table(expansion)
     record = benchmark_record(expansion, build)
-    flags = {
-        name: True
-        for name, given in (
-            ("retry_timeouts", arguments.retry_timeouts),
-            ("allow_mixed", arguments.allow_mixed),
-        )
-        if given
-    }
+    opening = Opening("started", arguments.retry_timeouts, arguments.allow_mixed)
 
     if not (output / BENCHMARK_FILE).is_file():
-        return {"record": record, "events": []}, {"event": "started", **flags}
+        return {"record": record, "events": []}, opening
 
     old = read_toml(output / BENCHMARK_FILE)
 
@@ -392,17 +412,13 @@ def open_folder(
     if changed_record:
         metadata.setdefault("other_records", []).append(record)
 
-    opening: dict[str, Any] = {"event": "resumed", **flags}
+    opening.event = "resumed"
     before, after = old.get("benchmark", {}), table["benchmark"]
-    changed = {
+    opening.changed = {
         name: [before.get(name), after.get(name)]
         for name in sorted(set(before) | set(after))
         if before.get(name) != after.get(name)
     }
-
-    if changed:
-        opening["changed"] = changed
-
     return metadata, opening
 
 
@@ -455,7 +471,6 @@ def write_folder(output: Path, expansion: Expansion, metadata: dict[str, Any]) -
 
     metadata.update(
         processes=expansion.processes,
-        repeats=expansion.repeats,
         runs=len(expansion.runs),
         rounds=expansion.repeats,
         dropped=expansion.dropped,
@@ -588,6 +603,7 @@ class Tally:
 
     def counts(self) -> dict[str, int]:
         return {
+            "total": self.total,
             "finished": self.finished,
             "timeouts": self.timeouts,
             "failed_checks": self.failed_checks,
@@ -616,8 +632,7 @@ def carry_out(
     output: Path,
     run_files: Mapping[str, Path],
     build: Path,
-    retry_timeouts: bool,
-    opening: Mapping[str, Any],
+    opening: Opening,
 ) -> int:
     """Every run of every round not yet finished, ``processes`` at a time; returns the
     benchmark's exit code."""
@@ -629,7 +644,7 @@ def carry_out(
     for run, folder in folders:
         result = run_folder.read_result(folder)
 
-        if result is not None and retry_timeouts and result["status"] == run_folder.TIMEOUT:
+        if result is not None and opening.retry_timeouts and result["status"] == run_folder.TIMEOUT:
             shutil.rmtree(folder)
             result = None
             retried += 1
@@ -640,16 +655,16 @@ def carry_out(
         else:
             tally.add(CHECK_FAILED if result["solution_check"] == "failed" else FINISHED, result)
 
-    print_opening(output, opening["event"], tally, len(waiting), cut_off, retried)
-    details = {name: value for name, value in opening.items() if name != "event"}
+    print_opening(output, opening.event, tally, len(waiting), cut_off, retried)
     add_event(
         output,
-        opening["event"],
+        opening.event,
+        total=tally.total,
         finished=tally.finished,
         to_run=len(waiting),
         cut_off=cut_off,
         timeouts_to_run_again=retried,
-        **details,
+        **opening.details(),
     )
     running: list[Running] = []
     stopped = False
