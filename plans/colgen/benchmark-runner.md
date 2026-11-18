@@ -198,6 +198,11 @@ Then the integer solve (2026-11-17, `F-67`, `D-211`–`D-213`): `094beacd`, and 
 `runner.main` (`F-67` (11)); pushed, head `7190eb83`; 206 tests. Step 7: a runner's exit code 1 is a finished run
 whose integer solution failed the instance's check; reuse `runner.main`'s steps, do not copy them.
 
+Step 7 done 2026-11-17 (`F-68`, `D-214`–`D-218`, `9efea8da` on `7190eb83`, not pushed; 240 tests): `benchmark.py`,
+`load.py`, a fake runner. Step 8 reads `runs/*/result.json` (a `timeout` one has null fields) and each run's
+`metadata.json` `outcome` and `load`. Then (2026-11-18, `F-69`, `D-219`): `51b8223e`, `76bac866`; the benchmark's
+`metadata.json` has `events` instead of `start` / `end`.
+
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
 `add_benchmark_options`, checks `options` then `build` unless `--no-check`, prints the dropped matrix points, passes
