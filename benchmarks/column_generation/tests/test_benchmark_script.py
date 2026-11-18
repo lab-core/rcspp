@@ -126,7 +126,8 @@ def test_runs_go_round_after_round(build: Path, tmp_path: Path, capsys: pytest.C
     assert "starting " in printed and ": 4 runs to run" in printed
     assert "[1/4] C101_5-package-highspy-exact-artificial-r1: finished, " in printed
     assert "[4/4] C101_25-package-highspy-exact-artificial-r2: finished, " in printed
-    assert printed.splitlines()[-1].startswith("4 / 4 runs finished")
+    assert printed.splitlines()[-2].startswith("4 / 4 runs finished")
+    assert printed.splitlines()[-1] == f"summary: {tmp_path / 'out' / 'summary.md'}"
 
     starts = [line for line in runner_log(tmp_path) if line.startswith("start")]
     assert starts == ["start C101_5-r1", "start C101_25-r1", "start C101_5-r2", "start C101_25-r2"]
@@ -138,6 +139,9 @@ def test_runs_go_round_after_round(build: Path, tmp_path: Path, capsys: pytest.C
         "C101_25-package-highspy-exact-artificial",
     ]
     assert len(list((output / benchmark.RUN_FILES_FOLDER).iterdir())) == 2
+    summary = (output / "summary.md").read_text()
+    assert "- 4 / 4 rounds finished (0 failed checks), 0 timeouts, 0 not finished" in summary
+    assert (output / "summary.csv").is_file() and (output / "runs.csv").is_file()
     assert status_lines(tmp_path)[0].split("  ", 1)[1].startswith("4 / 4 runs finished")
     assert status_lines(tmp_path)[-1].startswith("finished at")
 

@@ -47,6 +47,18 @@ REPLACE_PAUSE_SECONDS = 0.1
 #: The status of a run whose process the benchmark killed at its timeout.
 TIMEOUT = "timeout"
 
+#: A benchmark folder's expanded runs, and the folder of their run folders.
+BENCHMARK_FILE = "benchmark.toml"
+RUNS_FOLDER = "runs"
+
+#: How a run ended, in the ``outcome`` the benchmark adds to its ``metadata.json``; a run
+#: killed at its timeout has the outcome :data:`TIMEOUT`.
+FINISHED = "finished"
+CHECK_FAILED = "check failed"
+CRASHED = "crashed"
+NOT_STARTED = "not started"
+INTERRUPTED = "interrupted"
+
 #: The files a runner writes: a folder with any of them holds a run.
 RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
 

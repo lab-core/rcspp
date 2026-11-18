@@ -12,6 +12,7 @@ wheel does not have it.
 | path                           | contents                                                           |
 | ------------------------------ | ------------------------------------------------------------------ |
 | `benchmark.py`                 | many runs, each by its runner in its own process                   |
+| `summary.py`                   | the summary of a benchmark folder                                  |
 | `runners/`                     | the runners: one run of a layer each                               |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
 | `tests/`                       | the tests                                                          |
@@ -136,7 +137,7 @@ and every run, checks each instance file and start, then has each runner build i
 was. The runs then go round after round, in the file's order, `processes` at a time. It prints what it has to do
 (`starting <folder>: 8 runs to run`, or on a resume `resuming <folder>: 5 / 8 finished (1 timeout, 0 check failed),
 3 to run (2 cut off, removed first)`), a line per run that ends (`[6/8] <run folder>: finished, 33.2 s`), and at the
-end the counts of `status.txt`.
+end the counts of `status.txt`, and the summary's path ([Summary](#summary)).
 
 | flag | what |
 | --- | --- |
@@ -176,6 +177,7 @@ other runs; the benchmark says so and names the folder's `--processes`.
 | `benchmark.toml` | the benchmark options and every run, expanded and named |
 | `metadata.json` | processes, rounds, runs, the matrix points dropped; the record its runs share (source, build, versions of the masters' packages, machine), and the other records when mixed; `events` (below) |
 | `status.txt` | how many runs are finished and how, then each run in progress and since when; rewritten every second and at every change |
+| `summary.md`, `summary.csv`, `runs.csv` | the summary ([below](#summary)) |
 | `run_files/<run>.toml` | each run's options, given to its runner as `--file` |
 | `runs/<run>-r<round>/` | each run's folder, as above, with `log.txt` (the runner's output) unless `--no-logs` |
 
@@ -203,6 +205,45 @@ The benchmark adds to each run's `metadata.json`:
 `benchmark.py` exits with 0 when every run finished and passed its check, 1 when a run timed out, crashed, did not
 start or failed its check, 2 when the benchmark could not start, 3 when `STOP` stopped it, 4 on an error of the
 benchmark itself, 130 on Ctrl-C.
+
+## Summary
+
+`benchmark.py` writes a summary into the benchmark folder each time it ends, finished, stopped or interrupted;
+`summary.py` writes it again from the folder's files alone. A folder of run folders the runners wrote by themselves
+works too, as does a single run folder: there is then no `benchmark.toml`, and the runs are the folder names without
+`-r<round>`.
+
+```bash
+cd benchmarks/column_generation
+python summary.py results/my_benchmark
+```
+
+| file | contents |
+| --- | --- |
+| `summary.md` | the runs, rounds and processes; the rounds finished, timed out and not finished; the last event; the flags (below); the record the rounds share, and any other with the rounds that have it; the solvers' versions over the rounds (from the benchmark's own record for a solver no round recorded); a results table and a times table, one line per run; the rounds that did not finish, with their outcome and exit code |
+| `summary.csv` | one row per run: `run`, `layer`, `instance`, `master`, how its rounds ended (`rounds`, `finished`, `failed_checks`, `timeouts`, `not_finished`), the figures of each result field, `seconds_per_iteration`, `wall_seconds_median`, `processor_seconds_median`, `other_processor_percent`, `on_battery`, `flags` |
+| `runs.csv` | one row per round: `run`, `round`, `folder`, `outcome`, the run's options as dotted columns (`master.type`, `graph.ng_size`; lists as JSON), every field of `result.json`, then from `metadata.json` `exit_code`, `started`, `wall_seconds`, `processor_seconds` and the `benchmark.`, `load.`, `source.` and `versions.` fields; for plots and other tools |
+
+The figures are over the finished rounds, those whose check failed included. A field whose name ends in `_seconds` or
+`_bytes` is measured: its median, mean, min, max and spread, (max - min) / median in percent (`summary.csv` has all
+five, `summary.md` the median, and the min, max and spread of `solve_seconds`). The median is the main figure: a
+round slowed by the machine moves the mean more than the median. `seconds_per_iteration` is the median over the
+rounds of each round's `solve_seconds` / `iterations`, an average over the run's iterations, early and late alike.
+
+Any other field has one value when every finished round agrees, numbers within 1e-6 relative; otherwise it is empty
+in `summary.csv`, `summary.md` shows `min..max` or each value with its count, and the run is flagged. Timeouts,
+crashed, not started, interrupted, cut off (`unfinished`) and missing rounds are counted, not in the figures. A
+runner's own fields get the same treatment.
+
+The flags:
+
+- more than one process: each run shared the machine with others, and ran its master solver on one thread unless
+  told otherwise;
+- rounds on battery;
+- mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`);
+- a solver with several versions in the folder: the layers compare only on the same solver; the `cpp-bindings` layer's
+  `highs` master does not give its version, which is said;
+- per run: timeouts, failed checks, rounds not finished, rounds that differ, battery.
 
 ## Tests
 
