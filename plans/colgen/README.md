@@ -114,8 +114,14 @@ Then `D-209` (`column_generation.threads`; a master's own thread parameter never
 `4ddc513e`). Integer solve done 2026-11-17 (`benchmark-solutions.md` §2, `F-67`): `094beacd`, then `7190eb83`
 (the runners' shared steps in `runner.main`); pushed 2026-11-17, head `7190eb83` (206 tests); the LP solved again
 after a limit (`D-211`), the gap (`D-212`), defaults and a failed check (`D-213`); R201_25's integer master is
-17.8 % (gurobipy) to 20.3 % (HiGHS) above the LP. **Next:** steps 7–9 (a PR on #88); then `T-1.18`, `T-1.19`,
-`T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
+17.8 % (gurobipy) to 20.3 % (HiGHS) above the LP.
+Step 7 done 2026-11-17 (`F-68`, `D-214`–`D-218`): `benchmark.py` `9efea8da` on top (not pushed; 240 tests, pyright
+and pre-commit clean; gurobipy checked by hand); `--retry-timeouts` added on the user's ask; exit codes 3 (`STOP`)
+and 130 (Ctrl-C) accepted. Manual checks 2026-11-18 (`F-69`), then `D-219`: `51b8223e` (docstring) and `76bac866`
+(events, a clean end on errors, the runner's processor time, clearer resumes), then `b1d434aa` (after the user's
+review: `total` in events, `Opening`, no `repeats`) on top; 247 tests; all pushed 2026-11-18.
+**Next:** steps 8–9 (a PR on #88);
+then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
