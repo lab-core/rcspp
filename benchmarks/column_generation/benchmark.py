@@ -61,6 +61,8 @@ from column_generation_benchmark.options import (  # noqa: E402
     run_from_arguments,
 )
 from column_generation_benchmark.record import make_record  # noqa: E402
+from column_generation_benchmark.run_folder import BENCHMARK_FILE, RUNS_FOLDER  # noqa: E402
+from column_generation_benchmark.summary import write_summary  # noqa: E402
 
 if TYPE_CHECKING:
     import psutil
@@ -68,12 +70,10 @@ if TYPE_CHECKING:
 #: The runners, one per layer: ``<layer>_runner.py``.
 RUNNERS = Path(__file__).resolve().parent / "runners"
 
-BENCHMARK_FILE = "benchmark.toml"
 METADATA_FILE = "metadata.json"
 STATUS_FILE = "status.txt"
 STOP_FILE = "STOP"
 RUN_FILES_FOLDER = "run_files"
-RUNS_FOLDER = "runs"
 
 #: The starts every layer makes; the others come from the instance's type.
 LAYER_STARTS = ("artificial",)
@@ -87,13 +87,6 @@ NOT_STARTED = 2  # wrong options, a failed build check, a folder refused
 STOPPED = 3  # a STOP file stopped it before the end
 FAILED = 4  # an error of the benchmark itself
 INTERRUPTED = 130  # Ctrl-C
-
-#: A run's outcome in its ``metadata.json``.
-FINISHED = "finished"
-CHECK_FAILED = "check failed"
-CRASHED = "crashed"
-RUN_NOT_STARTED = "not started"
-RUN_INTERRUPTED = "interrupted"
 
 
 class BenchmarkError(Exception):
@@ -146,7 +139,20 @@ def main(arguments: Sequence[str] | None = None) -> int:
         traceback.print_exc()
         return FAILED
 
-    return carry_out(expansion, output, run_files, build, opening)
+    exit_code = carry_out(expansion, output, run_files, build, opening)
+    summarize(output)
+    return exit_code
+
+
+def summarize(output: Path) -> None:
+    """Writes the folder's summary; a failure only warns: the runs are recorded."""
+    try:
+        written = write_summary(output)
+    except Exception as error:  # the summary's own failure must not hide the runs'
+        print(f"benchmark.py: no summary: {error}", file=sys.stderr)
+        return
+
+    print(f"summary: {written[0]}")
 
 
 def runner_command(layer: str) -> list[str]:
@@ -595,9 +601,9 @@ class Tally:
         if result is not None and result.get("status") == run_folder.TIMEOUT:
             self.timeouts += 1
             self.finished += 1
-        elif outcome in (FINISHED, CHECK_FAILED):
+        elif outcome in (run_folder.FINISHED, run_folder.CHECK_FAILED):
             self.finished += 1
-            self.failed_checks += outcome == CHECK_FAILED
+            self.failed_checks += outcome == run_folder.CHECK_FAILED
         else:
             self.crashed += 1
 
@@ -653,7 +659,14 @@ def carry_out(
             waiting.append((run, folder))
             cut_off += folder.exists()
         else:
-            tally.add(CHECK_FAILED if result["solution_check"] == "failed" else FINISHED, result)
+            tally.add(
+                (
+                    run_folder.CHECK_FAILED
+                    if result["solution_check"] == "failed"
+                    else run_folder.FINISHED
+                ),
+                result,
+            )
 
     print_opening(output, opening.event, tally, len(waiting), cut_off, retried)
     add_event(
@@ -766,7 +779,7 @@ def interrupt(
 
     with contextlib.suppress(OSError):
         for current in running:
-            run_folder.update_metadata(current.folder, {"outcome": RUN_INTERRUPTED})
+            run_folder.update_metadata(current.folder, {"outcome": run_folder.INTERRUPTED})
 
         add_event(output, "interrupted", reason=reason, killed=killed, **tally.counts())
         write_status(output, tally, [], waiting + len(running), "interrupted")
@@ -869,12 +882,12 @@ def outcome_of(exit_code: int | None, result: Mapping[str, Any] | None) -> str:
         return run_folder.TIMEOUT
 
     if result is not None and exit_code in (0, None):
-        return FINISHED
+        return run_folder.FINISHED
 
     if result is not None and exit_code == 1 and result.get("solution_check") == "failed":
-        return CHECK_FAILED
+        return run_folder.CHECK_FAILED
 
-    return RUN_NOT_STARTED if exit_code == 2 else CRASHED
+    return run_folder.NOT_STARTED if exit_code == 2 else run_folder.CRASHED
 
 
 def write_status(
