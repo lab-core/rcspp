@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import argparse
 import tomllib
-from dataclasses import fields
+from dataclasses import fields, replace
 from typing import Any
 
-from .benchmark import preset_names
+from .benchmark import BENCHMARK_OPTIONS, Benchmark, preset_names
 from .blocks import BLOCKS, OptionsError
 from .run import RUN_OPTIONS, Names, RunOptions
 
@@ -73,6 +73,32 @@ def add_benchmark_options(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("benchmark options")
     group.add_argument("--processes", type=int, help="runs at a time")
     group.add_argument("--repeats", type=int, help="rounds of the whole list of runs")
+    group.add_argument(
+        "--timeout", type=float, help="seconds after which a run's process is killed"
+    )
+    group.add_argument("--machine", help="the machine's label, for the records")
+    group.add_argument(
+        "--no-logs",
+        dest="logs",
+        action="store_false",
+        default=None,
+        help="do not keep each run's output in its log.txt",
+    )
+
+
+def benchmark_from_arguments(benchmark: Benchmark, arguments: argparse.Namespace) -> Benchmark:
+    """`benchmark` with the benchmark options the command line gives over its file's.
+
+    Raises:
+        OptionsError: For a value its file would not take.
+    """
+    given = {
+        name: getattr(arguments, name)
+        for name in BENCHMARK_OPTIONS
+        if getattr(arguments, name, None) is not None
+    }
+    checked = Benchmark.from_table({"benchmark": given}, "command line")
+    return replace(benchmark, **{name: getattr(checked, name) for name in given})
 
 
 def run_from_arguments(arguments: argparse.Namespace, names: Names | None = None) -> RunOptions:

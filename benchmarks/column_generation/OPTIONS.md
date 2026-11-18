@@ -18,7 +18,7 @@ Three kinds of settings, never mixed:
 | kind | what they decide | in a run's `run.toml` |
 |---|---|---|
 | run options | what is solved and how: change one and the result may change | yes, expanded |
-| benchmark options | how a list of runs is carried out: `processes`, `repeats` | no |
+| benchmark options | how a list of runs is carried out: `processes`, `repeats`, `timeout`, `machine`, `logs` | no |
 | flags | where things are and what to do, such as the output folder | no; `command.txt` has them |
 
 A run option `column_generation.timeout_s` stops the solve from inside; a benchmark's timeout kills a run's process.
@@ -31,7 +31,7 @@ A run option `column_generation.timeout_s` stops the solve from inside; a benchm
 | a benchmark file | yes | yes | in `[defaults]`, `[matrix]`, `[[runs]]` | yes | `[benchmark]` |
 | a run file | no | no | yes, at the top level | no | no |
 | a runner's command line | no | no | yes, over the run file | no | no |
-| `benchmark.py`'s command line | no | no | yes, over every run | no | `--processes`, `--repeats` |
+| `benchmark.py`'s command line | no | no | yes, over every run | no | `--processes`, `--repeats`, `--timeout`, `--machine`, `--no-logs` |
 
 Anything else in a place stops everything with an error, before the first run.
 
@@ -283,6 +283,19 @@ master = "highspy"
 - Runs that come out the same are kept once.
 - Every run is expanded and checked before the first one starts.
 
+`[benchmark]` holds the benchmark options; `benchmark.py`'s command line goes over them:
+
+| option | what | default | command line |
+|---|---|---|---|
+| `processes` | runs at a time, each in its own process | 1 | `--processes` |
+| `repeats` | rounds: every run once, then again | 1 | `--repeats` |
+| `timeout` | seconds after which a run's process is killed; its status is `timeout` | none | `--timeout` |
+| `machine` | the machine's label, for every record | none | `--machine` |
+| `logs` | each run's output kept in its `log.txt` | `true` | `--no-logs` |
+
+With more than one process, every run that leaves `column_generation.threads` unset gets 1, so that runs side by
+side do not share the processors; its name shows it (`...-column_generation_9b01e4`), as any run that sets it.
+
 ## The command line
 
 Every run option is `--<option> <value>` and every parameter `--<option>.<parameter> <value>`; both go over the files.
@@ -294,7 +307,7 @@ A script's `--help` lists them all, with its own flags.
 --start.cost_factor 1e3                             # one parameter
 --master.parameters "{ Presolve = 1, Method = 0 }"   # a solver's parameters: one table
 --stage tabu:max_solutions=20,max_iterations=1000 --stage simple   # the pricing's stages, in order
---processes 2 --repeats 3                           # benchmark.py only
+--processes 2 --repeats 3 --timeout 600            # benchmark.py only
 ```
 
 - A value is read as a TOML value (`8`, `true`, `inf`, `{ ... }`), else as text: `--instance C101_25`.
