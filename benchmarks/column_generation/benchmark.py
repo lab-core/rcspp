@@ -12,20 +12,24 @@ starts ``processes`` runs at a time, round after round, each as
 ``runners/<layer>_runner.py --file run_files/<run>.toml --output runs/<run>-r<round>``.
 Run again on the same folder, it resumes: a run folder with a ``result.json`` is finished
 and skipped, any other is removed and its run started again. A ``STOP`` file in the folder
-stops it once the runs in progress end.
+stops it once the runs in progress end. Ctrl-C, or an error of the benchmark itself, kills
+the runs in progress.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import shutil
 import subprocess  # nosec B404: the runners, this folder's own scripts
 import sys
 import tempfile
+import threading
 import time
+import traceback
 from collections import deque
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
@@ -79,8 +83,9 @@ POLL_SECONDS = 0.05
 
 #: The benchmark's exit codes besides 0, when every run finished and passed its check.
 RUNS_FAILED = 1  # a run timed out, crashed, did not start, or failed its check
-NOT_STARTED = 2  # wrong options, a failed build check, a mixed benchmark refused
+NOT_STARTED = 2  # wrong options, a failed build check, a folder refused
 STOPPED = 3  # a STOP file stopped it before the end
+FAILED = 4  # an error of the benchmark itself
 INTERRUPTED = 130  # Ctrl-C
 
 #: A run's outcome in its ``metadata.json``.
@@ -88,10 +93,11 @@ FINISHED = "finished"
 CHECK_FAILED = "check failed"
 CRASHED = "crashed"
 RUN_NOT_STARTED = "not started"
+RUN_INTERRUPTED = "interrupted"
 
 
 class BenchmarkError(Exception):
-    """A benchmark that cannot start: a failed build check, a folder of another benchmark."""
+    """A benchmark that cannot start: a failed build check, a folder refused."""
 
 
 ERRORS = (*runner.ERRORS, BenchmarkError)
@@ -111,31 +117,69 @@ def main(arguments: Sequence[str] | None = None) -> int:
         list_runs(expansion, output)
         check_options(expansion)
 
+        if parsed.check is not None:
+            print_finished(expansion, output)
+
         if parsed.check == "options":
             return 0
 
-        if parsed.check == "build":
+        # Refused folders and failed checks leave the folder as it was.
+        metadata, opening = open_folder(output, expansion, build, parsed)
+
+        if parsed.check == "build" or not parsed.no_check:
             with tempfile.TemporaryDirectory() as folder:
                 check_builds(expansion, write_run_files(Path(folder), expansion), build)
 
+        if parsed.check == "build":
             print("every run built")
             return 0
 
-        start_folder(output, expansion, build, parsed.allow_mixed)
+        write_folder(output, expansion, metadata)
         run_files = write_run_files(output / RUN_FILES_FOLDER, expansion)
-
-        if not parsed.no_check:
-            check_builds(expansion, run_files, build)
     except ERRORS as error:
         print(f"benchmark.py: {error}", file=sys.stderr)
         return NOT_STARTED
+    except KeyboardInterrupt:
+        print("interrupted before the first run", file=sys.stderr)
+        return INTERRUPTED
+    except Exception:
+        traceback.print_exc()
+        return FAILED
 
-    return carry_out(expansion, output, run_files, build, parsed.retry_timeouts)
+    return carry_out(expansion, output, run_files, build, parsed.retry_timeouts, opening)
 
 
 def runner_command(layer: str) -> list[str]:
     """The command that starts a layer's runner, before its flags."""
     return [sys.executable, str(RUNNERS / f"{layer.replace('-', '_')}_runner.py")]
+
+
+def own_group() -> dict[str, Any]:
+    """Popen's arguments that start a process in its own group: Ctrl-C then reaches the
+    benchmark alone, which ends its runners itself."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+
+    return {"start_new_session": True}
+
+
+def kill_tree(process: psutil.Process) -> None:
+    """Kills a process and its children; a runner started from a virtual environment's
+    Python is two processes, the launcher and the interpreter."""
+    import psutil
+
+    members = [process]
+
+    try:
+        members += process.children(recursive=True)
+    except psutil.Error:
+        pass
+
+    for member in members:
+        try:
+            member.kill()
+        except psutil.Error:
+            pass
 
 
 # MARK: Before the runs
@@ -221,6 +265,21 @@ def list_runs(expansion: Expansion, output: Path) -> None:
         print(f"  {RUNS_FOLDER}/{run.name}-r<1..{rounds}>" if rounds > 1 else f"  {run.name}")
 
 
+def run_folders(expansion: Expansion, output: Path) -> list[tuple[Run, Path]]:
+    """Every run of every round, with its folder."""
+    return [
+        (run, output / RUNS_FOLDER / folder_name(run, number)) for number, run in expansion.rounds()
+    ]
+
+
+def print_finished(expansion: Expansion, output: Path) -> None:
+    """Prints how many of the runs the folder already holds finished."""
+    if (output / BENCHMARK_FILE).is_file():
+        folders = run_folders(expansion, output)
+        finished = sum(run_folder.read_result(folder) is not None for _, folder in folders)
+        print(f"{output} already holds {finished} / {len(folders)} finished runs")
+
+
 def check_options(expansion: Expansion) -> None:
     """What the options can say without a runner: each instance's file reads, and its
     type makes the run's start.
@@ -290,39 +349,109 @@ def differences(old: Mapping[str, Any], new: Mapping[str, Any], prefix: str = ""
     return found
 
 
-def start_folder(output: Path, expansion: Expansion, build: Path, allow_mixed: bool) -> None:
-    """The benchmark folder, made or resumed: ``benchmark.toml`` and ``metadata.json``.
+def open_folder(
+    output: Path, expansion: Expansion, build: Path, arguments: argparse.Namespace
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The benchmark folder's ``metadata.json`` to write, and the event that opens this
+    start: ``started`` for a new folder, ``resumed`` for one that holds these runs.
+    Writes nothing.
 
     Raises:
-        BenchmarkError: When the folder holds another benchmark's runs, or was started on
-            another source, versions or machine and `allow_mixed` is not set.
+        BenchmarkError: When the folder holds other runs, or was started on another
+            source, versions or machine and ``--allow-mixed`` is not given.
     """
-    import tomli_w
-
     table = benchmark_table(expansion)
     record = benchmark_record(expansion, build)
-    metadata_path = output / METADATA_FILE
-    metadata: dict[str, Any] = {}
+    flags = {
+        name: True
+        for name, given in (
+            ("retry_timeouts", arguments.retry_timeouts),
+            ("allow_mixed", arguments.allow_mixed),
+        )
+        if given
+    }
 
-    if (output / BENCHMARK_FILE).is_file():
-        if read_toml(output / BENCHMARK_FILE).get("runs") != table["runs"]:
-            raise BenchmarkError(f"{output} holds another benchmark's runs: choose another folder")
+    if not (output / BENCHMARK_FILE).is_file():
+        return {"record": record, "events": []}, {"event": "started", **flags}
 
-        metadata = run_folder.read_json(metadata_path) if metadata_path.is_file() else {}
-        changed = differences(metadata.get("record", {}), record)
+    old = read_toml(output / BENCHMARK_FILE)
 
-        if changed and not allow_mixed:
-            raise BenchmarkError(
-                f"{output} was started with another source, versions or machine "
-                f"({'; '.join(changed)}): resume with --allow-mixed to mix them"
-            )
+    if old.get("runs") != table["runs"]:
+        raise BenchmarkError(other_runs(output, old, table))
 
-        if changed:
-            metadata.setdefault("other_records", []).append(record)
+    path = output / METADATA_FILE
+    metadata: dict[str, Any] = run_folder.read_json(path) if path.is_file() else {"record": record}
+    changed_record = differences(metadata.get("record", {}), record)
 
-        metadata.setdefault("resumed", []).append(runner.now())
-    else:
-        metadata = {"start": runner.now(), "record": record}
+    if changed_record and not arguments.allow_mixed:
+        raise BenchmarkError(
+            f"{output} was started with another source, versions or machine "
+            f"({'; '.join(changed_record)}): resume with --allow-mixed to mix them"
+        )
+
+    if changed_record:
+        metadata.setdefault("other_records", []).append(record)
+
+    opening: dict[str, Any] = {"event": "resumed", **flags}
+    before, after = old.get("benchmark", {}), table["benchmark"]
+    changed = {
+        name: [before.get(name), after.get(name)]
+        for name in sorted(set(before) | set(after))
+        if before.get(name) != after.get(name)
+    }
+
+    if changed:
+        opening["changed"] = changed
+
+    return metadata, opening
+
+
+def other_runs(output: Path, old: Mapping[str, Any], table: Mapping[str, Any]) -> str:
+    """Why a folder's runs are not the benchmark's: their threads only, as the number of
+    processes changed, or the runs added and removed."""
+
+    def without_threads(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                **{name: value for name, value in run.items() if name != "name"},
+                "column_generation": {
+                    name: value
+                    for name, value in run.get("column_generation", {}).items()
+                    if name != "threads"
+                },
+            }
+            for run in runs
+        ]
+
+    old_runs: list[dict[str, Any]] = old.get("runs", [])
+    new_runs: list[dict[str, Any]] = table["runs"]
+
+    if without_threads(old_runs) == without_threads(new_runs):
+        before = old.get("benchmark", {}).get("processes", 1)
+        after = table["benchmark"]["processes"]
+        return (
+            f"{output} holds these runs as run with {before} processes: with more than one, "
+            "every run that leaves column_generation.threads unset gets 1, so with "
+            f"{after} they are other runs; resume with --processes {before}, or choose "
+            "another folder"
+        )
+
+    def some(names: list[str]) -> str:
+        return ", ".join(names[:3]) + (", ..." if len(names) > 3 else "")
+
+    old_names = [run["name"] for run in old_runs]
+    new_names = [run["name"] for run in new_runs]
+    added = [name for name in new_names if name not in old_names]
+    removed = [name for name in old_names if name not in new_names]
+    parts = [f"{len(added)} added: {some(added)}"] if added else []
+    parts += [f"{len(removed)} removed: {some(removed)}"] if removed else []
+    found = "; ".join(parts) or "the same names with other options"
+    return f"{output} holds another benchmark's runs ({found}): choose another folder"
+
+
+def write_folder(output: Path, expansion: Expansion, metadata: dict[str, Any]) -> None:
+    """The benchmark folder's ``benchmark.toml`` and ``metadata.json``."""
+    import tomli_w
 
     metadata.update(
         processes=expansion.processes,
@@ -332,8 +461,9 @@ def start_folder(output: Path, expansion: Expansion, build: Path, allow_mixed: b
         dropped=expansion.dropped,
     )
     output.mkdir(parents=True, exist_ok=True)
+    table = benchmark_table(expansion)
     run_folder.write_atomically(output / BENCHMARK_FILE, tomli_w.dumps(table))
-    run_folder.write_json(metadata_path, metadata)
+    run_folder.write_json(output / METADATA_FILE, metadata)
 
 
 def write_run_files(folder: Path, expansion: Expansion) -> dict[str, Path]:
@@ -352,24 +482,61 @@ def write_run_files(folder: Path, expansion: Expansion) -> dict[str, Path]:
 
 
 def check_builds(expansion: Expansion, run_files: Mapping[str, Path], build: Path) -> None:
-    """Each run built by its runner without solving, ``processes`` at a time.
+    """Each run built by its runner without solving, ``processes`` at a time. On Ctrl-C
+    or an error, the runners still building are killed.
 
     Raises:
         BenchmarkError: When a runner cannot build its run; with each one's message.
     """
+    import psutil
+
+    started: list[subprocess.Popen[str]] = []
+    lock = threading.Lock()
+    stopping = threading.Event()
 
     def check(run: Run) -> str | None:
         command = [
             *runner_command(run.layer),
             *("--check", "build", "--file", str(run_files[run.name]), "--build", str(build)),
         ]
-        done = subprocess.run(  # nosec B603: this folder's runners
-            command, capture_output=True, text=True, stdin=subprocess.DEVNULL
-        )
-        return None if done.returncode == 0 else f"{run.name}: {done.stderr.strip()}"
 
-    with ThreadPoolExecutor(max_workers=expansion.processes) as pool:
-        failed = [message for message in pool.map(check, expansion.runs) if message]
+        with lock:
+            if stopping.is_set():
+                return None
+
+            process = subprocess.Popen(  # nosec B603: this folder's runners
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                **own_group(),
+            )
+            started.append(process)
+
+        _, errors = process.communicate()
+        return None if process.returncode == 0 else f"{run.name}: {errors.strip()}"
+
+    pool = ThreadPoolExecutor(max_workers=expansion.processes)
+    futures = [pool.submit(check, run) for run in expansion.runs]
+
+    try:
+        # A little at a time, so that Ctrl-C reaches this thread.
+        while wait(futures, timeout=POLL_SECONDS).not_done:
+            pass
+
+        failed = [message for future in futures if (message := future.result())]
+    except BaseException:
+        with lock:
+            stopping.set()
+
+        for process in started:
+            with contextlib.suppress(psutil.Error):
+                kill_tree(psutil.Process(process.pid))
+
+        raise
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
 
     if failed:
         raise BenchmarkError("the build check failed:\n  " + "\n  ".join(failed))
@@ -384,7 +551,7 @@ class Running:
 
     run: Run
     folder: Path
-    process: subprocess.Popen[bytes]
+    process: subprocess.Popen[Any]
     tree: psutil.Process
     log: IO[bytes] | None
     started: float
@@ -419,6 +586,30 @@ class Tally:
         else:
             self.crashed += 1
 
+    def counts(self) -> dict[str, int]:
+        return {
+            "finished": self.finished,
+            "timeouts": self.timeouts,
+            "failed_checks": self.failed_checks,
+            "crashed": self.crashed,
+        }
+
+    def line(self, running: int, waiting: int) -> str:
+        return (
+            f"{self.finished} / {self.total} runs finished ({self.timeouts} timeout, "
+            f"{self.failed_checks} check failed), {self.crashed} crashed or not started, "
+            f"{running} running, {waiting} waiting"
+        )
+
+
+def add_event(output: Path, event: str, **details: Any) -> None:
+    """Appends an event to the benchmark's ``metadata.json``: started, resumed, stopped,
+    interrupted or finished."""
+    path = output / METADATA_FILE
+    metadata = run_folder.read_json(path)
+    metadata.setdefault("events", []).append({"time": runner.now(), "event": event, **details})
+    run_folder.write_json(path, metadata)
+
 
 def carry_out(
     expansion: Expansion,
@@ -426,26 +617,40 @@ def carry_out(
     run_files: Mapping[str, Path],
     build: Path,
     retry_timeouts: bool,
+    opening: Mapping[str, Any],
 ) -> int:
     """Every run of every round not yet finished, ``processes`` at a time; returns the
     benchmark's exit code."""
-    rounds = expansion.rounds()
-    tally = Tally(total=len(rounds))
+    folders = run_folders(expansion, output)
+    tally = Tally(total=len(folders))
     waiting: deque[tuple[Run, Path]] = deque()
+    cut_off = retried = 0
 
-    for number, run in rounds:
-        folder = output / RUNS_FOLDER / folder_name(run, number)
+    for run, folder in folders:
         result = run_folder.read_result(folder)
 
         if result is not None and retry_timeouts and result["status"] == run_folder.TIMEOUT:
             shutil.rmtree(folder)
             result = None
+            retried += 1
 
         if result is None:
             waiting.append((run, folder))
+            cut_off += folder.exists()
         else:
             tally.add(CHECK_FAILED if result["solution_check"] == "failed" else FINISHED, result)
 
+    print_opening(output, opening["event"], tally, len(waiting), cut_off, retried)
+    details = {name: value for name, value in opening.items() if name != "event"}
+    add_event(
+        output,
+        opening["event"],
+        finished=tally.finished,
+        to_run=len(waiting),
+        cut_off=cut_off,
+        timeouts_to_run_again=retried,
+        **details,
+    )
     running: list[Running] = []
     stopped = False
     last_sample = time.monotonic()
@@ -469,14 +674,16 @@ def carry_out(
 
             if time.monotonic() - last_sample >= INTERVAL_SECONDS:
                 sample, last_sample = take_sample(), time.monotonic()
+                write_status(output, tally, running, len(waiting))
 
             for current in list(running):
                 current.read_processor_seconds()
                 exit_code = current.process.poll()
+                seconds = time.monotonic() - current.started
                 timed_out = (
                     exit_code is None
                     and expansion.timeout is not None
-                    and time.monotonic() - current.started > expansion.timeout
+                    and seconds > expansion.timeout
                 )
 
                 if exit_code is None and not timed_out:
@@ -491,30 +698,69 @@ def carry_out(
                 outcome, result = finish_run(current, exit_code, run_files, expansion.processes)
                 tally.add(outcome, result)
                 running.remove(current)
-                print(f"{current.folder.name}: {outcome}")
+                ended = tally.finished + tally.crashed
+                print(f"[{ended}/{tally.total}] {current.folder.name}: {outcome}, {seconds:.1f} s")
                 write_status(output, tally, running, len(waiting))
 
             time.sleep(POLL_SECONDS)
-    except KeyboardInterrupt:
-        for current in running:
-            kill(current)
-            run_folder.update_metadata(current.folder, {"outcome": "interrupted"})
-
-        write_status(output, tally, running, len(waiting), "interrupted")
-        print("interrupted: run the benchmark again to resume", file=sys.stderr)
-        return INTERRUPTED
-
-    run_folder.update_metadata(output, {"end": runner.now()})
+    except BaseException as error:
+        return interrupt(output, tally, running, len(waiting), error)
 
     if stopped:
         (output / STOP_FILE).unlink(missing_ok=True)
+        add_event(output, "stopped", runs_left=len(waiting), **tally.counts())
         write_status(output, tally, running, len(waiting), "stopped")
         print(f"stopped, {len(waiting)} runs left: run the benchmark again to resume")
         return STOPPED
 
+    add_event(output, "finished", **tally.counts())
     write_status(output, tally, running, 0, "finished")
+    print(tally.line(0, 0))
     problems = tally.timeouts + tally.failed_checks + tally.crashed
     return RUNS_FAILED if problems else 0
+
+
+def print_opening(
+    output: Path, event: str, tally: Tally, to_run: int, cut_off: int, retried: int
+) -> None:
+    """Prints what this start of the benchmark has to do."""
+    if event == "started":
+        print(f"starting {output}: {to_run} runs to run")
+        return
+
+    done = f"{tally.finished} / {tally.total} finished"
+    done += f" ({tally.timeouts} timeout, {tally.failed_checks} check failed)"
+    notes = [f"{cut_off} cut off, removed first"] if cut_off else []
+    notes += [f"{retried} timeouts to run again"] if retried else []
+    left = f"{to_run} to run" + (f" ({'; '.join(notes)})" if notes else "")
+    print(f"resuming {output}: {done}, {left}")
+
+
+def interrupt(
+    output: Path, tally: Tally, running: list[Running], waiting: int, error: BaseException
+) -> int:
+    """Ends a benchmark that Ctrl-C or an error stopped: kills the runs in progress
+    first, then records them as interrupted, as far as it can."""
+    for current in running:
+        kill(current)
+
+    killed = [current.folder.name for current in running]
+    reason = (
+        "Ctrl-C" if isinstance(error, KeyboardInterrupt) else f"{type(error).__name__}: {error}"
+    )
+
+    with contextlib.suppress(OSError):
+        for current in running:
+            run_folder.update_metadata(current.folder, {"outcome": RUN_INTERRUPTED})
+
+        add_event(output, "interrupted", reason=reason, killed=killed, **tally.counts())
+        write_status(output, tally, [], waiting + len(running), "interrupted")
+
+    if not isinstance(error, KeyboardInterrupt):
+        traceback.print_exception(error)
+
+    print(f"interrupted ({reason}): run the benchmark again to resume", file=sys.stderr)
+    return INTERRUPTED if isinstance(error, KeyboardInterrupt) else FAILED
 
 
 def start_run(run: Run, folder: Path, command: list[str], logs: bool) -> Running:
@@ -527,19 +773,13 @@ def start_run(run: Run, folder: Path, command: list[str], logs: bool) -> Running
 
     folder.mkdir(parents=True)
     log = open(folder / run_folder.LOG_FILE, "wb") if logs else None  # noqa: SIM115
-    # Its own process group: Ctrl-C reaches the benchmark, which ends the runs itself.
-    group = (
-        {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-        if sys.platform == "win32"
-        else {"start_new_session": True}
-    )
     sample = take_sample()
     process = subprocess.Popen(  # nosec B603: this folder's runners
         command,
         stdin=subprocess.DEVNULL,
         stdout=log if log is not None else subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
-        **group,  # type: ignore[arg-type]
+        **own_group(),
     )
     current = Running(
         run=run,
@@ -555,23 +795,12 @@ def start_run(run: Run, folder: Path, command: list[str], logs: bool) -> Running
 
 
 def kill(current: Running) -> None:
-    """Kills a run's process and its children."""
-    import psutil
-
-    members = [current.tree]
-
-    try:
-        members += current.tree.children(recursive=True)
-    except psutil.Error:
-        pass
-
-    for member in members:
-        try:
-            member.kill()
-        except psutil.Error:
-            pass
-
+    """Kills a run's process tree, then waits for it and closes its log."""
+    kill_tree(current.tree)
     current.process.wait()
+
+    if current.log is not None:
+        current.log.close()
 
 
 def finish_run(
@@ -583,13 +812,17 @@ def finish_run(
     Returns the outcome and the result.
     """
     seconds = time.monotonic() - current.started
+    folder = current.folder
+    metadata_path = folder / run_folder.METADATA_FILE
+    metadata = run_folder.read_json(metadata_path) if metadata_path.is_file() else {}
+    # The runner's own count: its interpreter has ended, and with it what psutil can read.
     current.read_processor_seconds()
-    current.load.add(take_sample(), current.processor_seconds)
+    reported = metadata.get("processor_seconds") or 0.0
+    current.load.add(take_sample(), max(current.processor_seconds, reported))
 
     if current.log is not None:
         current.log.close()
 
-    folder = current.folder
     result = run_folder.read_result(folder)
 
     if exit_code is None and result is None:
@@ -601,8 +834,6 @@ def finish_run(
         run_folder.write_result(folder, result)
 
     outcome = outcome_of(exit_code, result)
-    metadata_path = folder / run_folder.METADATA_FILE
-    metadata = run_folder.read_json(metadata_path) if metadata_path.is_file() else {}
     run_folder.update_metadata(
         folder,
         {
@@ -634,13 +865,13 @@ def outcome_of(exit_code: int | None, result: Mapping[str, Any] | None) -> str:
 def write_status(
     output: Path, tally: Tally, running: Sequence[Running], waiting: int, end: str | None = None
 ) -> None:
-    """``status.txt``: how many runs are done and how, then each run in progress."""
-    lines = [
-        f"{runner.now()}  {tally.finished} / {tally.total} runs finished ({tally.timeouts} "
-        f"timeout, {tally.failed_checks} check failed), {tally.crashed} crashed or not started, "
-        f"{len(running)} running, {waiting} waiting"
-    ]
+    """``status.txt``: how many runs are done and how, then each run in progress.
+
+    Only
+    for reading: when the file cannot be written, the benchmark goes on without it.
+    """
     now = time.monotonic()
+    lines = [f"{runner.now()}  {tally.line(len(running), waiting)}"]
     lines += [
         f"{current.folder.name}  started {current.started_at}, {now - current.started:.1f} s"
         for current in running
@@ -649,7 +880,8 @@ def write_status(
     if end is not None:
         lines.append(f"{end} at {runner.now()}")
 
-    run_folder.write_atomically(output / STATUS_FILE, "\n".join(lines) + "\n")
+    with contextlib.suppress(OSError):
+        run_folder.write_atomically(output / STATUS_FILE, "\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":

@@ -5,8 +5,9 @@ and fills a run folder as a runner does, doing what the test asks for its run.
 
 The test writes a JSON file named by ``FAKE_RUNNER_PLAN``: for a run whose folder name holds
 a key, what to do (``sleep`` seconds, ``exit`` 2 before writing anything, ``crash`` after
-starting the folder, ``check_failed``, ``stop`` the benchmark, ``build_fails``). Each start
-and end goes as a line into the file named by ``FAKE_RUNNER_LOG``.
+starting the folder, ``check_failed``, ``stop`` the benchmark, ``processor_seconds`` to
+report, ``build_fails``, ``build_sleep`` seconds). Each start and end goes as a file into the
+folder named by ``FAKE_RUNNER_LOG``; each build makes a file ``building-<run>`` next to it.
 """
 
 import argparse
@@ -33,8 +34,11 @@ def plan_for(output: str) -> dict[str, Any]:
 
 
 def log(line: str) -> None:
-    with open(os.environ["FAKE_RUNNER_LOG"], "a", encoding="utf-8") as file:
-        file.write(line + "\n")
+    """One file per line, named by the time: two runners appending to one file at once
+    can lose a line."""
+    folder = Path(os.environ["FAKE_RUNNER_LOG"])
+    folder.mkdir(exist_ok=True)
+    (folder / f"{time.time_ns():020d}-{os.getpid()}.txt").write_text(line, encoding="utf-8")
 
 
 def main() -> int:
@@ -47,7 +51,13 @@ def main() -> int:
     arguments = parser.parse_args()
 
     if arguments.check == "build":
-        if plan_for(Path(arguments.file).stem).get("build_fails"):
+        building = plan_for(Path(arguments.file).stem)
+        Path(os.environ["FAKE_RUNNER_LOG"]).with_name(
+            f"building-{Path(arguments.file).stem}"
+        ).touch()
+        time.sleep(building.get("build_sleep", 0.0))
+
+        if building.get("build_fails"):
             print("cannot build", file=sys.stderr)
             return 2
 
@@ -84,6 +94,9 @@ def main() -> int:
         solve_seconds=0.0,
         solution_check="failed" if what.get("check_failed") else "passed",
     )
+    if "processor_seconds" in what:
+        run_folder.update_metadata(folder, {"processor_seconds": what["processor_seconds"]})
+
     run_folder.write_result(folder, result)
     log(f"end {folder.name}")
     return 1 if what.get("check_failed") else 0

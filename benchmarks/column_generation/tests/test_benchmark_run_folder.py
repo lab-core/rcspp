@@ -6,6 +6,7 @@ record has every group."""
 import dataclasses
 import importlib
 import math
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -211,5 +212,43 @@ def test_a_failed_write_leaves_no_file(tmp_path: Path, monkeypatch: pytest.Monke
 
     with pytest.raises(OSError, match="disk full"):
         run_folder.write_atomically(tmp_path / "result.json", "{}")
+
+    assert list(tmp_path.iterdir()) == []
+
+
+# MARK: Retries
+
+
+def test_a_denied_rename_is_tried_again(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    replace = os.replace
+    denied = 0
+
+    def flaky(source: str, target: Path) -> None:
+        nonlocal denied
+
+        if denied < 2:
+            denied += 1
+            raise PermissionError("held open by another process")
+
+        replace(source, target)
+
+    monkeypatch.setattr(os, "replace", flaky)
+    run_folder.write_atomically(tmp_path / "status.txt", "text")
+
+    assert (tmp_path / "status.txt").read_text() == "text"
+    assert denied == 2
+
+
+def test_a_rename_denied_every_time_raises_and_leaves_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    def denied(source: str, target: Path) -> None:
+        raise PermissionError("held open by another process")
+
+    monkeypatch.setattr(os, "replace", denied)
+    monkeypatch.setattr(run_folder, "REPLACE_PAUSE_SECONDS", 0.0)
+
+    with pytest.raises(PermissionError):
+        run_folder.write_atomically(tmp_path / "status.txt", "text")
 
     assert list(tmp_path.iterdir()) == []

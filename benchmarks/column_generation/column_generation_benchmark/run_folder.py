@@ -25,6 +25,7 @@ import shutil
 import subprocess  # nosec B404: only to quote a command line on Windows
 import sys
 import tempfile
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,10 @@ METADATA_FILE = "metadata.json"
 RESULT_FILE = "result.json"
 SOLUTION_FILE = "solution.json"
 LOG_FILE = "log.txt"
+
+#: How often, and how far apart, a file is put in place before giving up.
+REPLACE_ATTEMPTS = 5
+REPLACE_PAUSE_SECONDS = 0.1
 
 #: The status of a run whose process the benchmark killed at its timeout.
 TIMEOUT = "timeout"
@@ -109,10 +114,24 @@ def write_atomically(path: Path, text: str) -> None:
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(text)
 
-        os.replace(temporary, path)
+        replace(temporary, path)
     except BaseException:
         os.unlink(temporary)
         raise
+
+
+def replace(source: str, target: Path) -> None:
+    """``os.replace``, tried again a few times when Windows denies it: another process
+    (a reader, a file sync) can hold the target open for a moment."""
+    for attempt in range(1, REPLACE_ATTEMPTS + 1):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS:
+                raise
+
+            time.sleep(REPLACE_PAUSE_SECONDS)
 
 
 def write_json(path: Path, value: Mapping[str, Any]) -> None:

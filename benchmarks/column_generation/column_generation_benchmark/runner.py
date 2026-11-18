@@ -201,6 +201,14 @@ def now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
+def processor_seconds() -> float:
+    """The processor time this process has used so far."""
+    import psutil
+
+    times = psutil.Process().cpu_times()
+    return times.user + times.system
+
+
 def start_folder(arguments: argparse.Namespace, run: Run, command: Sequence[str]) -> Path:
     """The run folder, with ``run.toml``, ``command.txt`` and the start in
     ``metadata.json``.
@@ -278,11 +286,16 @@ def finish_folder(
     result: Mapping[str, Any],
     solution: Mapping[str, Any] | None,
 ) -> None:
-    """The end and the record in ``metadata.json``, the solution in ``solution.json``
-    when it was read, then ``result.json`` with the collectors' fields."""
+    """The end, the process's processor time and the record in ``metadata.json``, the
+    solution in ``solution.json`` when it was read, then ``result.json`` with the
+    collectors' fields.
+
+    The processor time is the benchmark's: it cannot read it once the process has ended.
+    """
     fields = {**result, **collect(run.statistics.to_table(), solution)}
     record = make_record(build, arguments.machine, solver_threads=run.column_generation.threads)
-    run_folder.update_metadata(folder, {"end": now(), **record})
+    end = {"end": now(), "processor_seconds": processor_seconds()}
+    run_folder.update_metadata(folder, {**end, **record})
 
     if solution is not None:
         run_folder.write_solution(folder, solution)

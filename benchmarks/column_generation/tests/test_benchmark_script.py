@@ -1,12 +1,14 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 """The benchmark: the order of its runs, side by side or not, resuming, the timeout, the STOP
-file, the runners' exit codes, the checks before the first run, mixed benchmarks refused, and
-the load. A fake runner (``fake_runner.py``) stands for the layers' runners, except in the
-last tests, which run a benchmark of the real ones and each of its runs again."""
+file, Ctrl-C and errors, the runners' exit codes, the checks before the first run, folders
+refused, the events, and the load. A fake runner (``fake_runner.py``) stands for the layers'
+runners, except in the last tests, which run a benchmark of the real ones and each of its runs
+again."""
 
 import json
 import shlex
+import shutil
 import subprocess  # nosec B404: the runs' own recorded commands
 import sys
 import time
@@ -16,6 +18,7 @@ from typing import Any
 
 import benchmark
 import package_runner
+import psutil
 import pytest
 from column_generation_benchmark import run_folder
 from column_generation_benchmark.load import Load, Sample
@@ -45,11 +48,43 @@ def plan(tmp_path: Path, what: dict[str, dict[str, Any]]) -> None:
     (tmp_path / "plan.json").write_text(json.dumps(what))
 
 
+def log_lines(tmp_path: Path) -> list[str]:
+    """The fake runners' lines, in the order they were written."""
+    folder = tmp_path / "runner.log"
+    files = sorted(folder.iterdir()) if folder.exists() else []
+    return [path.read_text(encoding="utf-8") for path in files]
+
+
+def clear_log(tmp_path: Path) -> None:
+    shutil.rmtree(tmp_path / "runner.log")
+
+
 def runner_log(tmp_path: Path) -> list[str]:
     """The fake runner's starts and ends, in order, without the run names' tails."""
-    path = tmp_path / "runner.log"
-    lines = path.read_text().splitlines() if path.exists() else []
-    return [f"{line.split('-')[0]}-{line.rsplit('-', 1)[1]}" for line in lines]
+    return [f"{line.split('-')[0]}-{line.rsplit('-', 1)[1]}" for line in log_lines(tmp_path)]
+
+
+def building(tmp_path: Path) -> int:
+    """How many fake runners have started building."""
+    return len(list(tmp_path.glob("building-*")))
+
+
+def processes_of(tmp_path: Path) -> list[int]:
+    """The processes still running whose command line names `tmp_path`: the fake runners
+    of a test."""
+    found: list[int] = []
+
+    for process in psutil.process_iter(["cmdline"]):
+        command = " ".join(process.info["cmdline"] or [])
+
+        if str(tmp_path) in command:
+            found.append(process.pid)
+
+    return found
+
+
+def events(tmp_path: Path) -> list[dict[str, Any]]:
+    return run_folder.read_json(tmp_path / "out" / benchmark.METADATA_FILE)["events"]
 
 
 def run(build: Path, tmp_path: Path, text: str, *arguments: str) -> int:
@@ -84,8 +119,14 @@ def status_lines(tmp_path: Path) -> list[str]:
 
 
 @pytest.mark.usefixtures("fake")
-def test_runs_go_round_after_round(build: Path, tmp_path: Path):
+def test_runs_go_round_after_round(build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     assert run(build, tmp_path, "[benchmark]\nrepeats = 2\n" + TWO_RUNS) == 0
+
+    printed = capsys.readouterr().out
+    assert "starting " in printed and ": 4 runs to run" in printed
+    assert "[1/4] C101_5-package-highspy-exact-artificial-r1: finished, " in printed
+    assert "[4/4] C101_25-package-highspy-exact-artificial-r2: finished, " in printed
+    assert printed.splitlines()[-1].startswith("4 / 4 runs finished")
 
     starts = [line for line in runner_log(tmp_path) if line.startswith("start")]
     assert starts == ["start C101_5-r1", "start C101_25-r1", "start C101_5-r2", "start C101_25-r2"]
@@ -103,7 +144,8 @@ def test_runs_go_round_after_round(build: Path, tmp_path: Path):
     record = run_folder.read_json(output / benchmark.METADATA_FILE)
     assert (record["processes"], record["runs"], record["rounds"]) == (1, 2, 2)
     assert record["record"]["benchmark"]["processes"] == 1
-    assert "end" in record
+    assert [event["event"] for event in record["events"]] == ["started", "finished"]
+    assert (record["events"][0]["to_run"], record["events"][1]["finished"]) == (4, 4)
 
     for folder in folders(tmp_path).values():
         written = metadata(folder)
@@ -136,20 +178,39 @@ def test_processes_run_side_by_side_with_one_thread_each(build: Path, tmp_path: 
 
 
 @pytest.mark.usefixtures("fake")
-def test_a_benchmark_resumes_with_its_unfinished_runs(build: Path, tmp_path: Path):
+def test_a_benchmark_resumes_with_its_unfinished_runs(
+    build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     assert run(build, tmp_path, TWO_RUNS) == 0
 
     unfinished = folders(tmp_path)["C101_25-r1"]
     (unfinished / run_folder.RESULT_FILE).unlink()
     (unfinished / "left.txt").write_text("from the run cut off")
-    (tmp_path / "runner.log").unlink()
+    clear_log(tmp_path)
 
+    capsys.readouterr()
     assert run(build, tmp_path, TWO_RUNS) == 0
 
     assert runner_log(tmp_path) == ["start C101_25-r1", "end C101_25-r1"]
     assert not (unfinished / "left.txt").exists()
     assert run_folder.read_result(unfinished) is not None
-    assert len(run_folder.read_json(tmp_path / "out" / benchmark.METADATA_FILE)["resumed"]) == 1
+    printed = capsys.readouterr().out
+    assert ": 1 / 2 finished (0 timeout, 0 check failed), 1 to run (1 cut off, removed first)" in (
+        printed
+    )
+    assert "[2/2] C101_25-package-highspy-exact-artificial-r1: finished" in printed
+    resumed = events(tmp_path)[2]
+    assert [event["event"] for event in events(tmp_path)] == [
+        "started",
+        "finished",
+        "resumed",
+        "finished",
+    ]
+    assert (resumed["finished"], resumed["to_run"], resumed["cut_off"]) == (1, 1, 1)
+    assert "changed" not in resumed
+
+    assert run(build, tmp_path, TWO_RUNS, "--check", "options") == 0
+    assert "already holds 2 / 2 finished runs" in capsys.readouterr().out
 
 
 @pytest.mark.usefixtures("fake")
@@ -158,7 +219,20 @@ def test_a_folder_of_another_benchmark_is_refused(
 ):
     assert run(build, tmp_path, TWO_RUNS) == 0
     assert run(build, tmp_path, '[matrix]\ninstance = ["C101_5"]\n') == benchmark.NOT_STARTED
-    assert "another benchmark's runs" in capsys.readouterr().err
+    assert (
+        "another benchmark's runs (1 removed: C101_25-package-highspy-exact-artificial)"
+        in capsys.readouterr().err
+    )
+    assert [event["event"] for event in events(tmp_path)] == ["started", "finished"]
+
+
+@pytest.mark.usefixtures("fake")
+def test_other_processes_make_other_runs(
+    build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    assert run(build, tmp_path, TWO_RUNS) == 0
+    assert run(build, tmp_path, TWO_RUNS, "--processes", "2") == benchmark.NOT_STARTED
+    assert "resume with --processes 1, or choose another folder" in capsys.readouterr().err
 
 
 @pytest.mark.usefixtures("fake")
@@ -173,6 +247,8 @@ def test_a_mixed_benchmark_is_refused_unless_allowed(
     written = run_folder.read_json(tmp_path / "out" / benchmark.METADATA_FILE)
     assert written["record"]["machine"]["label"] == "laptop"
     assert written["other_records"][0]["machine"]["label"] == "desktop"
+    assert written["events"][-2]["allow_mixed"] is True
+    assert written["events"][-2]["changed"] == {"machine": ["laptop", "desktop"]}
 
 
 # MARK: Timeout, STOP
@@ -196,7 +272,7 @@ def test_a_run_past_its_timeout_is_killed_and_kept(build: Path, tmp_path: Path):
     assert result_of(folders(tmp_path)["C101_25-r1"])["status"] == "Optimal"
 
     # A timeout is a result: a resume keeps it, unless told to run it again.
-    (tmp_path / "runner.log").unlink()
+    clear_log(tmp_path)
     assert run(build, tmp_path, TWO_RUNS, "--timeout", "2") == benchmark.RUNS_FAILED
     assert runner_log(tmp_path) == []
 
@@ -204,6 +280,10 @@ def test_a_run_past_its_timeout_is_killed_and_kept(build: Path, tmp_path: Path):
     assert run(build, tmp_path, TWO_RUNS, "--retry-timeouts") == 0
     assert runner_log(tmp_path) == ["start C101_5-r1", "end C101_5-r1"]
     assert result_of(killed)["status"] == "Optimal"
+    retried = events(tmp_path)[-2]
+    assert (retried["event"], retried["retry_timeouts"]) == ("resumed", True)
+    assert (retried["timeouts_to_run_again"], retried["cut_off"]) == (1, 0)
+    assert retried["changed"] == {"timeout": [2.0, None]}
 
 
 @pytest.mark.usefixtures("fake")
@@ -219,6 +299,92 @@ def test_a_stop_file_stops_after_the_runs_in_progress(build: Path, tmp_path: Pat
     plan(tmp_path, {})
     assert run(build, tmp_path, TWO_RUNS) == 0
     assert runner_log(tmp_path)[2:] == ["start C101_25-r1", "end C101_25-r1"]
+    kinds = [event["event"] for event in events(tmp_path)]
+    assert kinds == ["started", "stopped", "resumed", "finished"]
+    assert events(tmp_path)[1]["runs_left"] == 1
+
+
+# MARK: Ctrl-C and errors
+
+
+@pytest.mark.usefixtures("fake")
+@pytest.mark.parametrize(
+    ("error", "code", "reason"),
+    [
+        (KeyboardInterrupt(), benchmark.INTERRUPTED, "Ctrl-C"),
+        (RuntimeError("the benchmark broke"), benchmark.FAILED, "the benchmark broke"),
+    ],
+)
+def test_ctrl_c_or_an_error_kills_the_runs_in_progress(
+    build: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+    code: int,
+    reason: str,
+):
+    plan(tmp_path, {FIRST: {"sleep": 60.0}})
+    samples = 0
+    take_sample = benchmark.take_sample
+
+    def failing() -> Sample:
+        # The first sample is the run's start, the next ones come every second.
+        nonlocal samples
+        samples += 1
+
+        if samples == 3:
+            raise error
+
+        return take_sample()
+
+    monkeypatch.setattr(benchmark, "take_sample", failing)
+    started = time.monotonic()
+
+    assert run(build, tmp_path, TWO_RUNS) == code
+
+    assert time.monotonic() - started < 30.0
+    assert processes_of(tmp_path) == []
+    cut = folders(tmp_path)["C101_5-r1"]
+    assert metadata(cut)["outcome"] == "interrupted"
+    assert run_folder.read_result(cut) is None
+    assert status_lines(tmp_path)[-1].startswith("interrupted at")
+    last = events(tmp_path)[-1]
+    assert (last["event"], last["killed"]) == ("interrupted", [cut.name])
+    assert reason in last["reason"]
+
+    monkeypatch.setattr(benchmark, "take_sample", take_sample)
+    plan(tmp_path, {})
+    assert run(build, tmp_path, TWO_RUNS) == 0
+    assert result_of(cut)["status"] == "Optimal"
+
+
+@pytest.mark.usefixtures("fake")
+def test_ctrl_c_during_the_build_check_kills_the_runners(
+    build: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    plan(tmp_path, {FIRST: {"build_sleep": 60.0}, SECOND: {"build_sleep": 60.0}})
+    looks = 0
+    wait = benchmark.wait
+
+    def interrupted(futures: Any, timeout: float) -> Any:
+        nonlocal looks
+        looks += 1
+
+        # Once both runners have started building.
+        if building(tmp_path) == 2 or looks > 400:
+            raise KeyboardInterrupt
+
+        return wait(futures, timeout=timeout)
+
+    monkeypatch.setattr(benchmark, "wait", interrupted)
+    started = time.monotonic()
+
+    assert run(build, tmp_path, TWO_RUNS, "--processes", "2") == benchmark.INTERRUPTED
+
+    assert time.monotonic() - started < 30.0
+    assert building(tmp_path) == 2
+    assert processes_of(tmp_path) == []
+    assert not (tmp_path / "out").exists()
 
 
 # MARK: Exit codes
@@ -254,7 +420,7 @@ def test_each_exit_code_is_recorded_and_only_unfinished_runs_resume(build: Path,
 
     # A failed check is a result; a crash and a run that did not start run again.
     plan(tmp_path, {})
-    (tmp_path / "runner.log").unlink()
+    clear_log(tmp_path)
     assert run(build, tmp_path, FOUR_RUNS) == benchmark.RUNS_FAILED
     assert [line for line in runner_log(tmp_path) if line.startswith("start")] == [
         "start C101_25-r1",
@@ -343,6 +509,18 @@ def test_the_outcome_follows_the_exit_code_and_the_result(
     exit_code: int | None, result: dict[str, Any] | None, outcome: str
 ):
     assert benchmark.outcome_of(exit_code, result) == outcome
+
+
+@pytest.mark.usefixtures("fake")
+def test_the_end_sample_takes_the_processor_time_the_runner_reports(build: Path, tmp_path: Path):
+    # More than the machine could give: the other processes then used nothing.
+    plan(tmp_path, {FIRST: {"processor_seconds": 1e6}})
+
+    assert run(build, tmp_path, TWO_RUNS) == 0
+
+    found = folders(tmp_path)
+    assert metadata(found["C101_5-r1"])["load"]["other_processor_percent_mean"] == 0.0
+    assert metadata(found["C101_25-r1"])["load"]["other_processor_percent_mean"] > 0.0
 
 
 def test_a_timeout_result_has_only_its_status_and_seconds(tmp_path: Path):

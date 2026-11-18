@@ -96,7 +96,7 @@ only, is used as it is.
 | --- | --- |
 | `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
 | `command.txt` | the command line that started the run |
-| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
+| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
 | `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
 | `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
@@ -132,15 +132,18 @@ python benchmark.py --instance C101_25 --master highs --layer cpp-bindings --out
 
 Before the first run, the benchmark expands the file, prints the matrix points it drops (a layer without the master)
 and every run, checks each instance file and start, then has each runner build its run without solving
-(`--check build`, once per run, not per round). Anything wrong stops it there. The runs then go round after round, in
-the file's order, `processes` at a time.
+(`--check build`, once per run, not per round). Anything wrong stops it there, and leaves the benchmark folder as it
+was. The runs then go round after round, in the file's order, `processes` at a time. It prints what it has to do
+(`starting <folder>: 8 runs to run`, or on a resume `resuming <folder>: 5 / 8 finished (1 timeout, 0 check failed),
+3 to run (2 cut off, removed first)`), a line per run that ends (`[6/8] <run folder>: finished, 33.2 s`), and at the
+end the counts of `status.txt`.
 
 | flag | what |
 | --- | --- |
 | `--output` | the benchmark folder; by default `results/<file name>` here; needed without a file |
 | `--build` | the build folder to import rcspp from, when the tree has several |
-| `--check options` | expand, list and check the runs, then stop; write nothing |
-| `--check build` | the same, then build each run, then stop; write nothing |
+| `--check options` | expand, list and check the runs, then stop; write nothing; on an existing folder, say how many runs it already finished |
+| `--check build` | the same, and check that the folder can be resumed, then build each run, then stop; write nothing |
 | `--no-check` | do not build each run before the first starts |
 | `--allow-mixed` | resume although the source, versions or machine changed |
 | `--retry-timeouts` | run again the runs killed at their timeout |
@@ -154,11 +157,14 @@ Run the same command again on the same folder to resume it. A run folder with a 
 any other, left by a run cut off, is removed and its run starts again from the beginning: a run does not continue
 from its last iteration. The benchmark refuses a folder holding another benchmark's runs, and one started on another
 commit, with other uncommitted changes, versions or machine, unless `--allow-mixed` (both records are then kept).
-More rounds (`--repeats`) can be added on resume.
+More rounds (`--repeats`) can be added on resume. Another number of processes cannot change one process into
+several or back: with more than one, every run that leaves `column_generation.threads` unset gets 1, which makes
+other runs; the benchmark says so and names the folder's `--processes`.
 
 - To stop: create a file `STOP` in the benchmark folder. The runs in progress end, no other starts, the benchmark
   deletes `STOP` and exits; run it again to go on.
-- Ctrl-C kills the runs in progress; they start again on resume.
+- Ctrl-C, or an error of the benchmark itself, kills the runs in progress (and the runners still building during
+  the build check), records them as `interrupted`, and exits; they start again on resume.
 - `timeout` kills a run's process and its children. Its `result.json` gets status `timeout`, `solve_seconds` the time
   it ran, and null fields; a resume keeps it unless `--retry-timeouts`. `column_generation.timeout_s` is another
   thing: the run stops itself and writes its result.
@@ -168,23 +174,35 @@ More rounds (`--repeats`) can be added on resume.
 | file | contents |
 | --- | --- |
 | `benchmark.toml` | the benchmark options and every run, expanded and named |
-| `metadata.json` | start, end, resumes; processes, rounds, runs, the matrix points dropped; the record its runs share (source, build, versions of the masters' packages, machine), and the other records when mixed |
-| `status.txt` | how many runs are finished and how, then each run in progress and since when; rewritten at every change |
+| `metadata.json` | processes, rounds, runs, the matrix points dropped; the record its runs share (source, build, versions of the masters' packages, machine), and the other records when mixed; `events` (below) |
+| `status.txt` | how many runs are finished and how, then each run in progress and since when; rewritten every second and at every change |
 | `run_files/<run>.toml` | each run's options, given to its runner as `--file` |
 | `runs/<run>-r<round>/` | each run's folder, as above, with `log.txt` (the runner's output) unless `--no-logs` |
+
+`events` lists each start and end of the benchmark, in order, each with its `time` and `event`:
+
+| event | other fields |
+| --- | --- |
+| `started`, `resumed` | `finished` and `to_run` (runs), `cut_off` (unfinished folders removed), `timeouts_to_run_again`; `retry_timeouts` and `allow_mixed` when given; on a resume, `changed`: the benchmark options changed since the folder's last start, as `[before, after]` |
+| `stopped` | by `STOP`: `runs_left`, and the counts |
+| `interrupted` | by Ctrl-C or an error: `reason`, `killed` (the run folders it killed), and the counts |
+| `finished` | the counts: `finished`, `timeouts`, `failed_checks`, `crashed` |
+
+A start refused (another benchmark's runs, mixed, a failed check) writes nothing.
 
 The benchmark adds to each run's `metadata.json`:
 
 | field | contents |
 | --- | --- |
 | `exit_code` | the runner's; null when killed at its timeout |
-| `outcome` | `finished`, `check failed` (exit code 1, the integer solution fails the instance's check), `timeout`, `crashed` (any other ending without `result.json`, a Python error included), `not started` (exit code 2: wrong options, a folder holding a run), `interrupted` (Ctrl-C) |
+| `outcome` | `finished`, `check failed` (exit code 1, the integer solution fails the instance's check), `timeout`, `crashed` (any other ending without `result.json`, a Python error included), `not started` (exit code 2: wrong options, a folder holding a run), `interrupted` (Ctrl-C, or an error of the benchmark) |
 | `started`, `wall_seconds` | when the process started, and how long it ran |
 | `benchmark.processes` | runs at a time |
-| `load` | the machine during the run, sampled every second from outside it, and at its start and end: `other_processor_percent_mean` and `_max` (what the other processes used of every processor), `memory_used_bytes_mean` and `_max`, `frequency_mhz_mean` and `_min` (Windows often gives the nominal frequency), `on_battery` (null without a battery), `samples`, `interval_seconds` |
+| `load` | the machine during the run, sampled every second from outside it, and at its start and end: `other_processor_percent_mean` and `_max` (what the other processes used of every processor), `memory_used_bytes_mean` and `_max`, `frequency_mhz_mean` and `_min` (Windows often gives the nominal frequency), `on_battery` (null without a battery), `samples`, `interval_seconds`. The run's own processor time at the end is the one its runner wrote; a run killed has none, and its last moments (at most 50 ms) count as the other processes' |
 
 `benchmark.py` exits with 0 when every run finished and passed its check, 1 when a run timed out, crashed, did not
-start or failed its check, 2 when the benchmark could not start, 3 when `STOP` stopped it, 130 on Ctrl-C.
+start or failed its check, 2 when the benchmark could not start, 3 when `STOP` stopped it, 4 on an error of the
+benchmark itself, 130 on Ctrl-C.
 
 ## Tests
 
