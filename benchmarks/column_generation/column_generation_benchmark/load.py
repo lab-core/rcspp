@@ -8,6 +8,10 @@ frequency and whether the machine is on battery. The benchmark takes one when a 
 one every :data:`INTERVAL_SECONDS` while it goes and one when it ends, with the run's own
 processor time at each, so that a run shorter than the interval still has a start and an end.
 What the other processes used is the processors' busy time less the run's.
+
+The run's own processor time is read at every look the benchmark takes at its runs, and
+once more when it has ended. Windows still gives it then; Linux does not, so there the run's
+last moments before it ends (at most one look, 50 ms) count as the other processes'.
 """
 
 from __future__ import annotations
@@ -127,7 +131,11 @@ class Load:
 
     def summary(self) -> dict[str, Any]:
         """The fields of the run's ``load``: means over the whole run, maxima and minima
-        over its intervals or samples; null for what the system did not give."""
+        over its intervals or samples; null for what the system did not give.
+
+        The processor's figures need two samples, which every run the benchmark ends
+        has: its start and its end.
+        """
         others = [
             other_percent(earlier, later)
             for earlier, later in zip(self.samples, self.samples[1:], strict=False)
