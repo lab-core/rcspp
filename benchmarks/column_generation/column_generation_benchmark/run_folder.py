@@ -8,7 +8,10 @@
   the exit code and the load.
 - ``solution.json``: the last LP solution, when the ``solution`` statistic is on.
 - ``result.json``: the fields of :data:`RESULT_FIELDS`, and those of the collectors that ran.
-  Infinite numbers are written as JSON's ``Infinity``, which Python reads back.
+  Infinite numbers are written as JSON's ``Infinity``, which Python reads back. For a run the
+  benchmark killed at its timeout, the benchmark writes it: status ``timeout``
+  (:func:`timeout_result`).
+- ``log.txt``: the runner's output, when the benchmark keeps it.
 
 ``result.json`` is written last, and whole: a folder that has one holds a finished run. A
 folder that holds any of these files holds a run: a runner refuses it unless told to remove
@@ -34,6 +37,10 @@ COMMAND_FILE = "command.txt"
 METADATA_FILE = "metadata.json"
 RESULT_FILE = "result.json"
 SOLUTION_FILE = "solution.json"
+LOG_FILE = "log.txt"
+
+#: The status of a run whose process the benchmark killed at its timeout.
+TIMEOUT = "timeout"
 
 #: The files a runner writes: a folder with any of them holds a run.
 RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
@@ -176,9 +183,23 @@ def kind_matches(kind: str, value: Any) -> bool:
     return isinstance(value, int | float)
 
 
+def timeout_result(seconds: float) -> dict[str, Any]:
+    """The ``result.json`` of a run killed at its timeout: its status, the seconds it
+    ran in `solve_seconds`, nothing else."""
+    result: dict[str, Any] = dict.fromkeys(RESULT_FIELDS)
+    result.update(status=TIMEOUT, solve_seconds=seconds)
+    return result
+
+
 def result_problems(result: Mapping[str, Any]) -> list[str]:
-    """What is wrong with a ``result.json``: missing or unknown fields, wrong kinds."""
+    """What is wrong with a ``result.json``: missing or unknown fields, wrong kinds.
+
+    A run killed at its timeout has null fields.
+    """
     known = {**RESULT_FIELDS, **COLLECTOR_FIELDS}
+
+    if result.get("status") == TIMEOUT:
+        known = {name: kind.removesuffix(" or null") + " or null" for name, kind in known.items()}
     problems = [f"{name} is missing" for name in RESULT_FIELDS if name not in result]
 
     for name, value in result.items():

@@ -155,14 +155,20 @@ def test_the_matrix_multiplies_and_runs_follow():
     expansion = expand(BENCHMARK)
     names = [run.name for run in expansion.runs]
 
+    # Two processes: every run has one thread, which its name shows.
+    threads = f"-column_generation_{FINGERPRINT}"
+
     assert (expansion.processes, expansion.repeats) == (2, 3)
     assert len(names) == 2 * 2 * 2 * 2 + 1
-    assert names[0] == "C101_25-package-highspy-exact-single-customer"
-    assert names[1] == "C101_25-package-highspy-heuristics-first-single-customer"
-    assert names[2] == "C101_25-package-one-thread-exact-single-customer"
+    assert re.fullmatch("C101_25-package-highspy-exact-single-customer" + threads, names[0])
     assert re.fullmatch(
-        f"R201_50-package-gurobipy-pricing_{FINGERPRINT}-single-customer", names[-1]
+        "C101_25-package-highspy-heuristics-first-single-customer" + threads, names[1]
     )
+    assert re.fullmatch("C101_25-package-one-thread-exact-single-customer" + threads, names[2])
+    assert re.fullmatch(
+        f"R201_50-package-gurobipy-pricing_{FINGERPRINT}-single-customer" + threads, names[-1]
+    )
+    assert {run.column_generation.threads for run in expansion.runs} == {1}
     assert len(set(names)) == len(names)
     assert expansion.runs[2].master == Master("gurobipy", {"Presolve": 1})
     assert [stage["algorithm"] for stage in expansion.runs[1].pricing.stages] == [
@@ -426,6 +432,40 @@ def test_the_command_line_overrides_the_file():
     assert expansion.repeats == 2
 
 
+def test_the_benchmark_options_come_from_the_file_then_the_command_line():
+    text = '[benchmark]\ntimeout = 30\nmachine = "laptop"\nlogs = false\nrepeats = 2\n'
+    text += '[defaults]\ninstance = "C101_25"\n'
+    benchmark = Benchmark.from_table(tomllib.loads(text))
+
+    assert (benchmark.timeout, benchmark.machine, benchmark.logs) == (30.0, "laptop", False)
+    assert Benchmark().timeout is None and Benchmark().logs
+
+    arguments = parse(["--timeout", "5", "--machine", "desktop", "--processes", "3"])
+    expansion = options.benchmark_from_arguments(benchmark, arguments).expand()
+
+    assert (expansion.processes, expansion.repeats, expansion.timeout) == (3, 2, 5.0)
+    assert (expansion.machine, expansion.logs) == ("desktop", False)
+    assert options.benchmark_from_arguments(Benchmark(), parse(["--no-logs"])).logs is False
+
+    with pytest.raises(OptionsError, match="timeout must be a positive number"):
+        options.benchmark_from_arguments(benchmark, parse(["--timeout", "-1"]))
+
+
+def test_runs_side_by_side_get_one_thread_unless_they_set_theirs():
+    text = (
+        '[benchmark]\nprocesses = 2\n[defaults]\ninstance = "C101_25"\n'
+        '[[runs]]\n[[runs]]\n"column_generation.threads" = 4\n'
+    )
+    one, own = expand(text).runs
+    alone, _ = expand(text.replace("processes = 2", "processes = 1")).runs
+
+    assert (one.column_generation.threads, own.column_generation.threads) == (1, 4)
+    assert alone.column_generation.threads is None
+    # Named after its threads, as any run that sets them.
+    assert alone.name == "C101_25-package-highspy-exact-artificial"
+    assert re.fullmatch(f"{alone.name}-column_generation_{FINGERPRINT}", one.name)
+
+
 def test_a_runner_command_line_overrides_its_run_file_and_can_name_a_preset():
     arguments = parse(["--pricing", "exact", "--master", "gurobipy", "--start", "single-customer"])
     run_file = {"instance": "C101_25", "pricing": {"stages": [{"algorithm": "astar"}]}}
@@ -671,6 +711,11 @@ RUN = '[defaults]\ninstance = "C101_25"\n'
         ("[master]\none-thread = 1\n", r"\[master\] holds named master tables"),
         ('master = "highspy"\n', r"\[master\] holds named master tables"),
         ("[benchmark]\nprocesses = 0\n", "at least 1"),
+        ("[benchmark]\ntimeout = 0\n", "timeout must be a positive number"),
+        ("[benchmark]\ntimeout = inf\n", "timeout must be a positive number"),
+        ("[benchmark]\ntimeout = '1 h'\n", "is not a number"),
+        ("[benchmark]\nmachine = 1\n", "is not a string"),
+        ("[benchmark]\nlogs = 'no'\n", "is not true or false"),
         ("[benchmark]\nthreads = 2\n", "unknown benchmark option 'threads'"),
         ("[machine]\nlabel = 'laptop'\n", "unknown section 'machine'"),
     ],

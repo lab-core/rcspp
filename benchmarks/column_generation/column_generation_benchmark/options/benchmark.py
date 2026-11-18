@@ -12,12 +12,13 @@ A benchmark file has ``[benchmark]`` (its own options), named blocks under an op
 from __future__ import annotations
 
 import itertools
+import math
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 
-from .blocks import BLOCKS, OptionsError
+from .blocks import BLOCKS, OptionsError, boolean, number, string
 from .run import MasterNotOnLayerError, Names, Run, RunOptions, digest
 
 #: The presets shipped with the benchmark.
@@ -25,6 +26,9 @@ PRESETS_FILE = Path(__file__).parent.parent / "presets.toml"
 
 #: The sections of a benchmark file besides its named blocks.
 SECTIONS = ("benchmark", "defaults", "matrix", "runs")
+
+#: The options of a benchmark file's ``[benchmark]``.
+BENCHMARK_OPTIONS = ("processes", "repeats", "timeout", "machine", "logs")
 
 
 def read_toml(path: str | Path) -> dict[str, Any]:
@@ -38,10 +42,17 @@ def read_toml(path: str | Path) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Benchmark:
-    """A benchmark file read: its options, its names, and its runs, not yet put together."""
+    """A benchmark file read: its options, its names, and its runs, not yet put together.
+
+    `timeout` is the seconds after which a run's process is killed (None: never), `machine`
+    the machine's label for the records, `logs` whether each run keeps its output.
+    """
 
     processes: int = 1
     repeats: int = 1
+    timeout: float | None = None
+    machine: str | None = None
+    logs: bool = True
     names: Names = field(default_factory=dict[str, dict[str, dict[str, Any]]])
     defaults: RunOptions = field(default_factory=RunOptions)
     matrix: list[RunOptions] = field(default_factory=list[RunOptions])
@@ -64,7 +75,7 @@ class Benchmark:
                 raise OptionsError(f"{where}: unknown section {name!r}")
 
         options = given.get("benchmark", {})
-        unknown = set(options) - {"processes", "repeats"}
+        unknown = set(options) - set(BENCHMARK_OPTIONS)
 
         if unknown:
             raise OptionsError(f"{where}: unknown benchmark option {sorted(unknown)[0]!r}")
@@ -87,6 +98,9 @@ class Benchmark:
         return cls(
             processes=positive(options.get("processes", 1), "processes", where),
             repeats=positive(options.get("repeats", 1), "repeats", where),
+            timeout=positive_seconds(options.get("timeout"), where),
+            machine=string(options.get("machine"), f"{where}: machine"),
+            logs=boolean(options.get("logs", True), f"{where}: logs") is not False,
             names=names,
             defaults=defaults.over(preset_defaults),
             matrix=matrix,
@@ -100,6 +114,8 @@ class Benchmark:
 
         A matrix point whose layer has not its master is dropped and listed; an entry or
         a command line giving one is refused. Runs that come out the same are kept once.
+        With more than one process, a run that leaves ``column_generation.threads`` unset
+        gets 1, before it is named: runs side by side must not share the cores.
         """
         command_line = command_line or RunOptions()
         entries = [(point, True) for point in self.matrix] + [(run, False) for run in self.runs]
@@ -117,20 +133,35 @@ class Benchmark:
                 dropped.append(str(error))
                 continue
 
+            if self.processes > 1 and run.column_generation.threads is None:
+                run = replace(run, column_generation=replace(run.column_generation, threads=1))
+
             if run not in runs:
                 runs.append(run.named(self.names, defaults))
 
-        return Expansion(self.processes, self.repeats, unique_names(runs), dropped)
+        return Expansion(
+            self.processes,
+            self.repeats,
+            unique_names(runs),
+            dropped,
+            self.timeout,
+            self.machine,
+            self.logs,
+        )
 
 
 @dataclass(frozen=True)
 class Expansion:
-    """A benchmark's runs, complete and named, and the matrix points dropped."""
+    """A benchmark's runs, complete and named, the matrix points dropped, and the
+    benchmark's options."""
 
     processes: int
     repeats: int
     runs: list[Run]
     dropped: list[str]
+    timeout: float | None = None
+    machine: str | None = None
+    logs: bool = True
 
     def rounds(self) -> list[tuple[int, Run]]:
         """Every run of every round, round by round; rounds count from 1."""
@@ -227,6 +258,15 @@ def positive(value: Any, name: str, where: str) -> int:
         raise OptionsError(f"{where}: {name} must be a whole number of at least 1")
 
     return value
+
+
+def positive_seconds(value: Any, where: str) -> float | None:
+    seconds = number(value, f"{where}: timeout")
+
+    if seconds is not None and not 0 < seconds < math.inf:
+        raise OptionsError(f"{where}: timeout must be a positive number of seconds")
+
+    return seconds
 
 
 def unique_names(runs: list[Run]) -> list[Run]:

@@ -11,7 +11,12 @@
 
 from .benchmark import Benchmark, Expansion, expand_run, folder_name, read_presets, read_toml
 from .blocks import BLOCKS, OptionsError, make_algorithm_params
-from .command_line import add_benchmark_options, add_run_options, run_from_arguments
+from .command_line import (
+    add_benchmark_options,
+    add_run_options,
+    benchmark_from_arguments,
+    run_from_arguments,
+)
 from .run import LAYERS, RUN_OPTIONS, MasterNotOnLayerError, Run, RunOptions
 
 __all__ = [
@@ -26,6 +31,7 @@ __all__ = [
     "RunOptions",
     "add_benchmark_options",
     "add_run_options",
+    "benchmark_from_arguments",
     "expand_run",
     "folder_name",
     "make_algorithm_params",

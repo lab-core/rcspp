@@ -11,6 +11,7 @@ wheel does not have it.
 
 | path                           | contents                                                           |
 | ------------------------------ | ------------------------------------------------------------------ |
+| `benchmark.py`                 | many runs, each by its runner in its own process                   |
 | `runners/`                     | the runners: one run of a layer each                               |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
 | `tests/`                       | the tests                                                          |
@@ -115,6 +116,75 @@ unless column generation ended `Optimal`: only then is the LP value a lower boun
 `failed`, or null without a resolved solution; the check runs with the statistic `solution` off too. A failed check
 writes the whole folder and exits with code 1. The solvers give integer values up to a few ulps (`1.0000000000000002`):
 a column is used as many times as its rounded value.
+
+## Run a benchmark
+
+`benchmark.py` makes many runs from a benchmark file ([`OPTIONS.md`](OPTIONS.md#a-benchmark-file)): each by its
+layer's runner, in its own process, into one benchmark folder.
+
+```bash
+cd benchmarks/column_generation
+python benchmark.py my_benchmark.toml                    # into results/my_benchmark
+python benchmark.py my_benchmark.toml --check options    # list the runs, run nothing
+python benchmark.py my_benchmark.toml --processes 2 --timeout 600 --machine laptop
+python benchmark.py --instance C101_25 --master highs --layer cpp-bindings --output results/one
+```
+
+Before the first run, the benchmark expands the file, prints the matrix points it drops (a layer without the master)
+and every run, checks each instance file and start, then has each runner build its run without solving
+(`--check build`, once per run, not per round). Anything wrong stops it there. The runs then go round after round, in
+the file's order, `processes` at a time.
+
+| flag | what |
+| --- | --- |
+| `--output` | the benchmark folder; by default `results/<file name>` here; needed without a file |
+| `--build` | the build folder to import rcspp from, when the tree has several |
+| `--check options` | expand, list and check the runs, then stop; write nothing |
+| `--check build` | the same, then build each run, then stop; write nothing |
+| `--no-check` | do not build each run before the first starts |
+| `--allow-mixed` | resume although the source, versions or machine changed |
+| `--retry-timeouts` | run again the runs killed at their timeout |
+
+It also takes the benchmark options (`--processes`, `--repeats`, `--timeout`, `--machine`, `--no-logs`) and every run
+option, which go over every run of the file.
+
+### Resume, stop
+
+Run the same command again on the same folder to resume it. A run folder with a `result.json` is finished and kept;
+any other, left by a run cut off, is removed and its run starts again from the beginning: a run does not continue
+from its last iteration. The benchmark refuses a folder holding another benchmark's runs, and one started on another
+commit, with other uncommitted changes, versions or machine, unless `--allow-mixed` (both records are then kept).
+More rounds (`--repeats`) can be added on resume.
+
+- To stop: create a file `STOP` in the benchmark folder. The runs in progress end, no other starts, the benchmark
+  deletes `STOP` and exits; run it again to go on.
+- Ctrl-C kills the runs in progress; they start again on resume.
+- `timeout` kills a run's process and its children. Its `result.json` gets status `timeout`, `solve_seconds` the time
+  it ran, and null fields; a resume keeps it unless `--retry-timeouts`. `column_generation.timeout_s` is another
+  thing: the run stops itself and writes its result.
+
+### The benchmark folder
+
+| file | contents |
+| --- | --- |
+| `benchmark.toml` | the benchmark options and every run, expanded and named |
+| `metadata.json` | start, end, resumes; processes, rounds, runs, the matrix points dropped; the record its runs share (source, build, versions of the masters' packages, machine), and the other records when mixed |
+| `status.txt` | how many runs are finished and how, then each run in progress and since when; rewritten at every change |
+| `run_files/<run>.toml` | each run's options, given to its runner as `--file` |
+| `runs/<run>-r<round>/` | each run's folder, as above, with `log.txt` (the runner's output) unless `--no-logs` |
+
+The benchmark adds to each run's `metadata.json`:
+
+| field | contents |
+| --- | --- |
+| `exit_code` | the runner's; null when killed at its timeout |
+| `outcome` | `finished`, `check failed` (exit code 1, the integer solution fails the instance's check), `timeout`, `crashed` (any other ending without `result.json`, a Python error included), `not started` (exit code 2: wrong options, a folder holding a run), `interrupted` (Ctrl-C) |
+| `started`, `wall_seconds` | when the process started, and how long it ran |
+| `benchmark.processes` | runs at a time |
+| `load` | the machine during the run, sampled every second from outside it, and at its start and end: `other_processor_percent_mean` and `_max` (what the other processes used of every processor), `memory_used_bytes_mean` and `_max`, `frequency_mhz_mean` and `_min` (Windows often gives the nominal frequency), `on_battery` (null without a battery), `samples`, `interval_seconds` |
+
+`benchmark.py` exits with 0 when every run finished and passed its check, 1 when a run timed out, crashed, did not
+start or failed its check, 2 when the benchmark could not start, 3 when `STOP` stopped it, 130 on Ctrl-C.
 
 ## Tests
 
