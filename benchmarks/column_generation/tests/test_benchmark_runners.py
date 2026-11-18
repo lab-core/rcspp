@@ -98,7 +98,8 @@ def test_a_run_fills_its_folder(layer: str, build: Path, tmp_path: Path):
     assert "process_peak_memory_bytes" in result
 
     metadata = run_folder.read_json(tmp_path / run_folder.METADATA_FILE)
-    assert {"start", "end", *record.RECORD_GROUPS} <= set(metadata)
+    assert {"start", "end", "processor_seconds", *record.RECORD_GROUPS} <= set(metadata)
+    assert metadata["processor_seconds"] > 0.0
     assert metadata["machine"]["label"] == "test"
     assert "highspy" in metadata["versions"]
 

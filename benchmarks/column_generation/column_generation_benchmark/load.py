@@ -9,9 +9,11 @@ one every :data:`INTERVAL_SECONDS` while it goes and one when it ends, with the 
 processor time at each, so that a run shorter than the interval still has a start and an end.
 What the other processes used is the processors' busy time less the run's.
 
-The run's own processor time is read at every look the benchmark takes at its runs, and
-once more when it has ended. Windows still gives it then; Linux does not, so there the run's
-last moments before it ends (at most one look, 50 ms) count as the other processes'.
+The run's own processor time is read at every look the benchmark takes at its runs. Once the
+run has ended it can no longer be read (a runner started from a virtual environment's Python
+is a launcher and an interpreter, and the interpreter ends first), so the runner writes its
+own into its ``metadata.json``, which the end sample takes. A run killed writes none: its
+last moments (at most one look, 50 ms) count as the other processes'.
 """
 
 from __future__ import annotations
