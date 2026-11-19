@@ -151,7 +151,9 @@ def gurobipy_model(lower: Sequence[float], upper: Sequence[float]) -> gurobipy.M
 def parse_arguments(description: str | None, arguments: Sequence[str]) -> argparse.Namespace:
     """A runner's flags and run options."""
     parser = argparse.ArgumentParser(
-        description=description, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
     flags = parser.add_argument_group("flags")
     flags.add_argument("--file", help="a run file; the command line's run options go over it")

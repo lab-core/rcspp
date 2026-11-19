@@ -271,7 +271,16 @@ class ColumnGeneration(Block):
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
         names = ("max_iterations", "timeout_s", "tolerances", "threads")
         only_keys(given, names, "column_generation", where)
+        max_iterations = integer(given.get("max_iterations"), where)
+        timeout_s = number(given.get("timeout_s"), where)
         threads = integer(given.get("threads"), where)
+
+        if max_iterations is not None and max_iterations < 0:
+            raise OptionsError(f"{where}: column_generation.max_iterations must be 0 or more")
+
+        # Written "not >= 0" so that nan is refused too; inf is no limit.
+        if timeout_s is not None and not timeout_s >= 0:
+            raise OptionsError(f"{where}: column_generation.timeout_s must be 0 or more")
 
         if threads is not None and threads < 0:
             raise OptionsError(f"{where}: column_generation.threads must be 0 or more")
@@ -285,12 +294,7 @@ class ColumnGeneration(Block):
             tolerances = table(tolerances, where)
             check_tolerances(tolerances, where)
 
-        return cls(
-            integer(given.get("max_iterations"), where),
-            number(given.get("timeout_s"), where),
-            tolerances,
-            threads,
-        )
+        return cls(max_iterations, timeout_s, tolerances, threads)
 
 
 @dataclass(frozen=True)
@@ -324,7 +328,7 @@ class Integer(Block):
         if timeout_s is not None and not 0 < timeout_s < float("inf"):
             raise OptionsError(f"{where}: integer.timeout_s must be a positive, finite number")
 
-        if relative_gap is not None and relative_gap < 0:
+        if relative_gap is not None and not relative_gap >= 0:
             raise OptionsError(f"{where}: integer.relative_gap must be 0 or more")
 
         if column_type is not None and column_type not in cls.COLUMN_TYPES:
@@ -338,7 +342,7 @@ class Integer(Block):
 
         return cls(
             boolean(given.get("solve"), where),
-            60.0 if timeout_s is None else timeout_s,
+            cls.timeout_s if timeout_s is None else timeout_s,
             relative_gap,
             column_type,
             threads,
@@ -444,14 +448,14 @@ def check_tolerances(tolerances: dict[str, Any], where: str) -> None:
     from rcspp.column_generation import registry
 
     names = registry.tolerance_names()
-    kind = tolerances.get("type")
+    name = tolerances.get("type")
 
-    if kind not in names:
-        raise OptionsError(f"{where}: tolerances {kind!r} is not one of {', '.join(names)}")
+    if name not in names:
+        raise OptionsError(f"{where}: tolerances {name!r} is not one of {', '.join(names)}")
 
     parameters = {name: value for name, value in tolerances.items() if name != "type"}
 
     try:
-        registry.make_tolerances(kind, **parameters)
+        registry.make_tolerances(name, **parameters)
     except (TypeError, ValueError) as error:
         raise OptionsError(f"{where}: {error}") from None

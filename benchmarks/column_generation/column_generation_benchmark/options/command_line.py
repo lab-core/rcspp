@@ -2,8 +2,9 @@
 #  All rights reserved.
 """The command line's options, declared with argparse from the blocks' dataclasses.
 
-Every option is ``--<option> <value>`` and every parameter ``--<option>.<parameter> <value>``;
-a value is read as a TOML value (``8``, ``true``, ``{ Presolve = 1 }``), else as text.
+Every option is ``--<option> <value>`` and every parameter ``--<option>.<parameter> <value>``
+(one level: a deeper one is given as a table, ``--master.parameters "{ Presolve = 1 }"``); a
+value is read as a TOML value (``8``, ``true``, ``{ Presolve = 1 }``), else as text.
 ``--stage`` gives the pricing's stages, in order. A runner adds its own flags to the parser.
 """
 
@@ -14,25 +15,28 @@ import tomllib
 from dataclasses import fields, replace
 from typing import Any
 
-from .benchmark import BENCHMARK_OPTIONS, Benchmark, preset_names
+from .benchmark import BENCHMARK_OPTIONS, Benchmark, benchmark_options, preset_names
 from .blocks import BLOCKS, OptionsError
 from .run import RUN_OPTIONS, Names, RunOptions
 
 
 def toml_value(text: str) -> Any:
-    """`text` read as a TOML value, else as text."""
+    """`text` read as one TOML value, else as text."""
     try:
-        return tomllib.loads(f"value = {text}")["value"]
+        document = tomllib.loads(f"value = {text}")
     except tomllib.TOMLDecodeError:
         return text
 
+    # "1\nx = 2" reads as two keys: it is not one value.
+    return document["value"] if len(document) == 1 else text
+
 
 def stage(text: str) -> dict[str, Any]:
-    """A stage written ``tabu:max_solutions=20,max_iterations=1000``."""
+    """A stage written ``tabu:max_solutions=20,tabu_exempt_node_ids=[0,26]``."""
     algorithm, _, rest = text.partition(":")
-    parsed: dict[str, Any] = {"algorithm": algorithm}
+    parsed: dict[str, Any] = {"algorithm": algorithm.strip()}
 
-    for item in filter(None, rest.split(",")):
+    for item in split_outside_brackets(rest):
         name, equals, value = item.partition("=")
 
         if not equals:
@@ -41,6 +45,25 @@ def stage(text: str) -> dict[str, Any]:
         parsed[name.strip()] = toml_value(value.strip())
 
     return parsed
+
+
+def split_outside_brackets(text: str) -> list[str]:
+    """The parts of `text` between the commas outside brackets and braces, blank ones
+    left out: ``a=1,b=[2,3]`` gives ``a=1`` and ``b=[2,3]``."""
+    parts: list[str] = []
+    depth = start = 0
+
+    for index, character in enumerate(text):
+        if character in "[{":
+            depth += 1
+        elif character in "]}":
+            depth -= 1
+        elif character == "," and depth == 0:
+            parts.append(text[start:index])
+            start = index + 1
+
+    parts.append(text[start:])
+    return [part for part in parts if part.strip()]
 
 
 def add_run_options(parser: argparse.ArgumentParser) -> None:
@@ -97,8 +120,7 @@ def benchmark_from_arguments(benchmark: Benchmark, arguments: argparse.Namespace
         for name in BENCHMARK_OPTIONS
         if getattr(arguments, name, None) is not None
     }
-    checked = Benchmark.from_table({"benchmark": given}, "command line")
-    return replace(benchmark, **{name: getattr(checked, name) for name in given})
+    return replace(benchmark, **benchmark_options(given, "command line"))
 
 
 def run_from_arguments(arguments: argparse.Namespace, names: Names | None = None) -> RunOptions:
@@ -108,7 +130,7 @@ def run_from_arguments(arguments: argparse.Namespace, names: Names | None = None
     given = {
         name: value
         for name, value in vars(arguments).items()
-        if value is not None and (name in RUN_OPTIONS or name.partition(".")[0] in RUN_OPTIONS)
+        if value is not None and name.partition(".")[0] in RUN_OPTIONS
     }
 
     if arguments.stages:

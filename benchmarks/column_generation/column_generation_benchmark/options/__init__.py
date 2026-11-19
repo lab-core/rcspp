@@ -1,6 +1,6 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""The options of a run and of a benchmark (draft with dataclasses).
+"""The options of a run and of a benchmark.
 
 - :mod:`.blocks`: one dataclass per block of a complete run, built from its table;
 - :mod:`.run`: :class:`RunOptions`, what one place gives (a run file, ``[defaults]``, an

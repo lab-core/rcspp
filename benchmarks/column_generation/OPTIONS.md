@@ -122,8 +122,9 @@ command line can use the presets' names, not define any.
 
 ## Dotted names
 
-`<option>.<parameter> = value` sets one parameter and leaves the block's others as they are. Deeper tables work too:
-`master.parameters.Presolve`.
+`<option>.<parameter> = value` sets one parameter and leaves the block's others as they are. In a file, deeper
+tables work too: `"master.parameters.Presolve" = 1`. On the command line, one level only: give the deeper table
+whole, `--master.parameters "{ Presolve = 1 }"`.
 
 | where | how |
 |---|---|
@@ -158,9 +159,10 @@ file's, so a run of one layer runs again on another.
 | `gurobipy` | Gurobi through its Python package; needs a licence | `package`, `cpp-bindings` |
 | `highs` | HiGHS from C++, the example's own master; needs the example built with HiGHS | `cpp-bindings` |
 
-`parameters` (a table, empty by default) goes to the solver as it is: `{ Presolve = 1, Method = 0 }` for Gurobi. In
-a `[matrix]`, a layer and a master that do not go together are dropped and listed before the first run; anywhere
-else they are an error.
+`parameters` (a table, empty by default) goes to the solver as it is: `{ Presolve = 1, Method = 0 }` for Gurobi. A
+`[matrix]` point whose layer and master do not go together is dropped and listed before the first run, wherever the
+master comes from (the command line's `--master highs` over a matrix of layers drops the `package` points); a matrix
+with every point dropped, a `[[runs]]` entry or a run file with such a pair are an error.
 
 Every master solve sets some of the solver's parameters from the layer's own, and puts the given values back after
 it: they would never reach a solve, so they are refused here. Threads, the time limit and the MIP gap have run
@@ -187,7 +189,7 @@ is `algorithm` and any field of `rcspp.graph.AlgorithmParams`:
 
 A heuristic stage should be followed by an exact one: without it, no iteration ends with a proof. Without a cap,
 `greedy` can enumerate every path; give it `max_solutions` and `timeout_s`. On the command line, `--stage` writes a
-stage as `algorithm:key=value,key=value` (see [the command line](#the-command-line)).
+stage as `algorithm:key=value,key=value`, a list as `key=[0,26]` (see [the command line](#the-command-line)).
 
 ### `start`
 
@@ -214,9 +216,11 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 | `max_iterations` | the most LP solves | no limit |
 | `timeout_s` | the run's wall-clock limit, in seconds | no limit |
 | `tolerances` | `absolute` or `relative`, by name or as a table with `reduced_cost`, `feasibility`, `optimality_gap` | the layer's (the package's: `absolute`) |
-| `threads` | the master solver's threads in every solve, a whole number; 0 lets the solver choose | 0 |
+| `threads` | the master solver's threads in every solve, a whole number; 0 lets the solver choose | 0 (1 in a benchmark of more than one process) |
 
-`tolerances = "relative"` is `{ type = "relative" }`; `{ type = "absolute", reduced_cost = 1e-6 }` sets one value.
+`tolerances = "relative"` is `{ type = "relative" }`, and merges as that table:
+`"column_generation.tolerances.reduced_cost" = 1e-7` over it keeps the type. `{ type = "absolute", reduced_cost =
+1e-6 }` sets one value. `max_iterations` and `timeout_s` are 0 or more; `timeout_s = inf` is no limit.
 
 ### `integer`
 
@@ -263,7 +267,7 @@ stages = [
 [defaults]                      # a run under every other one
 start = "single-customer"
 
-[matrix]                        # a run whose options are lists: 2 × 3 × 2 = 12 runs, minus 2 dropped
+[matrix]                        # a run whose options are lists: 2 x 3 x 2 = 12 runs, minus 2 dropped
 instance = ["C101_25", "R201_25"]
 master = ["highspy", "gurobipy", "highs"]
 layer = ["package", "cpp-bindings"]
@@ -309,15 +313,19 @@ A script's `--help` lists them all, with its own flags.
 --start.cost_factor 1e3                             # one parameter
 --master.parameters "{ Presolve = 1, Method = 0 }"   # a solver's parameters: one table
 --stage tabu:max_solutions=20,max_iterations=1000 --stage simple   # the pricing's stages, in order
+--stage "tabu:max_iterations=10,tabu_exempt_node_ids=[0,26]"        # a list in a stage
 --processes 2 --repeats 3 --timeout 600            # benchmark.py only
 ```
 
 - A value is read as a TOML value (`8`, `true`, `inf`, `{ ... }`), else as text: `--instance C101_25`.
   `--name=value` works too.
-- `--stage` and `--pricing` do not go together.
+- `--stage` and `--pricing` do not go together. In a stage, the commas inside brackets belong to the value.
+- A parameter is one level deep (`--master.parameters`, not `--master.parameters.Presolve`): give a deeper one as a
+  table. There is no `--<option>.type`: give the block as a name or a table.
 - A runner's flags (`--file`, `--output`, `--overwrite`, `--build`, `--machine`, `--check build`) are in the
   [README](README.md#run-once).
-- An unknown option, or one without its value, stops the command.
+- An unknown option, or one without its value, stops the command. So does a shortened one: `--repeat` is not
+  `--repeats`.
 - Quote a table as one argument, with single quotes inside for its strings: `"{ type = 'gurobipy' }"` reads the same
   in bash and in PowerShell. Double quotes inside single quotes (`'{ type = "gurobipy" }'`) work in bash and in
   PowerShell 7.3 or later, not in Windows PowerShell 5.1, which drops them.
@@ -325,11 +333,13 @@ A script's `--help` lists them all, with its own flags.
 ## A run's name
 
 A run's folder is named after its instance, layer, master, pricing and start, then any other block that differs from
-the defaults, then its round: `C101_25-package-highspy-exact-artificial-r1`. A block shows as:
+the presets' `[defaults]`, then its round: `C101_25-package-highspy-exact-artificial-r1`. A block shows as:
 
 1. the name of the preset or definition it equals: `one-thread`, `exact`;
 2. else its type, when it is that type with its defaults: `highspy`, `single-customer`;
 3. else its type (or its option) and a fingerprint of its table: `artificial_3fa2c1`, `column_generation_9b01e4`.
 
-The name depends only on a run's options, not on how they were written. Two different runs that would get the same
-name each get a fingerprint of their options added.
+The name depends only on a run's options, not on how they were written nor on which file gave them: a block a
+benchmark's `[defaults]` sets shows in each run's name, as a runner shows it for the same run file
+(`...-statistics_0a3668`). Two different runs that would get the same name, even in another case (`Fast`, `fast`:
+one folder on Windows and macOS), each get a fingerprint of their options added.

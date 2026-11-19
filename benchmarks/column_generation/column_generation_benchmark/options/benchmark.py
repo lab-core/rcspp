@@ -74,12 +74,7 @@ class Benchmark:
             if name not in BLOCKS and name not in SECTIONS:
                 raise OptionsError(f"{where}: unknown section {name!r}")
 
-        options = given.get("benchmark", {})
-        unknown = set(options) - set(BENCHMARK_OPTIONS)
-
-        if unknown:
-            raise OptionsError(f"{where}: unknown benchmark option {sorted(unknown)[0]!r}")
-
+        own = benchmark_options(given.get("benchmark", {}), where)
         preset_defaults = RunOptions.from_table(presets["defaults"], "presets: [defaults]", names)
         defaults = RunOptions.from_table(given.get("defaults", {}), f"{where}: [defaults]", names)
         points = matrix_points(given["matrix"], where) if "matrix" in given else []
@@ -96,11 +91,7 @@ class Benchmark:
             for index, entry in enumerate(cast(list[Any], entries))
         ]
         return cls(
-            processes=positive(options.get("processes", 1), "processes", where),
-            repeats=positive(options.get("repeats", 1), "repeats", where),
-            timeout=positive_seconds(options.get("timeout"), where),
-            machine=string(options.get("machine"), f"{where}: machine"),
-            logs=boolean(options.get("logs", True), f"{where}: logs") is not False,
+            **own,
             names=names,
             defaults=defaults.over(preset_defaults),
             matrix=matrix,
@@ -112,20 +103,27 @@ class Benchmark:
         the defaults, the command line over all (without either, one run of the
         defaults).
 
-        A matrix point whose layer has not its master is dropped and listed; an entry or
-        a command line giving one is refused. Runs that come out the same are kept once.
-        With more than one process, a run that leaves ``column_generation.threads`` unset
-        gets 1, before it is named: runs side by side must not share the cores.
+        A matrix point whose layer has not its master, wherever the master comes from
+        (the command line included), is dropped and listed; a ``[[runs]]`` entry or the
+        defaults alone giving one are refused, and so is a matrix with every point dropped.
+        Runs that come out the same are kept once. With more than one process, a run that
+        leaves ``column_generation.threads`` unset gets 1, before it is named: runs side by
+        side must not share the cores.
+
+        Raises:
+            OptionsError: For a run that cannot be made, or no run left.
         """
         command_line = command_line or RunOptions()
         entries = [(point, True) for point in self.matrix] + [(run, False) for run in self.runs]
-        defaults = self.defaults.complete_blocks()
+        defaults = preset_defaults().complete_blocks()
         runs: list[Run] = []
         dropped: list[str] = []
 
         for entry, from_matrix in entries or [(RunOptions(), False)]:
+            where = place(entry.where or self.defaults.where, command_line)
+
             try:
-                run = command_line.over(entry.over(self.defaults)).complete(entry.where or None)
+                run = command_line.over(entry.over(self.defaults)).complete(where)
             except MasterNotOnLayerError as error:
                 if not from_matrix:
                     raise
@@ -138,6 +136,10 @@ class Benchmark:
 
             if run not in runs:
                 runs.append(run.named(self.names, defaults))
+
+        if not runs:
+            points = "1 matrix point" if len(dropped) == 1 else f"{len(dropped)} matrix points"
+            raise OptionsError(f"no run left: {points} dropped ({dropped[0]})")
 
         return Expansion(
             self.processes,
@@ -190,17 +192,70 @@ def preset_names() -> Names:
     return named_blocks(read_presets(), str(PRESETS_FILE))
 
 
+def preset_defaults() -> RunOptions:
+    """The presets' ``[defaults]``: under every run, and what a run's name is compared
+    with."""
+    return RunOptions.from_table(read_presets()["defaults"], "presets: [defaults]", preset_names())
+
+
 def expand_run(given: dict[str, Any] | None, command_line: RunOptions | None = None) -> Run:
     """One run, from a run file's table and the command line, over the presets'
     defaults: what a runner takes."""
+    command_line = command_line or RunOptions()
     names = preset_names()
-    defaults = RunOptions.from_table(read_presets()["defaults"], "presets: [defaults]", names)
+    defaults = preset_defaults()
     run = RunOptions.from_table(given or {}, "run file", names)
-    complete = (command_line or RunOptions()).over(run.over(defaults)).complete()
+    where = place("run file" if given else "", command_line)
+    complete = command_line.over(run.over(defaults)).complete(where)
     return complete.named(names, defaults.complete_blocks())
 
 
 # MARK: Helpers
+
+
+def benchmark_options(given: Any, where: str) -> dict[str, Any]:
+    """The benchmark options a ``[benchmark]`` table, or the command line, gives,
+    checked.
+
+    Raises:
+        OptionsError: For an unknown option or a wrong value.
+    """
+    if not isinstance(given, dict):
+        raise OptionsError(f"{where}: [benchmark] is a table of options")
+
+    options = cast(dict[str, Any], given)
+    unknown = set(options) - set(BENCHMARK_OPTIONS)
+
+    if unknown:
+        raise OptionsError(f"{where}: unknown benchmark option {sorted(unknown)[0]!r}")
+
+    checked: dict[str, Any] = {}
+
+    if "processes" in options:
+        checked["processes"] = positive(options["processes"], "processes", where)
+
+    if "repeats" in options:
+        checked["repeats"] = positive(options["repeats"], "repeats", where)
+
+    if "timeout" in options:
+        checked["timeout"] = positive_seconds(options["timeout"], where)
+
+    if "machine" in options:
+        checked["machine"] = string(options["machine"], f"{where}: machine")
+
+    if "logs" in options:
+        checked["logs"] = boolean(options["logs"], f"{where}: logs")
+
+    return checked
+
+
+def place(where: str, command_line: RunOptions) -> str:
+    """Where a run's options come from, for its errors: `where`, and the command line
+    when it gives any."""
+    if command_line.layer is None and not command_line.blocks:
+        return where or "presets"
+
+    return f"{where}, with the command line" if where else "command line"
 
 
 def named_blocks(tables: dict[str, Any], where: str) -> Names:
@@ -245,6 +300,10 @@ def run_entry(entry: Any, where: str, names: Names, folder: Path | None) -> RunO
         return RunOptions.from_table(entry, where, names)
 
     given = cast(dict[str, Any], entry)
+
+    if not isinstance(given["from"], str):
+        raise OptionsError(f"{where}: from is the path of a run file, not {given['from']!r}")
+
     own = {name: value for name, value in given.items() if name != "from"}
     path = Path(given["from"])
     path = path if path.is_absolute() or folder is None else folder / path
@@ -270,14 +329,18 @@ def positive_seconds(value: Any, where: str) -> float | None:
 
 
 def unique_names(runs: list[Run]) -> list[Run]:
-    """The runs, a fingerprint of their options added to every name more than one
-    has."""
+    """The runs, a fingerprint of their options added to every name more than one has,
+    whatever its case: Windows and macOS take ``Fast`` and ``fast`` for one folder."""
     counts: dict[str, int] = {}
 
     for run in runs:
-        counts[run.name] = counts.get(run.name, 0) + 1
+        counts[run.name.casefold()] = counts.get(run.name.casefold(), 0) + 1
 
     return [
-        replace(run, name=f"{run.name}-{digest(run.to_table())}") if counts[run.name] > 1 else run
+        (
+            replace(run, name=f"{run.name}-{digest(run.to_table())}")
+            if counts[run.name.casefold()] > 1
+            else run
+        )
         for run in runs
     ]
