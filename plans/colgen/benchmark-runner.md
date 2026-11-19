@@ -210,6 +210,9 @@ Step 8b done 2026-11-18 (`F-71`, `D-225`, `19160d73` on `e72c99cd`, pushed 2026-
 hand-written folders for tests in `tests/benchmark_folders.py`. Step 9 adds `example.toml` and the
 CHANGELOG entry only.
 
+Step 9 done 2026-11-18 (`F-72`, `D-226`, `ac832b35` on `19160d73`, pushed 2026-11-18; 286 tests): `example.toml`
+with `RC201_12` (no `RC201_25` in `instances/`), the CHANGELOG entry. Every coding step done.
+
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
 `add_benchmark_options`, checks `options` then `build` unless `--no-check`, prints the dropped matrix points, passes
