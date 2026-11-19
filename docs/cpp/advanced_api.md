@@ -54,7 +54,8 @@ another redundant.
 ## Custom Cost Functions
 
 Subclass `CostFunction<ResourceType>` to map a resource value to a scalar cost
-contribution.
+contribution. The cost of a composed resource is kept between changes of its components, so a cost
+function must depend on the components only (see "Cost function" in [Concepts](concepts.md)).
 
 ```{doxygenclass} rcspp::CostFunction
 :members:

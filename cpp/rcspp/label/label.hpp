@@ -148,7 +148,15 @@ class Label {
         /// @brief Returns a reference to the resource state tracked by this label.
         ///
         /// @return Reference to the underlying @c Resource object.
-        [[nodiscard]] Resource<ResourceType>& get_resource() const { return *resource_; }
+        [[nodiscard]] Resource<ResourceType>& get_resource() { return *resource_; }
+
+        /// @brief Returns a read-only reference to the resource state tracked by this label.
+        ///
+        /// Reading a composed resource through it leaves its kept cost valid
+        /// (@c Resource::get_cost); the mutable overload counts as a possible change.
+        ///
+        /// @return Const reference to the underlying @c Resource object.
+        [[nodiscard]] const Resource<ResourceType>& get_resource() const { return *resource_; }
 
         /// @brief Returns a pointer to the node at the end of this label's partial path.
         ///
