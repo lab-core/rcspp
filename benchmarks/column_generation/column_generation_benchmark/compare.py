@@ -2,8 +2,8 @@
 #  All rights reserved.
 """The comparison of two runs: A, the run checked, against B, the reference.
 
-A side is one run over its rounds, read with the summary's reader from a round's folder, a
-run folder, or ``<benchmark folder>:<run name>``. The comparison lists the options and the
+A side is one run over its rounds, read with :mod:`.folder` from a round's folder, a run
+folder, or ``<benchmark folder>:<run name>``. The comparison lists the options and the
 records that differ and what to know about the timings, then every result field side by
 side, over each side's finished rounds:
 
@@ -12,8 +12,9 @@ side, over each side's finished rounds:
   whether the difference is within the rounds' spread;
 - any other field should match: equal (numbers to 1e-6 relative) or differs.
 
-The time rule, when asked for, judges A: both sides ``Optimal`` with the same objective (to
-1e-6 relative), then A's median solve time may exceed B's by at most max(margin x B, floor).
+The time rule, when asked for, judges A: every round of both sides finished, both
+``Optimal`` with the same objective (to 1e-6 relative), then A's median solve time may exceed
+B's by at most max(margin x B, floor).
 """
 
 from collections import Counter
@@ -23,17 +24,19 @@ from pathlib import Path
 from typing import Any
 
 from . import run_folder
-from .summary import (
+from .folder import (
     MAIN_TIME,
     MEBIBYTE,
     SOLVER_VERSIONS,
     Cell,
     Folder,
     agreed,
+    aligned_table,
     cell_row,
     counts,
     csv_text,
     disagreement,
+    first_appearance,
     is_measure,
     machine_flags,
     measure,
@@ -41,7 +44,6 @@ from .summary import (
     read_folder,
     record_differences,
     records,
-    result_fields,
     solver_flags,
     solver_versions,
     text,
@@ -86,12 +88,13 @@ class CompareError(Exception):
 
 @dataclass(frozen=True)
 class Side:
-    """One side of the comparison: its name, its run over its rounds, and the folder it
-    was read from with this run alone."""
+    """One side of the comparison: its name, its run over its rounds, the folder it was
+    read from with this run alone, and the run's row of figures."""
 
     name: str
     cell: Cell
     folder: Folder
+    row: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -128,7 +131,7 @@ def read_side(argument: str) -> Side:
 
     Raises:
         CompareError: When the argument names no single run.
-        SummaryError: When its folder holds no run.
+        FolderError: When its folder holds no run.
     """
     path = Path(argument)
 
@@ -144,8 +147,9 @@ def read_side(argument: str) -> Side:
 
         cell = folder.cells[0]
         own = (path / run_folder.RUN_FILE).is_file()
-        name = path.name if own else f"{path.resolve().name} / {cell.run}"
-        return Side(name, cell, Folder(folder.path, folder.metadata, [cell]))
+        # Resolved: "." has no name.
+        name = path.resolve().name if own else f"{path.resolve().name} / {cell.run}"
+        return Side(name, cell, Folder(folder.path, folder.metadata, [cell]), cell_row(cell))
 
     base, separator, run = argument.rpartition(":")
 
@@ -158,6 +162,7 @@ def read_side(argument: str) -> Side:
         f"{Path(base).resolve().name} / {cell.run}",
         cell,
         Folder(folder.path, folder.metadata, [cell]),
+        cell_row(cell),
     )
 
 
@@ -207,7 +212,11 @@ def matched_row(
         if not same_b:
             row["b"] = disagreement(second, field)
 
-        row["judgement"] = "A's rounds differ" if not same_a else "B's rounds differ"
+        if not same_a and not same_b:
+            row["judgement"] = "both sides' rounds differ"
+        else:
+            row["judgement"] = "A's rounds differ" if not same_a else "B's rounds differ"
+
         return row
 
     if agreed([value_a, value_b])[0]:
@@ -251,13 +260,13 @@ def measured_row(field: str, values_a: Sequence[Any], values_b: Sequence[Any]) -
     return row
 
 
-def field_rows(a: Cell, b: Cell) -> list[dict[str, Any]]:
+def field_rows(a: Side, b: Side) -> list[dict[str, Any]]:
     """Every result field of either side, A's order first, then the time per iteration,
     the median of each round's solve time over its iterations."""
-    first, second = a.counted, b.counted
+    first, second = a.cell.results, b.cell.results
     rows: list[dict[str, Any]] = []
 
-    for field in result_fields([*first, *second]):
+    for field in first_appearance([*first, *second]):
         values_a = [result.get(field) for result in first]
         values_b = [result.get(field) for result in second]
 
@@ -274,8 +283,8 @@ def field_rows(a: Cell, b: Cell) -> list[dict[str, Any]]:
 
         rows.append(row)
 
-    per_iteration_a = cell_row(a)[PER_ITERATION]
-    per_iteration_b = cell_row(b)[PER_ITERATION]
+    per_iteration_a = a.row[PER_ITERATION]
+    per_iteration_b = b.row[PER_ITERATION]
     row = {"field": PER_ITERATION, "kind": MEASURED, "a": per_iteration_a, "b": per_iteration_b}
     row.update(difference(per_iteration_a, per_iteration_b))
     rows.append(row)
@@ -321,8 +330,7 @@ def side_flags(side: Side) -> list[str]:
     """What to know about a side's timings: the machine, the solvers, the run's own
     flags."""
     flags = machine_flags(side.folder) + solver_flags(side.folder)
-    row = cell_row(side.cell)
-    return flags + ([row["flags"]] if row["flags"] else [])
+    return flags + ([side.row["flags"]] if side.row["flags"] else [])
 
 
 def flag_lines(a: Side, b: Side) -> list[str]:
@@ -339,49 +347,60 @@ def flag_lines(a: Side, b: Side) -> list[str]:
 # MARK: The time rule
 
 
-def side_figures(side: Side, label: str) -> tuple[float, float] | str:
-    """A side's objective and median solve time, or why the rule cannot use them."""
-    results = side.cell.counted
-    timeouts = counts(side.cell)["timeouts"]
+def side_figures(side: Side, label: str) -> tuple[tuple[float, float] | None, str]:
+    """A side's objective and median solve time, else None and why the rule cannot use
+    them.
+
+    A round that did not finish (a timeout, a crash, a missing round) leaves the side's
+    time unknown: the finished rounds alone would make it look faster.
+    """
+    results = side.cell.results
+    found = counts(side.cell)
 
     if not results:
-        return f"{label} has no finished round"
+        return None, f"{label} has no finished round"
 
-    if timeouts:
-        return f"{label} has {timeouts} timeouts, so its time is not known"
+    if found["timeouts"]:
+        return None, f"{label} has {found['timeouts']} timeouts, so its time is not known"
+
+    if found["not_finished"]:
+        return (
+            None,
+            f"{label} has {found['not_finished']} rounds not finished, so its time is not known",
+        )
 
     same, status = agreed([result.get("status") for result in results])
 
     if not same:
-        return f"{label}'s rounds differ in status"
+        return None, f"{label}'s rounds differ in status"
 
     if status != OPTIMAL:
-        return f"{label} is {text(status)}, not {OPTIMAL}"
+        return None, f"{label} is {text(status)}, not {OPTIMAL}"
 
     same, objective = agreed([result.get("objective") for result in results])
 
     if not same:
-        return f"{label}'s rounds differ in objective"
+        return None, f"{label}'s rounds differ in objective"
 
     time = measure(result.get(MAIN_TIME) for result in results).median
 
     if not numbers([objective]) or time is None:
-        return f"{label} has no objective or no {MAIN_TIME}"
+        return None, f"{label} has no objective or no {MAIN_TIME}"
 
-    return float(objective), time
+    return (float(objective), time), ""
 
 
 def time_verdict(a: Side, b: Side, rule: TimeRule) -> tuple[str, str]:
     """The time rule's verdict on A against B, and its reason."""
-    first = side_figures(a, "A")
+    first, why = side_figures(a, "A")
 
-    if isinstance(first, str):
-        return NO_VERDICT, first
+    if first is None:
+        return NO_VERDICT, why
 
-    second = side_figures(b, "B")
+    second, why = side_figures(b, "B")
 
-    if isinstance(second, str):
-        return NO_VERDICT, second
+    if second is None:
+        return NO_VERDICT, why
 
     (objective_a, time_a), (objective_b, time_b) = first, second
 
@@ -410,7 +429,7 @@ def compare(a_argument: str, b_argument: str, rule: TimeRule | None = None) -> C
 
     Raises:
         CompareError: When an argument names no single run.
-        SummaryError: When its folder holds no run.
+        FolderError: When its folder holds no run.
     """
     a, b = read_side(a_argument), read_side(b_argument)
     options = record_differences(a.cell.options, b.cell.options, text)
@@ -421,7 +440,7 @@ def compare(a_argument: str, b_argument: str, rule: TimeRule | None = None) -> C
         options,
         differences,
         warnings + flag_lines(a, b),
-        field_rows(a.cell, b.cell),
+        field_rows(a, b),
         None if rule is None else time_verdict(a, b, rule),
     )
 
@@ -432,7 +451,7 @@ def compare(a_argument: str, b_argument: str, rule: TimeRule | None = None) -> C
 def header(side: Side, label: str, width: int) -> str:
     """A side's name and how its rounds ended."""
     found = counts(side.cell)
-    others = Counter(item.outcome for item in side.cell.rounds if not item.counted)
+    others = Counter(item.outcome for item in side.cell.rounds if not item.in_figures)
     line = (
         f"- {label}: {side.name.ljust(width)}  "
         f"{found['finished']} / {found['rounds']} rounds finished"
@@ -481,6 +500,9 @@ def difference_text(row: Mapping[str, Any]) -> str:
         number = f"{found * 1000:+.1f} ms"
     elif row["field"].endswith("_bytes"):
         number = f"{found / MEBIBYTE:+.1f} MiB"
+    elif row["kind"] == MEASURED and found and abs(found) < 0.001:
+        # Under a millisecond, seconds to 3 places would read as no difference.
+        number = f"{found * 1000:+.3f} ms"
     elif row["kind"] == MEASURED:
         number = f"{found:+.3f}"
     elif isinstance(found, int):
@@ -498,22 +520,6 @@ def difference_text(row: Mapping[str, Any]) -> str:
         return f"{number}, {judgement}"
 
     return number
-
-
-def aligned_table(header_line: Sequence[str], lines: Sequence[Sequence[str]]) -> list[str]:
-    """A markdown table with its columns padded, to read on screen."""
-    widths = [
-        max(len(line[index]) for line in [header_line, *lines]) for index in range(len(header_line))
-    ]
-
-    def joined(cells: Sequence[str]) -> str:
-        return "| " + " | ".join(cell.ljust(width) for cell, width in zip(cells, widths)) + " |"
-
-    return [
-        joined(header_line),
-        "|" + "|".join("-" * (width + 2) for width in widths) + "|",
-        *(joined(line) for line in lines),
-    ]
 
 
 def comparison_text(comparison: Comparison) -> str:

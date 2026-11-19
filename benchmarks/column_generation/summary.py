@@ -16,7 +16,8 @@ from pathlib import Path
 # The code the runners and the benchmark share is in this folder.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from column_generation_benchmark.summary import SummaryError, write_summary  # noqa: E402
+from column_generation_benchmark.folder import FolderError  # noqa: E402
+from column_generation_benchmark.summary import write_summary  # noqa: E402
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
@@ -35,7 +36,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     try:
         written = write_summary(folder)
-    except SummaryError as error:
+    except FolderError as error:
         print(f"summary.py: {error}", file=sys.stderr)
         return 2
 

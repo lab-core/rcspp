@@ -7,6 +7,7 @@ the layers' runners, except in the last tests, which run a benchmark of the real
 of its runs again."""
 
 import json
+import re
 import shlex
 import shutil
 import signal
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import benchmark
+import compare
 import psutil
 import pytest
 from column_generation_benchmark import run_folder
@@ -887,10 +889,15 @@ def same(result: dict[str, Any] | None) -> dict[str, Any]:
     return {name: result[name] for name in SAME}
 
 
-def test_every_kind_of_input_runs_and_runs_again(build: Path, tmp_path: Path):
+def test_every_kind_of_input_runs_and_runs_again(
+    build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """A benchmark of the real runners with a matrix, a ``[[runs]]`` entry and a
     ``from``, and a run of the C++ example's runner when the build has it; each of its
-    runs then runs again from its ``run.toml`` and from its ``command.txt``."""
+    runs then runs again from its ``run.toml`` and from its ``command.txt``.
+
+    The summary and the comparison then read the folders the real runners wrote.
+    """
     from test_benchmark_runners import RUNNERS, has_example
 
     recorded = tmp_path / "recorded.toml"
@@ -936,3 +943,21 @@ def test_every_kind_of_input_runs_and_runs_again(build: Path, tmp_path: Path):
     assert len(single) == 1
     # Every layer ran.
     assert layers == set()
+
+    # The summary the benchmark wrote, from real records.
+    written = (tmp_path / "out" / "summary.md").read_text()
+    assert "- solvers: highspy" in written and "mixed" not in written
+    assert "## Rounds not in the figures" not in written
+
+    # A run of the benchmark against the same run made again by its runner alone.
+    first = found[0]
+    name = first.name.removesuffix("-r1")
+    capsys.readouterr()
+    arguments = [f"{tmp_path / 'out'}:{name}", str(tmp_path / "again" / first.name)]
+
+    assert compare.main([*arguments, "--floor", "1000"]) == 0
+    printed = capsys.readouterr().out
+    assert "- Options that differ: none" in printed
+    assert "- Records that differ: none" in printed
+    assert re.search(r"\| status +\| Optimal +\| Optimal +\| equal", printed)
+    assert "Verdict: equivalent" in printed

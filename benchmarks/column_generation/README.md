@@ -248,9 +248,12 @@ python summary.py results/my_benchmark
 
 | file | contents |
 | --- | --- |
-| `summary.md` | the runs, rounds and processes; the rounds finished, timed out and not finished; the last event; the flags (below); the record the rounds share, and any other with the rounds that have it; the solvers' versions over the rounds (from the benchmark's own record for a solver no round recorded); a results table and a times table, one line per run; the rounds that did not finish, with their outcome and exit code |
-| `summary.csv` | one row per run: `run`, `layer`, `instance`, `master`, how its rounds ended (`rounds`, `finished`, `failed_checks`, `timeouts`, `not_finished`), the figures of each result field, `seconds_per_iteration`, `wall_seconds_median`, `processor_seconds_median`, `other_processor_percent`, `on_battery`, `flags` |
+| `summary.md` | the runs, rounds and processes; the rounds finished, timed out and not finished; the last event; the flags (below); the record the rounds share, and any other with the rounds that have it; the solvers' versions over the rounds (from the benchmark's own record for a solver no round recorded); a results table and a times table, one line per run; the rounds not in the figures (timeouts included), with their outcome and exit code |
+| `summary.csv` | one row per run: `run`, `layer`, `instance`, `master`, how its rounds ended (`rounds`, `finished`, `failed_checks`, `timeouts`, `not_finished`), the figures of each result field (a measured field as `<field>_median`, `_mean`, `_min`, `_max`, `_spread_percent`; any other under its own name), then `seconds_per_iteration`, `wall_seconds_median`, `processor_seconds_median`, `other_processor_percent` (the median over the rounds of each round's `load.other_processor_percent_mean`), `on_battery`, `flags` |
 | `runs.csv` | one row per round: `run`, `round`, `folder`, `outcome`, the run's options as dotted columns (`master.type`, `graph.ng_size`; lists as JSON), every field of `result.json`, then from `metadata.json` `exit_code`, `started`, `wall_seconds`, `processor_seconds` and the `benchmark.`, `load.`, `source.` and `versions.` fields; for plots and other tools |
+
+The columns keep these groups whatever run comes first: a field only a later run has goes with the result fields. A
+result field named as one of these columns (a runner's own `outcome`, say) is written `result.<field>`.
 
 The figures are over the finished rounds, those whose check failed included. A field whose name ends in `_seconds` or
 `_bytes` is measured: its median, mean, min, max and spread, (max - min) / median in percent (`summary.csv` has all
@@ -260,18 +263,19 @@ rounds of each round's `solve_seconds` / `iterations`, an average over the run's
 
 Any other field has one value when every finished round agrees, numbers within 1e-6 relative; otherwise it is empty
 in `summary.csv`, `summary.md` shows `min..max` or each value with its count, and the run is flagged. Timeouts,
-crashed, not started, interrupted, cut off (`unfinished`) and missing rounds are counted, not in the figures. A
-runner's own fields get the same treatment.
+crashed, not started, interrupted, cut off (`unfinished`), missing and `unreadable` rounds (a file of the round's
+that cannot be read) are counted, not in the figures. A runner's own fields get the same treatment.
 
 The flags:
 
 - more than one process: each run shared the machine with others, and ran its master solver on one thread unless
   told otherwise;
-- rounds on battery;
+- rounds on battery (said once, for the folder);
 - mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`);
 - a solver with several versions in the folder: the layers compare only on the same solver; the `cpp-bindings` layer's
   `highs` master does not give its version, which is said;
-- per run: timeouts, failed checks, rounds not finished, rounds that differ, battery.
+- per run: timeouts, failed checks, rounds not finished, rounds that differ, and, in a folder of run folders, rounds
+  of one name with other options (the first round's are shown).
 
 ## Compare
 
@@ -316,13 +320,16 @@ are the summary's flags of each side, said once when both share them, and a side
 The figures are over each side's finished rounds, as in the summary. A field whose name ends in `_seconds` or
 `_bytes` is measured: each side's median, A - B and its percent of B; `solve_seconds` also shows each side's min and
 max, and whether A - B is within the rounds' spread (the two ranges overlap), beyond it, or not known (a side with one
-round). `per iteration` is each round's `solve_seconds` / `iterations`, their median. Any other field should match:
-`equal` (numbers within 1e-6 relative), `differs` with A - B, or the side whose rounds disagree. A field only one side
-has is `only in A` or `only in B`.
+round). A difference under a millisecond is in milliseconds. `per iteration` is each round's `solve_seconds` /
+`iterations`, their median. Any other field should match: `equal` (numbers within 1e-6 relative), `differs` with
+A - B, or the side whose rounds disagree (`both sides' rounds differ` when both do). A field only one side has is
+`only in A` or `only in B`.
 
 The time rule judges A when `--time-within PERCENT` (default 5 %) or `--floor SECONDS` (default 0.25) is given:
-both sides `Optimal` with the same objective within 1e-6 relative, and no timeout on either side; then A's median
-solve time may exceed B's by at most max(PERCENT of B, SECONDS). A faster is always equivalent. The floor keeps
+PERCENT is in percent, `5` or `5%`, not `0.05`; both are finite, 0 or more. Every round of both sides finished (no
+timeout, crash or missing round: the finished rounds alone would make a side look faster), both sides `Optimal` with
+the same objective within 1e-6 relative; then A's median solve time may exceed B's by at most
+max(PERCENT of B, SECONDS). A faster is always equivalent. The floor keeps
 short runs, where a fixed cost weighs a lot, from failing on a few milliseconds.
 
 | exit code | when |
@@ -330,11 +337,15 @@ short runs, where a fixed cost weighs a lot, from failing on a few milliseconds.
 | 0 | the comparison printed: no time rule, or A equivalent |
 | 1 | A slower than the time rule allows |
 | 2 | an argument names no single run, or a wrong option |
-| 3 | the time rule cannot judge: a side not `Optimal`, objectives that differ, a timeout, no finished round |
+| 3 | the time rule cannot judge: a side not `Optimal`, objectives that differ, a round not finished, no finished round |
 
 `--output FILE` also writes the comparison, as many times as given: `.md` the text above, `.csv` one row per field
 (`field`, `kind`, `a`, `b`, `a_min`, `a_max`, `b_min`, `b_max`, `difference`, `percent`, `judgement`), in the units
-of `result.json`.
+of `result.json`. `kind` is `measured` or `should match`. For a measured field, `a` and `b` are the medians and
+`judgement` says whether the difference is `within spread`, `beyond spread`, or `1 round, no spread`, for every
+measured field (the text shows it for `solve_seconds` only). For a field that should match, `a` or `b` is text when
+that side's rounds disagree: `600..601`, or `Optimal x2, TimeLimit x1`. The `seconds_per_iteration` row has no
+min, max or judgement.
 
 ## Tests
 
@@ -344,5 +355,5 @@ pytest benchmarks/column_generation/tests
 
 The tests find the build as the benchmark does; `RCSPP_BENCHMARK_BUILD=<folder>` chooses one among several. Without a
 build, the tests that need rcspp skip; without the column generation example in it, those of `cpp-bindings` skip. One
-test checks that every layer the build has gives the same objective, iterations and columns on C101_25. The tests
-use HiGHS only: run a Gurobi master by hand.
+test checks that every layer the build has gives the same objective, iterations and columns on C101_25. The Gurobi
+tests skip without gurobipy or its licence.

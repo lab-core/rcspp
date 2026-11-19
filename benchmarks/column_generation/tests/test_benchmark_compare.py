@@ -35,7 +35,7 @@ from column_generation_benchmark.compare import (
     comparison_text,
     read_side,
 )
-from column_generation_benchmark.summary import SummaryError
+from column_generation_benchmark.folder import FolderError
 
 OTHER = RUN.replace("package", "cpp-bindings")
 
@@ -101,18 +101,35 @@ def test_a_side_is_a_round_a_run_folder_or_a_benchmark_of_one_run(tmp_path: Path
     write_rounds(tmp_path / "one", RUN, times(1.0, 3.0))
 
     side = read_side(str(tmp_path / "one"))
-    assert side.name == f"one / {RUN}" and len(side.cell.counted) == 2
+    assert side.name == f"one / {RUN}" and len(side.cell.results) == 2
 
     side = read_side(str(round_folder(tmp_path / "one", RUN, 2)))
-    assert side.name == f"{RUN}-r2" and side.cell.counted == [result(solve_seconds=3.0)]
+    assert side.name == f"{RUN}-r2" and side.cell.results == [result(solve_seconds=3.0)]
 
     write_round(tmp_path / "alone", result(), None, options())
     assert read_side(str(tmp_path / "alone")).name == "alone"
 
     (tmp_path / "empty").mkdir()
 
-    with pytest.raises(SummaryError, match="holds no run"):
+    with pytest.raises(FolderError, match="holds no run"):
         read_side(str(tmp_path / "empty"))
+
+
+def test_a_side_named_by_the_current_folder_has_its_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    write_round(tmp_path / "alone", result(), None, options())
+    monkeypatch.chdir(tmp_path / "alone")
+
+    assert read_side(".").name == "alone"
+
+
+def test_a_benchmark_folder_and_a_colon_alone_name_no_run(tmp_path: Path):
+    write_pair(tmp_path, times(1.0), times(1.0))
+
+    for argument in (f"{tmp_path}:", f"{tmp_path}:{RUN}-r1"):
+        with pytest.raises(CompareError):
+            read_side(argument)
 
 
 # MARK: Fields
@@ -226,7 +243,10 @@ def test_rounds_not_finished_are_said(tmp_path: Path):
 
     assert "1 / 3 rounds finished (1 crashed, 1 missing)" in text
     assert "0 / 3 rounds finished (3 missing)" in text
-    assert comparison.verdict == (NO_VERDICT, "B has no finished round")
+    assert comparison.verdict == (
+        NO_VERDICT,
+        "A has 2 rounds not finished, so its time is not known",
+    )
     assert row(comparison, "status")["judgement"] is None
     assert (row(comparison, "status")["a"], row(comparison, "status")["b"]) == ("Optimal", None)
     assert "B has no record" in comparison.warnings
@@ -264,7 +284,8 @@ def test_warnings_both_sides_share_are_said_once(tmp_path: Path):
     warnings = pair(tmp_path).warnings
 
     assert warnings[0].startswith("4 runs at a time: each run shared the machine")
-    assert warnings[1:] == ["B: 1 rounds ran on battery", "B: on battery"]
+    # Said once: the folder's flag, not again as the run's.
+    assert warnings[1:] == ["B: 1 rounds ran on battery"]
 
 
 # MARK: The time rule
@@ -283,7 +304,8 @@ def test_warnings_both_sides_share_are_said_once(tmp_path: Path):
 def test_the_time_rule_judges_a_median_solve_time(
     tmp_path: Path, time_a: float, time_b: float, rule: TimeRule, verdict: str, reason: str
 ):
-    write_pair(tmp_path, times(time_a, 99.0, 0.0), times(time_b))
+    # As many rounds on each side: a missing round leaves a side's time unknown.
+    write_pair(tmp_path, times(time_a, 99.0, 0.0), times(time_b, time_b, time_b))
     found = pair(tmp_path, rule)
 
     assert found.verdict == (verdict, f"both Optimal, same objective; {reason}")
@@ -382,3 +404,85 @@ def test_the_script_refuses_wrong_arguments(tmp_path: Path, capsys: pytest.Captu
             compare.main([first, second, *wrong])
 
         assert error.value.code == 2
+
+
+# MARK: Review cases
+
+
+def test_rounds_not_finished_leave_the_time_unknown(tmp_path: Path):
+    # A crashed twice: its one finished round is not its time.
+    write_benchmark(tmp_path, {RUN: options(), OTHER: options(layer="cpp-bindings")}, rounds=3)
+
+    for number in (1, 2, 3):
+        write_round(round_folder(tmp_path, OTHER, number), result(), metadata())
+
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+
+    for number in (2, 3):
+        crashed = metadata(outcome=run_folder.CRASHED, exit_code=1)
+        write_round(round_folder(tmp_path, RUN, number), None, crashed)
+
+    assert pair(tmp_path, TimeRule()).verdict == (
+        NO_VERDICT,
+        "A has 2 rounds not finished, so its time is not known",
+    )
+
+
+@pytest.mark.parametrize(
+    ("results_b", "reason"),
+    [
+        ([result(status="TimeLimit")], "B is TimeLimit, not Optimal"),
+        ([result(), result(objective=191.0)], "B's rounds differ in objective"),
+        ([result(solve_seconds=None)], "B has no objective or no solve_seconds"),
+    ],
+)
+def test_the_rule_says_why_b_cannot_be_judged(
+    tmp_path: Path, results_b: list[dict[str, Any]], reason: str
+):
+    write_pair(tmp_path, [result()] * len(results_b), results_b)
+
+    assert pair(tmp_path, TimeRule()).verdict == (NO_VERDICT, reason)
+
+
+def test_a_reference_of_no_time_with_no_floor(tmp_path: Path):
+    write_pair(tmp_path, times(0.0), times(0.0))
+    assert pair(tmp_path, TimeRule(5.0, 0.0)).verdict[0] == EQUIVALENT  # type: ignore[index]
+
+    write_pair(tmp_path / "slower", times(0.001), times(0.0))
+    verdict = compare_runs(
+        f"{tmp_path / 'slower'}:{RUN}", f"{tmp_path / 'slower'}:{OTHER}", TimeRule(5.0, 0.0)
+    ).verdict
+    assert verdict is not None and verdict[0] == SLOWER
+
+
+def test_rounds_differ_on_both_sides(tmp_path: Path):
+    write_pair(
+        tmp_path, [result(columns=1), result(columns=2)], [result(columns=3), result(columns=4)]
+    )
+
+    assert row(pair(tmp_path), "columns")["judgement"] == "both sides' rounds differ"
+
+
+def test_a_difference_under_a_millisecond_shows_in_milliseconds(tmp_path: Path):
+    write_pair(tmp_path, [result(master_seconds=0.0403)], [result(master_seconds=0.04)])
+    text = comparison_text(pair(tmp_path))
+
+    assert "+0.300 ms (+0.8 %)" in text
+
+
+@pytest.mark.parametrize(
+    "wrong",
+    [
+        ["--time-within", "nan"],
+        ["--time-within", "inf"],
+        ["--floor", "nan"],
+        ["--floor", "inf"],
+    ],
+)
+def test_the_script_refuses_numbers_that_are_not_finite(tmp_path: Path, wrong: list[str]):
+    write_pair(tmp_path, times(1.0), times(1.0))
+
+    with pytest.raises(SystemExit) as error:
+        compare.main([f"{tmp_path}:{RUN}", f"{tmp_path}:{OTHER}", *wrong])
+
+    assert error.value.code == 2

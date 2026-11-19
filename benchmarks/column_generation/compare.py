@@ -11,6 +11,7 @@ than the rule allows, 2 on a wrong argument, 3 when the rule cannot judge.
 """
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -19,22 +20,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from column_generation_benchmark import compare  # noqa: E402
+from column_generation_benchmark.folder import FolderError  # noqa: E402
 from column_generation_benchmark.run_folder import write_atomically  # noqa: E402
-from column_generation_benchmark.summary import SummaryError  # noqa: E402
 
 EXIT_CODES = {compare.EQUIVALENT: 0, compare.SLOWER: 1, compare.NO_VERDICT: 3}
 OUTPUTS = (".md", ".csv")
 
 
 def percent(value: str) -> float:
-    """A positive percent, with or without its ``%``."""
+    """A percent, 0 or more and finite, with or without its ``%``: 5 is 5 %, not 500
+    %."""
     try:
         found = float(value.strip().removesuffix("%"))
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a percent: {value}") from None
 
-    if found < 0:
-        raise argparse.ArgumentTypeError(f"a negative percent: {value}")
+    if not math.isfinite(found) or found < 0:
+        raise argparse.ArgumentTypeError(f"a percent is 0 or more, and finite: {value}")
 
     return found
 
@@ -45,8 +47,8 @@ def seconds(value: str) -> float:
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a number of seconds: {value}") from None
 
-    if found < 0:
-        raise argparse.ArgumentTypeError(f"negative seconds: {value}")
+    if not math.isfinite(found) or found < 0:
+        raise argparse.ArgumentTypeError(f"seconds are 0 or more, and finite: {value}")
 
     return found
 
@@ -65,7 +67,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         type=percent,
         metavar="PERCENT",
         help="judge A's median solve time: at most this percent of B's above it, or the floor "
-        f"if more (default {default.margin_percent:g} %% when --floor is given)",
+        "if more; in percent: 5 or 5%%, not 0.05 "
+        f"(default {default.margin_percent:g} %% when --floor is given)",
     )
     parser.add_argument(
         "--floor",
@@ -100,7 +103,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     try:
         comparison = compare.compare(parsed.a, parsed.b, rule)
-    except (compare.CompareError, SummaryError) as error:
+    except (compare.CompareError, FolderError) as error:
         print(f"compare.py: {error}", file=sys.stderr)
         return 2
 

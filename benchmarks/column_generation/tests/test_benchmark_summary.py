@@ -5,6 +5,7 @@ rounds, how timeouts, crashes and failed checks count, rounds that disagree, the
 the records, ``runs.csv``, and folders of run folders without a benchmark."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -22,17 +23,23 @@ from benchmark_folders import (
     write_rounds,
 )
 from column_generation_benchmark import run_folder
-from column_generation_benchmark.summary import (
+from column_generation_benchmark.folder import (
     MISSING,
     UNFINISHED,
+    UNREADABLE,
+    FolderError,
     Measure,
-    SummaryError,
     agreed,
     cell_row,
     measure,
     read_folder,
-    write_summary,
 )
+from column_generation_benchmark.summary import write_summary
+
+
+def summary_text(path: Path) -> str:
+    """``summary.md``, its tables' padding squeezed to one space."""
+    return re.sub(r" +", " ", (path / "summary.md").read_text())
 
 
 @pytest.fixture
@@ -111,8 +118,8 @@ def test_timeouts_and_crashes_count_apart_from_the_figures(tmp_path: Path):
     assert row["flags"] == "1 timeouts; 3 not finished"
 
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
-    assert "## Rounds not finished" in text
+    text = summary_text(tmp_path)
+    assert "## Rounds not in the figures" in text
     assert f"| {RUN}-r2 | timeout | - |" in text
     assert f"| {RUN}-r3 | crashed | 1 |" in text
     assert f"| {RUN}-r5 | missing | - |" in text
@@ -152,7 +159,7 @@ def test_rounds_that_differ_are_flagged_and_shown(tmp_path: Path):
     assert row["flags"] == "rounds differ: status, iterations"
 
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
+    text = summary_text(tmp_path)
     assert "| Optimal x2, TimeLimit x1 | 191.814 | 16..18 |" in text
 
 
@@ -173,7 +180,7 @@ def test_fields_a_runner_adds_are_summarised_too(tmp_path: Path):
     assert row["labels"] == 10 and row["replay_seconds_median"] == 2.0
 
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
+    text = summary_text(tmp_path)
     assert "| run | finished | status | labels |" in text
     assert "| run | replay_seconds median | min | max | spread % |" in text
 
@@ -189,7 +196,7 @@ def test_the_header_and_the_last_event(three_rounds: Path):
     folder_metadata["record"] = {"versions": {"gurobipy": "13.0.1", "gurobi": "13.0.1"}}
     run_folder.write_json(three_rounds / run_folder.METADATA_FILE, folder_metadata)
     write_summary(three_rounds)
-    text = (three_rounds / "summary.md").read_text()
+    text = summary_text(three_rounds)
 
     assert text.startswith(f"# Summary of {three_rounds.name}\n")
     assert "- 1 runs, 3 rounds, 1 processes" in text
@@ -206,11 +213,12 @@ def test_many_processes_and_battery_are_flagged(tmp_path: Path):
     load = {"other_processor_percent_mean": 50.0, "on_battery": True}
     write_round(round_folder(tmp_path, RUN, 1), result(), metadata(load=load))
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
+    text = summary_text(tmp_path)
 
     assert "- 2 runs at a time: each run shared the machine" in text
     assert "- 1 rounds ran on battery" in text
-    assert f"- {RUN}: on battery" in text
+    # Said once, for the folder.
+    assert f"- {RUN}: on battery" not in text
 
 
 def test_mixed_records_are_listed_with_their_rounds(tmp_path: Path):
@@ -220,7 +228,7 @@ def test_mixed_records_are_listed_with_their_rounds(tmp_path: Path):
     source = {"commit": "b" * 40, "uncommitted_changes": True, "branch": "main"}
     write_round(round_folder(tmp_path, RUN, 3), result(), metadata(source=source))
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
+    text = summary_text(tmp_path)
 
     assert "- mixed: 2 records (below)" in text
     assert "- 2 rounds have it" in text
@@ -244,7 +252,7 @@ def test_layers_must_share_their_solvers_versions(tmp_path: Path):
     write_round(round_folder(tmp_path, bindings, 1), result(), older)
     write_round(round_folder(tmp_path, native, 1), result(), metadata(master="highs"))
     write_summary(tmp_path)
-    text = (tmp_path / "summary.md").read_text()
+    text = summary_text(tmp_path)
 
     assert "- highspy versions differ: 1.15.1 (1 rounds), 1.14.0 (1 rounds)" in text
     assert "- highs versions differ: 1.15.1 (1 rounds), 1.14.0 (1 rounds)" in text
@@ -305,7 +313,7 @@ def test_run_folders_without_a_benchmark(tmp_path: Path):
     write_round(tmp_path / "killed", run_folder.timeout_result(5.0), None, options())
     assert read_folder(tmp_path / "killed").rounds[0].outcome == run_folder.TIMEOUT
 
-    with pytest.raises(SummaryError, match="holds no run"):
+    with pytest.raises(FolderError, match="holds no run"):
         read_folder(tmp_path / "notes")
 
 
@@ -318,3 +326,108 @@ def test_the_script(three_rounds: Path, tmp_path: Path, capsys: pytest.CaptureFi
     assert "holds no run" in capsys.readouterr().err
     assert summary.main([str(tmp_path / "absent")]) == 2
     assert "is not a folder" in capsys.readouterr().err
+
+
+# MARK: Odd folders
+
+
+def test_rounds_of_one_name_with_other_options_are_flagged(tmp_path: Path):
+    write_round(tmp_path / f"{RUN}-r1", result(), metadata(outcome=None), options())
+    other = options(master="gurobipy")
+    write_round(tmp_path / f"{RUN}-r2", result(), metadata(outcome=None), other)
+
+    row = cell_row(read_folder(tmp_path).cells[0])
+    assert "options differ between rounds" in row["flags"]
+
+
+def test_the_columns_keep_their_groups_whatever_the_first_run(tmp_path: Path):
+    other = "R201_25-package-highspy-exact-artificial"
+    write_benchmark(tmp_path, {RUN: options(), other: options(instance="R201_25")}, rounds=1)
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+    write_round(round_folder(tmp_path, other, 1), result(labels=3), metadata())
+    write_summary(tmp_path)
+
+    columns = list(read_csv(tmp_path / "summary.csv")[0])
+    assert columns.index("labels") < columns.index("seconds_per_iteration") < columns.index("flags")
+    assert columns[-1] == "flags"
+
+    columns = list(read_csv(tmp_path / "runs.csv")[0])
+    assert columns.index("labels") < columns.index("exit_code")
+    assert columns.index("graph") < columns.index("status")
+
+
+def test_a_result_field_never_hides_a_column_of_the_summary(tmp_path: Path):
+    write_rounds(tmp_path, RUN, [result(run="other", outcome="odd", rounds=7)])
+    row = cell_row(read_folder(tmp_path).cells[0])
+
+    assert (row["run"], row["rounds"]) == (RUN, 1)
+    assert (row["result.run"], row["result.rounds"]) == ("other", 7)
+
+    write_summary(tmp_path)
+    [line] = read_csv(tmp_path / "runs.csv")
+    assert (line["outcome"], line["result.outcome"]) == ("finished", "odd")
+
+
+def test_an_outcome_without_its_result_is_not_finished(tmp_path: Path):
+    write_benchmark(tmp_path, {RUN: options()}, rounds=2)
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+    write_round(round_folder(tmp_path, RUN, 2), None, metadata())
+
+    row = cell_row(read_folder(tmp_path).cells[0])
+    assert (row["finished"], row["not_finished"]) == (1, 1)
+
+
+@pytest.mark.parametrize("outcome", [run_folder.INTERRUPTED, run_folder.NOT_STARTED])
+def test_interrupted_and_not_started_rounds_are_not_finished(tmp_path: Path, outcome: str):
+    write_benchmark(tmp_path, {RUN: options()}, rounds=2)
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+    write_round(round_folder(tmp_path, RUN, 2), None, metadata(outcome=outcome))
+
+    row = cell_row(read_folder(tmp_path).cells[0])
+    assert (row["finished"], row["not_finished"]) == (1, 1)
+
+
+def test_a_bar_in_a_value_stays_in_its_cell(tmp_path: Path):
+    write_rounds(tmp_path, RUN, [result(status="a|b\nc")])
+    write_summary(tmp_path)
+
+    assert "| a\\|b c |" in summary_text(tmp_path)
+
+
+def test_an_unreadable_round_is_said_and_an_unreadable_benchmark_refused(tmp_path: Path):
+    write_rounds(tmp_path, RUN, [result(), result()])
+    (round_folder(tmp_path, RUN, 2) / run_folder.RESULT_FILE).write_text("{ not json")
+
+    assert [item.outcome for item in read_folder(tmp_path).rounds] == ["finished", UNREADABLE]
+
+    (tmp_path / run_folder.BENCHMARK_FILE).write_text("[runs\n")
+
+    with pytest.raises(FolderError, match="benchmark.toml"):
+        read_folder(tmp_path)
+
+
+def test_a_benchmark_without_runs_holds_no_run(tmp_path: Path):
+    write_benchmark(tmp_path, {}, rounds=1)
+
+    with pytest.raises(FolderError, match="holds no run"):
+        read_folder(tmp_path)
+
+
+def test_rounds_beyond_the_count_and_without_metadata_are_read(tmp_path: Path):
+    write_rounds(tmp_path, RUN, [result(), result()])
+    # A resume with fewer rounds leaves the third; without the folder's metadata, the
+    # benchmark file's repeats count.
+    write_round(round_folder(tmp_path, RUN, 3), result(), metadata(), options())
+    (tmp_path / run_folder.METADATA_FILE).unlink()
+
+    assert [item.number for item in read_folder(tmp_path).rounds] == [1, 2, 3]
+
+
+def test_flags_with_commas_read_back_from_the_csv(tmp_path: Path):
+    write_benchmark(tmp_path, {RUN: options()}, rounds=2)
+    write_round(round_folder(tmp_path, RUN, 1), result(iterations=1), metadata())
+    write_round(round_folder(tmp_path, RUN, 2), result(iterations=2, status="x"), metadata())
+    write_summary(tmp_path)
+
+    [line] = read_csv(tmp_path / "summary.csv")
+    assert line["flags"] == "rounds differ: status, iterations"
