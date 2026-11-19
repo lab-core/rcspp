@@ -211,7 +211,8 @@ hand-written folders for tests in `tests/benchmark_folders.py`. Step 9 adds `exa
 CHANGELOG entry only.
 
 Step 9 done 2026-11-18 (`F-72`, `D-226`, `ac832b35` on `19160d73`, pushed 2026-11-18; 286 tests): `example.toml`
-with `RC201_12` (no `RC201_25` in `instances/`), the CHANGELOG entry. Every coding step done.
+with `RC201_12` (no `RC201_25` in `instances/`), the CHANGELOG entry. Every coding step done. PR #97 opened by the
+user 2026-11-18 (draft, base `feature/column-generation-pure-python`, head `ac832b35`).
 
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
