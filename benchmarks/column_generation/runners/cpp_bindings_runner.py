@@ -11,7 +11,8 @@ this file holds only the column generation calls of the example's package,
 cpp_column_generation: a master over a C++ HiGHS model or a highspy or gurobipy one, a
 graph pricer with the run's stages, the start, the loop, then the integer master over the
 generated columns. The loop and the pricer run in C++; so does the master, except over
-gurobipy.
+gurobipy. :func:`main` runs them in order. ``package_runner.py`` is its twin over the
+package: a change to one is made to the other.
 """
 
 from __future__ import annotations
@@ -45,13 +46,19 @@ if TYPE_CHECKING:
 
 LAYER = "cpp-bindings"
 
+#: The largest value a column has and still counts as unused.
+ZERO = 1e-9
+
 
 # MARK: Building
 
 
 def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> MasterSolver:
     """The master solver over a model of the instance's rows, without columns, with the
-    run's parameters set on it (its log is off unless they turn it on)."""
+    run's parameters set through it.
+
+    Its log stays off: every solve sets it.
+    """
     import cpp_column_generation
 
     solver: MasterSolver
@@ -69,7 +76,6 @@ def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> Mast
 
         # The master solver copies the model, not its options: they go to the copy below.
         model = highspy.Highs()
-        model.setOptionValue("output_flag", False)
 
         for low, up in zip(lower, upper, strict=True):
             model.addRow(low, up, 0, [], [])
@@ -81,7 +87,7 @@ def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> Mast
     for name, value in run.master.parameters.items():
         try:
             solver.set_option(name, value)
-        except ValueError as error:
+        except (TypeError, ValueError) as error:
             raise OptionsError(
                 f"master: {run.master.type} refuses {name} = {value!r} ({error})"
             ) from None
@@ -184,7 +190,8 @@ def describe_columns(
     artificial: list[dict[str, Any]] = []
 
     for column, value in zip(columns, values, strict=True):
-        if value == 0.0:
+        # A solver's zero can be a rounding error away from it.
+        if abs(value) <= ZERO:
             continue
 
         if column.pricer == MasterProblem.no_pricer:
@@ -205,26 +212,16 @@ def describe_columns(
     return used, artificial
 
 
-def read_solution(master: MasterProblem, objective: float | None) -> dict[str, Any]:
+def read_solution(master: MasterProblem, objective: float) -> dict[str, Any]:
     """The last LP solution, as ``solution.json`` holds it: its objective, the columns
     with a value (artificial ones apart) and the duals.
 
-    ``lp`` is null when no LP was solved, or when the run stopped at a limit after pricing
-    added columns: the master solvers drop the last solution's values when columns are
-    added, so ``lp_missing`` then says why.
+    Read only when that LP finished
+    and nothing came after it (:data:`runner.LAST_LP_FINISHED`).
     """
-    if objective is None:
-        return {"lp": None, "lp_missing": "no master LP was solved"}
-
     columns = master.columns()
-
-    try:
-        values = master.solver().primal(np.array([column.id for column in columns], np.uint64))
-        duals = master.solver().duals()
-    except runner.values_gone() as error:
-        missing = f"columns were added after the last LP solve ({error})"
-        return {"lp": None, "lp_missing": missing}
-
+    values = master.solver().primal(np.array([column.id for column in columns], np.uint64))
+    duals = master.solver().duals()
     used, artificial = describe_columns(columns, values.tolist())
     return {
         "lp": {
@@ -239,13 +236,19 @@ def read_solution(master: MasterProblem, objective: float | None) -> dict[str, A
 
 def solve_lp_again(master: MasterProblem, run: Run) -> tuple[dict[str, Any], float]:
     """The LP over every column the master holds, solved once more after a run that
-    stopped at a limit after pricing, as :func:`read_solution` gives it
-    (``solved_again`` set), and the seconds it took."""
+    stopped at a limit or a failed solve, as :func:`read_solution` gives it
+    (``solved_again`` set), and the seconds it took.
+
+    It has the run's own time limit again, at most.
+    """
     from cpp_column_generation import RelaxationParams, SolverStatus
 
-    threads = run.column_generation.threads
+    settings = run.column_generation
+    timeout_s = math.inf if settings.timeout_s is None else settings.timeout_s
     started = time.perf_counter()
-    status = master.solver().solve_relaxation(RelaxationParams(threads=threads or 0))
+    status = master.solver().solve_relaxation(
+        RelaxationParams(timeout_s=timeout_s, threads=settings.threads or 0)
+    )
     master.solver().restore_user_model()
     seconds = time.perf_counter() - started
 
@@ -253,10 +256,7 @@ def solve_lp_again(master: MasterProblem, run: Run) -> tuple[dict[str, Any], flo
         return {"lp": None, "lp_missing": f"the LP solved again ended {status.name}"}, seconds
 
     solution = read_solution(master, master.solver().objective())
-
-    if solution["lp"] is not None:
-        solution["lp"]["solved_again"] = True
-
+    solution["lp"]["solved_again"] = True
     return solution, seconds
 
 
@@ -285,28 +285,77 @@ def solve_integer(loop: ColumnGeneration, master: MasterProblem, run: Run) -> di
     columns = master.columns()
     found: dict[str, Any] = {"status": status.name, "seconds": seconds}
 
+    # Stopped at its limit, the solve may have a solution or none; without one, the solver
+    # has no values to give.
+    no_values: tuple[type[Exception], ...] = (RuntimeError,)
+
+    if run.master.type == "gurobipy":
+        import gurobipy
+
+        no_values = (gurobipy.GurobiError,)
+
     try:
         values = master.solver().primal(np.array([column.id for column in columns], np.uint64))
         objective = master.solver().objective()
-    except runner.values_gone():
+    except no_values:
         return {**found, "objective": None, "columns": [], "artificial_columns": []}
 
     used, artificial = describe_columns(columns, values.tolist())
     return {**found, "objective": objective, "columns": used, "artificial_columns": artificial}
 
 
+# MARK: Running
+
+
 def main(arguments: list[str] | None = None) -> int:
-    return runner.main(
-        __doc__,
-        Path(__file__),
-        sys.argv[1:] if arguments is None else arguments,
-        layer=LAYER,
-        build=build,
-        solve=solve,
-        read_solution=read_solution,
-        solve_lp_again=solve_lp_again,
-        solve_integer=solve_integer,
-    )
+    """One run: its options read, its objects built, the loop run, the LP solution read,
+    the integer master solved, the folder written.
+
+    Returns:
+        The exit code: 0; 1 when the integer solution fails the instance's check, or the
+        run stopped after its folder was started; 2 when the run cannot start.
+    """
+    arguments = sys.argv[1:] if arguments is None else arguments
+    script = Path(__file__)
+    parsed = runner.parse_arguments(__doc__, arguments)
+    folder = None
+
+    try:
+        run, build_folder = runner.read_run(parsed, LAYER)
+
+        # Built first: wrong options stop the runner before its folder is touched.
+        instance, master, loop = build(run)
+
+        if parsed.check:
+            print(f"{run.name}: built")
+            return 0
+
+        folder = runner.start_folder(parsed, run, [str(script.resolve()), *arguments])
+        result = solve(loop)
+        result["lp_solved_again_seconds"] = None
+        solution = None
+
+        # Read before the integer solve, which replaces the LP's values.
+        if run.statistics.solution:
+            if result["objective"] is None:
+                solution = {"lp": None, "lp_missing": "no master LP was solved"}
+            elif result["status"] in runner.LAST_LP_FINISHED:
+                solution = read_solution(master, result["objective"])
+            else:
+                solution, result["lp_solved_again_seconds"] = solve_lp_again(master, run)
+
+        integer = solve_integer(loop, master, run) if run.integer.solve else None
+        fields, parts = runner.integer_results(instance, result, integer)
+        result.update(fields)
+
+        if solution is not None:
+            solution.update(parts)
+
+        runner.finish_folder(folder, parsed, run, build_folder, result, solution)
+    except runner.ERRORS as error:
+        return runner.stop(script.name, error, folder)
+
+    return runner.report(script.name, run, result, parts)
 
 
 if __name__ == "__main__":

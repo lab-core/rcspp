@@ -177,7 +177,8 @@ class SolomonInstance(Instance):
         windows = {
             customer.number: (customer.ready_time, customer.due_time) for customer in self.customers
         }
-        windows[self.sink] = (0.0, math.inf)
+        # The sink is the depot again: a route is back before it closes, as the check wants.
+        windows[self.sink] = windows[self.customers[0].number]
         graph = ResourceGraph()
 
         # Distance, the cost; time, within the windows; load, within the capacity.

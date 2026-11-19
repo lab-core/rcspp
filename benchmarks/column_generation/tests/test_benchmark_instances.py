@@ -217,6 +217,16 @@ def test_a_route_back_after_the_depot_closes_fails_its_check(tmp_path: Path):
     )
 
 
+def test_the_graph_prices_no_route_back_after_the_depot_closes(build: Path, tmp_path: Path):
+    # The check refuses such a route: pricing must not make it.
+    path = tmp_path / "EARLY_3.txt"
+    path.write_text(TOY.replace("0       1000", "0         15"))
+    graph = SolomonInstance(path).build_graph({})
+    graph.update_reduced_costs({1: 100.0, 2: 100.0, 3: 100.0})
+
+    assert [solution.path_node_ids for solution in graph.solve()] == []
+
+
 def test_a_cost_that_is_not_the_distance_fails_its_check(toy: SolomonInstance):
     solution = toy.resolve_solution(toy_columns(toy))
     distance = solution["distance"]
