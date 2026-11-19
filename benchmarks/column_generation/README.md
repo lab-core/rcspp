@@ -1,7 +1,7 @@
 # Column generation benchmark
 
 Runs column generation on rcspp's layers and records how they do. It measures the source tree it lives in: rcspp's
-Python sources in `python/src` and the compiled `_core` of one of this tree's builds. Nothing here is installed; the
+Python sources in `python/src` and the compiled `_core` of a build of this tree. Nothing here is installed; the
 wheel does not have it.
 
 | layer          | what runs                                                                                      |
@@ -33,9 +33,9 @@ pip install -r benchmarks/column_generation/requirements.txt
 
 ## Build rcspp
 
-The benchmark imports rcspp from a build folder of this tree, `build*/` at its root. Build the Python module there,
-with the column generation example for the `cpp-bindings` layer (`examples/column_generation/README.md` lists the
-options):
+The benchmark imports rcspp from a build of this tree: a `build*/` folder at its root, found alone, or one given with
+`--build` (relative to the tree's root, or absolute anywhere). Build the Python module there, with the column
+generation example for the `cpp-bindings` layer (`examples/column_generation/README.md` lists the options):
 
 ```bash
 cmake -B build-python -DCMAKE_BUILD_TYPE=Release -DUSE_PYTHON=ON -DUSE_TESTS=OFF \
@@ -46,13 +46,16 @@ cmake --build build-python --config Release
 Add `-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` when Gurobi is installed, and `-DPython_EXECUTABLE=<python>` when
 CMake would otherwise find another Python than the environment's.
 
-The build copies `python/src/rcspp` next to `_core`; build again after changing the Python sources.
+The build copies `python/src/rcspp` next to `_core`; build again after changing the Python sources, and after
+changing the C++ ones: nothing checks that `_core` was built from the current C++.
 
 ## Which rcspp is measured
 
-Before importing rcspp, the benchmark puts the build's `python` folder first on the path, then checks that rcspp and
-its `_core` come from that build, and that the build's copy of the Python sources equals `python/src`. It stops
-otherwise: a virtual environment may have another rcspp installed, which a run would measure without failing.
+Before importing rcspp, the benchmark checks that the build was configured from this tree (its `CMakeCache.txt`),
+puts the build's `python` folder first on the path, then checks that rcspp and its `_core` come from that build, and
+that the build's copy of the Python sources equals `python/src`, with no module the sources no longer have. It stops
+otherwise: a virtual environment may have another rcspp installed, which a run would measure without failing, and a
+build configured from another checkout holds that checkout's C++.
 
 ## Options
 
@@ -84,7 +87,7 @@ python runners/cpp_bindings_runner.py --file results/C101_25-package-highspy-exa
 | `--file`        | a run file; the command line's run options go over it                                         |
 | `--output`      | the run folder, made when missing; by default `results/<run name>` here                       |
 | `--overwrite`   | remove the run folder first when it already holds a run                                       |
-| `--build`       | the build folder to import rcspp from, when the tree has several                              |
+| `--build`       | the build to import rcspp from, when the tree has several: relative to the tree's root        |
 | `--machine`     | the machine's label, for `metadata.json`                                                      |
 | `--check build` | build the instance, graph, master, pricer and starting columns without solving; write nothing |
 
@@ -147,7 +150,7 @@ end the counts of `status.txt`, and the summary's path ([Summary](#summary)).
 | flag | what |
 | --- | --- |
 | `--output` | the benchmark folder; by default `results/<file name>` here; needed without a file |
-| `--build` | the build folder to import rcspp from, when the tree has several |
+| `--build` | the build to import rcspp from, when the tree has several: relative to the tree's root, or absolute |
 | `--check options` | expand, list and check the runs, then stop; write nothing; on an existing folder, say how many runs it already finished |
 | `--check build` | the same, and check that the folder can be resumed, then build each run, then stop; write nothing |
 | `--no-check` | do not build each run before the first starts |

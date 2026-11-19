@@ -2,11 +2,13 @@
 #  All rights reserved.
 """The source tree the benchmark measures: the one it lives in.
 
-rcspp is imported from a build folder of this tree (``build*/python``), where the build put the
-compiled ``_core`` next to a copy of ``python/src/rcspp``. Nothing else may provide it: a virtual
-environment often has an older rcspp installed, and a run would then measure that one without
-failing. The copy must also equal ``python/src``, or the run would measure Python sources older
-than the tree's.
+rcspp is imported from a build of this tree (``build*/python``, or a folder given with
+``--build``), where the build put the compiled ``_core`` next to a copy of ``python/src/rcspp``.
+Nothing else may provide it: a virtual environment often has an older rcspp installed, and a run
+would then measure that one without failing. The copy must also equal ``python/src``, or the run
+would measure Python sources older than the tree's; and a build configured from another tree is
+refused, as its ``_core`` holds that tree's C++. Whether ``_core`` was built from the current C++
+sources is not checked: build again after changing them.
 """
 
 import filecmp
@@ -43,12 +45,13 @@ def find_builds(tree: Path = TREE) -> list[Path]:
 
 
 def choose_build(build: str | Path | None = None, tree: Path = TREE) -> Path:
-    """The build folder to import rcspp from: `build` when given (relative to `tree`), else the
-    tree's only build.
+    """The build folder to import rcspp from: `build` when given (relative to `tree`'s root,
+    or anywhere when absolute), else the tree's only build.
 
     Raises:
         SourceTreeError: When `build` has no ``_core`` for this Python, or `build` is not given
-            and the tree has no build or several.
+            and the tree has no build or several, or the build was configured from another
+            tree.
     """
     if build is not None:
         folder = Path(build)
@@ -61,30 +64,58 @@ def choose_build(build: str | Path | None = None, tree: Path = TREE) -> Path:
                 f"{folder} has no python/rcspp/{core_file_name()}: build rcspp there with "
                 "USE_PYTHON=ON (see benchmarks/column_generation/README.md)"
             )
+    else:
+        builds = find_builds(tree)
 
-        return folder.resolve()
+        if not builds:
+            raise SourceTreeError(
+                f"no build of rcspp for this Python in {tree} "
+                f"(build*/python/rcspp/{core_file_name()}): build one as "
+                "benchmarks/column_generation/README.md says"
+            )
 
-    builds = find_builds(tree)
+        if len(builds) > 1:
+            names = ", ".join(folder.name for folder in builds)
+            raise SourceTreeError(f"several builds in {tree} ({names}): choose one with --build")
 
-    if not builds:
+        folder = builds[0]
+
+    source = configured_from(folder)
+
+    if source is not None and not same_folder(source, tree):
         raise SourceTreeError(
-            f"no build of rcspp for this Python in {tree} (build*/python/rcspp/{core_file_name()}):"
-            " build one as benchmarks/column_generation/README.md says"
+            f"the build {folder} was configured from {source}, not from this tree {tree}: its "
+            "_core holds that tree's C++"
         )
 
-    if len(builds) > 1:
-        names = ", ".join(folder.name for folder in builds)
-        raise SourceTreeError(f"several builds in {tree} ({names}): choose one with --build")
+    return folder.resolve()
 
-    return builds[0].resolve()
+
+def configured_from(build: Path) -> Path | None:
+    """The source folder CMake configured `build` from, as its ``CMakeCache.txt`` says;
+    None without one."""
+    cache = build / "CMakeCache.txt"
+
+    if not cache.is_file():
+        return None
+
+    with open(cache, encoding="utf-8", errors="replace") as file:
+        for line in file:
+            name, _, value = line.partition("=")
+
+            if name == "CMAKE_HOME_DIRECTORY:INTERNAL":
+                return Path(value.strip())
+
+    return None
 
 
 # MARK: Checks
 
 
 def stale_python_files(build: Path, tree: Path = TREE) -> list[str]:
-    """The files of ``python/src/rcspp`` whose copy in `build` is missing or differs, as
-    paths relative to the package."""
+    """The files of ``python/src/rcspp`` whose copy in `build` is missing or differs,
+    and the modules of the copy the sources no longer have, as paths relative to the
+    package."""
     source = tree / "python" / "src" / "rcspp"
     copy = build / "python" / "rcspp"
     stale: list[str] = []
@@ -96,15 +127,33 @@ def stale_python_files(build: Path, tree: Path = TREE) -> list[str]:
         if not copied.is_file() or not filecmp.cmp(path, copied, shallow=False):
             stale.append(relative.as_posix())
 
+    # A module removed from the sources can still be imported from the copy.
+    for copied in sorted(copy.rglob("*.py")):
+        relative = copied.relative_to(copy)
+
+        if not (source / relative).is_file():
+            stale.append(f"{relative.as_posix()} (not in the sources)")
+
     return stale
 
 
 def is_inside(path: str | Path, folder: Path) -> bool:
     """Whether `path` is in `folder` (letter case ignored where the file system ignores
-    it)."""
+    it); never across drives."""
     inner = os.path.normcase(os.path.abspath(path))
     outer = os.path.normcase(os.path.abspath(folder))
-    return os.path.commonpath([inner, outer]) == outer
+
+    try:
+        return os.path.commonpath([inner, outer]) == outer
+    except ValueError:
+        # On Windows, two paths on different drives have no common path.
+        return False
+
+
+def same_folder(first: Path, second: Path) -> bool:
+    """Whether two paths name one folder (letter case ignored where the file system
+    ignores it)."""
+    return os.path.normcase(os.path.abspath(first)) == os.path.normcase(os.path.abspath(second))
 
 
 def check_rcspp(build: Path) -> None:
@@ -117,7 +166,11 @@ def check_rcspp(build: Path) -> None:
     import rcspp._core
 
     for module in (rcspp, rcspp._core):
-        path = module.__file__ or ""
+        path = module.__file__
+
+        # A namespace package has none: it would pass as the current folder.
+        if path is None:
+            raise SourceTreeError(f"{module.__name__} has no file: it is not the build's {build}")
 
         if not is_inside(path, build):
             raise SourceTreeError(
@@ -150,11 +203,7 @@ def use_tree(build: str | Path | None = None, tree: Path = TREE) -> Path:
             "which copies the sources"
         )
 
-    python = str(folder / "python")
-
-    if python not in sys.path:
-        sys.path.insert(0, python)
-
+    put_first_on_path(str(folder / "python"))
     check_rcspp(folder)
     return folder
 
@@ -177,7 +226,12 @@ def use_example(tree: Path = TREE) -> None:
             "USE_COLUMN_GENERATION_EXAMPLE=ON (see benchmarks/column_generation/README.md)"
         )
 
-    python = str(tree / "examples" / "column_generation" / "python")
+    put_first_on_path(str(tree / "examples" / "column_generation" / "python"))
 
-    if python not in sys.path:
-        sys.path.insert(0, python)
+
+def put_first_on_path(folder: str) -> None:
+    """Puts `folder` first on ``sys.path``, moving it there when it is already on it."""
+    if folder in sys.path:
+        sys.path.remove(folder)
+
+    sys.path.insert(0, folder)
