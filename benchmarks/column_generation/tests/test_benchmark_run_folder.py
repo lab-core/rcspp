@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 from column_generation_benchmark import collectors, options, record, run_folder
+from column_generation_benchmark.load import Load, Sample
 from column_generation_benchmark.options import OptionsError
 
 pytestmark = pytest.mark.usefixtures("build")
@@ -287,3 +288,43 @@ def test_a_rename_denied_every_time_raises_and_leaves_nothing(
         run_folder.write_atomically(tmp_path / "status.txt", "text")
 
     assert list(tmp_path.iterdir()) == []
+
+
+# MARK: Timeouts and load
+
+
+def test_a_timeout_result_has_only_its_status_and_seconds(tmp_path: Path):
+    result = run_folder.timeout_result(12.5)
+    run_folder.write_result(tmp_path, result)
+
+    assert run_folder.read_result(tmp_path) == result
+    assert run_folder.result_problems({**result, "status": "Optimal"})
+
+
+def sample(at: float, busy: float, total: float, memory: int, mhz: float | None) -> Sample:
+    return Sample(at, busy, total, memory, mhz, None)
+
+
+def test_the_load_takes_the_run_out_of_the_busy_time():
+    load = Load()
+    # Four processors: 4 s of processor time per second. The run uses 1 s of it each second.
+    load.add(sample(0.0, 0.0, 0.0, 100, 2000.0), 0.0)
+    load.add(sample(1.0, 2.0, 4.0, 300, None), 1.0)  # others: 1 of 4, 25 %
+    load.add(sample(2.0, 5.0, 8.0, 200, 1000.0), 2.0)  # others: 2 of 4, 50 %
+    summary = load.summary()
+
+    assert summary["samples"] == 3
+    assert summary["other_processor_percent_mean"] == pytest.approx(37.5)
+    assert summary["other_processor_percent_max"] == pytest.approx(50.0)
+    assert (summary["memory_used_bytes_mean"], summary["memory_used_bytes_max"]) == (200, 300)
+    assert (summary["frequency_mhz_mean"], summary["frequency_mhz_min"]) == (1500.0, 1000.0)
+    assert summary["on_battery"] is None
+
+
+def test_a_load_without_two_samples_has_no_processor_figures():
+    load = Load()
+    load.add(sample(0.0, 0.0, 0.0, 100, None), 0.0)
+
+    assert load.summary()["other_processor_percent_mean"] is None
+    assert load.summary()["other_processor_percent_max"] is None
+    assert load.summary()["frequency_mhz_mean"] is None
