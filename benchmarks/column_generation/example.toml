@@ -4,7 +4,9 @@
 #
 #   python benchmark.py example.toml          # into results/example
 #
-# Without Gurobi, remove "gurobipy" from the matrix and the last run.
+# Without Gurobi, remove "gurobipy" from the matrix and the last run. Without the column
+# generation example built with its HiGHS part (USE_COLUMN_GENERATION_EXAMPLE=ON and
+# USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON), remove "cpp-bindings" and "highs", and the last run.
 
 [benchmark]
 repeats = 2                     # every run twice: the summary gives each time's median and spread

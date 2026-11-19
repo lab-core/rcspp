@@ -160,7 +160,7 @@ def test_the_record_has_every_group(build: Path):
     )
 
     assert tuple(made) == record.RECORD_GROUPS
-    assert set(made["source"]) == {"commit", "uncommitted_changes", "branch"}
+    assert set(made["source"]) == {"commit", "uncommitted_changes", "changes_digest", "branch"}
     assert made["code"]["build"] == str(build)
     assert made["code"]["options"]["USE_PYTHON"] == "ON"
     assert made["code"]["compiler"]
@@ -181,6 +181,39 @@ def test_the_source_is_this_tree():
 
     assert len(source["commit"]) == 40
     assert isinstance(source["uncommitted_changes"], bool)
+
+
+def test_other_uncommitted_changes_make_another_source(tmp_path: Path):
+    # A tree changed, measured, changed again: "uncommitted changes" alone is the same.
+    if record.git(["--version"], tmp_path) is None:
+        pytest.skip("git is not installed")
+
+    for arguments in (
+        ["init", "-q"],
+        ["config", "user.email", "t@t"],
+        ["config", "user.name", "t"],
+    ):
+        record.git(arguments, tmp_path)
+
+    (tmp_path / "code.py").write_text("one = 1\n")
+    record.git(["add", "code.py"], tmp_path)
+    record.git(["commit", "-q", "-m", "one"], tmp_path)
+
+    assert record.source_record(tmp_path)["changes_digest"] is None
+
+    (tmp_path / "code.py").write_text("one = 2\n")
+    first = record.source_record(tmp_path)
+    (tmp_path / "code.py").write_text("one = 3\n")
+    second = record.source_record(tmp_path)
+
+    assert first["uncommitted_changes"] and second["uncommitted_changes"]
+    assert first["changes_digest"] != second["changes_digest"]
+
+
+def test_the_code_record_has_the_core_file(build: Path):
+    core = record.code_record(build)["core_file"]
+
+    assert core["bytes"] > 0 and core["modified"]
 
 
 def test_a_missing_build_cache_records_nothing(tmp_path: Path):

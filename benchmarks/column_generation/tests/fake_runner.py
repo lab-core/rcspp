@@ -5,15 +5,18 @@ and fills a run folder as a runner does, doing what the test asks for its run.
 
 The test writes a JSON file named by ``FAKE_RUNNER_PLAN``: for a run whose folder name holds
 a key, what to do (``sleep`` seconds, ``exit`` 2 before writing anything, ``crash`` after
-starting the folder, ``check_failed``, ``stop`` the benchmark, ``processor_seconds`` to
-report, ``build_fails``, ``build_sleep`` seconds). Each start and end goes as a file into the
-folder named by ``FAKE_RUNNER_LOG``; each build makes a file ``building-<run>`` next to it.
+starting the folder, ``crash_after_result``, ``sleep_after_result`` seconds,
+``child_sleep`` seconds in a child process of its own, ``check_failed``, ``stop`` the
+benchmark, ``processor_seconds`` to report, ``build_fails``, ``build_sleep`` seconds). Each
+start and end goes as a file into the folder named by ``FAKE_RUNNER_LINES``; each build makes
+a file ``building-<run>`` next to it. A runner prints ``working`` to its log as it starts.
 """
 
 import argparse
 import json
 import os
 import shutil
+import subprocess  # nosec B404: a sleeping child, for the tests
 import sys
 import time
 from pathlib import Path
@@ -36,7 +39,7 @@ def plan_for(output: str) -> dict[str, Any]:
 def log(line: str) -> None:
     """One file per line, named by the time: two runners appending to one file at once
     can lose a line."""
-    folder = Path(os.environ["FAKE_RUNNER_LOG"])
+    folder = Path(os.environ["FAKE_RUNNER_LINES"])
     folder.mkdir(exist_ok=True)
     (folder / f"{time.time_ns():020d}-{os.getpid()}.txt").write_text(line, encoding="utf-8")
 
@@ -52,7 +55,7 @@ def main() -> int:
 
     if arguments.check == "build":
         building = plan_for(Path(arguments.file).stem)
-        Path(os.environ["FAKE_RUNNER_LOG"]).with_name(
+        Path(os.environ["FAKE_RUNNER_LINES"]).with_name(
             f"building-{Path(arguments.file).stem}"
         ).touch()
         time.sleep(building.get("build_sleep", 0.0))
@@ -66,6 +69,7 @@ def main() -> int:
     folder = Path(arguments.output)
     what = plan_for(arguments.output)
     log(f"start {folder.name}")
+    print("working")
 
     if what.get("exit") == 2:
         return 2
@@ -75,6 +79,11 @@ def main() -> int:
 
     if what.get("stop"):
         (folder.parents[1] / "STOP").touch()
+
+    if "child_sleep" in what:
+        # Its folder on the command line, so that the test finds it among the processes.
+        sleeping = f"import time; time.sleep({what['child_sleep']})"
+        subprocess.Popen([sys.executable, "-c", sleeping, str(folder)])  # nosec B603
 
     time.sleep(what.get("sleep", 0.0))
 
@@ -94,10 +103,16 @@ def main() -> int:
         solve_seconds=0.0,
         solution_check="failed" if what.get("check_failed") else "passed",
     )
+
     if "processor_seconds" in what:
         run_folder.update_metadata(folder, {"processor_seconds": what["processor_seconds"]})
 
     run_folder.write_result(folder, result)
+    time.sleep(what.get("sleep_after_result", 0.0))
+
+    if what.get("crash_after_result"):
+        raise RuntimeError("the fake runner crashed after its result")
+
     log(f"end {folder.name}")
     return 1 if what.get("check_failed") else 0
 
