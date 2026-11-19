@@ -7,6 +7,7 @@ that it has the versions of the solvers the run imported. The machine is known b
 user gives, never by its host name.
 """
 
+import hashlib
 import importlib.metadata
 import os
 import platform
@@ -14,10 +15,11 @@ import re
 import subprocess  # nosec B404: git only, with fixed arguments
 import sys
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .source_tree import TREE
+from .source_tree import TREE, read_cmake_cache
 
 #: The groups of a record, in its order.
 RECORD_GROUPS = ("source", "code", "versions", "machine", "benchmark")
@@ -43,33 +45,23 @@ def git(arguments: list[str], tree: Path = TREE) -> str | None:
 
 
 def source_record(tree: Path = TREE) -> dict[str, Any]:
-    """The commit, whether tracked files have uncommitted changes, and the branch."""
+    """The commit, whether tracked files have uncommitted changes and a digest of them,
+    and the branch.
+
+    The digest tells one set of uncommitted changes from another: a tree changed, measured,
+    then changed again has other changes on the same commit. Untracked files are not in it.
+    """
     changes = git(["status", "--porcelain", "--untracked-files=no"], tree)
+    diff = git(["diff", "HEAD"], tree) if changes else None
     return {
         "commit": git(["rev-parse", "HEAD"], tree),
         "uncommitted_changes": None if changes is None else bool(changes),
+        "changes_digest": hashlib.sha256(diff.encode()).hexdigest()[:12] if diff else None,
         "branch": git(["rev-parse", "--abbrev-ref", "HEAD"], tree),
     }
 
 
 # MARK: Code
-
-
-def read_cmake_cache(build: Path) -> dict[str, str]:
-    """The entries of a build's ``CMakeCache.txt``, by name (empty when it has none)."""
-    entries: dict[str, str] = {}
-    path = build / "CMakeCache.txt"
-
-    if not path.is_file():
-        return entries
-
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        match = re.match(r"^([A-Za-z_][\w.-]*):[A-Z_]+=(.*)$", line)
-
-        if match:
-            entries[match.group(1)] = match.group(2)
-
-    return entries
 
 
 def compiler_version(build: Path) -> dict[str, str]:
@@ -90,16 +82,21 @@ def compiler_version(build: Path) -> dict[str, str]:
 
 
 def code_record(build: Path) -> dict[str, Any]:
-    """Where rcspp and its ``_core`` were imported from, and how the build was
-    configured."""
+    """Where rcspp and its ``_core`` were imported from, ``_core``'s size and time (a
+    build again changes them), and how the build was configured."""
     import rcspp
     import rcspp._core
 
+    core = Path(rcspp._core.__file__ or "")
     cache = read_cmake_cache(build)
     compiler = compiler_version(build)
     return {
         "rcspp": rcspp.__file__,
         "core": rcspp._core.__file__,
+        "core_file": {
+            "bytes": core.stat().st_size,
+            "modified": datetime.fromtimestamp(core.stat().st_mtime, UTC).isoformat(),
+        },
         "build": str(build),
         "generator": cache.get("CMAKE_GENERATOR"),
         "build_type": cache.get("CMAKE_BUILD_TYPE"),

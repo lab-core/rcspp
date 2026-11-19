@@ -13,6 +13,7 @@ sources is not checked: build again after changing them.
 
 import filecmp
 import os
+import re
 import sys
 import sysconfig
 from pathlib import Path
@@ -91,22 +92,28 @@ def choose_build(build: str | Path | None = None, tree: Path = TREE) -> Path:
     return folder.resolve()
 
 
+def read_cmake_cache(build: Path) -> dict[str, str]:
+    """The entries of a build's ``CMakeCache.txt``, by name (empty when it has none)."""
+    entries: dict[str, str] = {}
+    path = build / "CMakeCache.txt"
+
+    if not path.is_file():
+        return entries
+
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = re.match(r"^([A-Za-z_][\w.-]*):[A-Z_]+=(.*)$", line)
+
+        if match:
+            entries[match.group(1)] = match.group(2)
+
+    return entries
+
+
 def configured_from(build: Path) -> Path | None:
     """The source folder CMake configured `build` from, as its ``CMakeCache.txt`` says;
     None without one."""
-    cache = build / "CMakeCache.txt"
-
-    if not cache.is_file():
-        return None
-
-    with open(cache, encoding="utf-8", errors="replace") as file:
-        for line in file:
-            name, _, value = line.partition("=")
-
-            if name == "CMAKE_HOME_DIRECTORY:INTERNAL":
-                return Path(value.strip())
-
-    return None
+    source = read_cmake_cache(build).get("CMAKE_HOME_DIRECTORY")
+    return None if source is None else Path(source)
 
 
 # MARK: Checks
