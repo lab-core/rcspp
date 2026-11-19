@@ -203,6 +203,9 @@ Step 7 done 2026-11-17 (`F-68`, `D-214`–`D-218`, `9efea8da` on `7190eb83`, not
 `metadata.json` `outcome` and `load`. Then (2026-11-18, `F-69`, `D-219`): `51b8223e`, `76bac866`; the benchmark's
 `metadata.json` has `events` instead of `start` / `end`.
 
+Step 8 done 2026-11-18 (`F-70`, `D-220`, `e72c99cd` on `b1d434aa`, pushed 2026-11-18; 261 tests). Step 8b (`D-221`)
+reuses its reader (`read_folder`, `Cell`, `Round`) for A and B, and `agreed` / `measure` for the fields.
+
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
 `add_benchmark_options`, checks `options` then `build` unless `--no-check`, prints the dropped matrix points, passes
@@ -218,7 +221,8 @@ step.
 | 5 | the `package` runner | options to objects, run, result | smoke test on a tiny instance over highspy |
 | 6 | the `cpp-bindings` runner | the same over the example | the drift test; skipped when the example is not built |
 | 7 | the benchmark | processes, resume, `STOP`, `status.txt`, timeout, load sampler, refuse mixed | a fake runner: order, resume, timeout |
-| 8 | the summary | per cell figures, `--compare`, mixed lists, flags | on fixed results |
+| 8 | the summary (`D-220`) | the reader, `summary.py`, `summary.md`, `summary.csv`, `runs.csv`; mixed lists, flags; written at every end of `benchmark.py` | on fixed results |
+| 8b | the comparison (`D-221`) | `compare.py A B`: options and records that differ, fields side by side, the time rule as an option | on fixed results |
 | 9 | the comparison's benchmark file and CHANGELOG | a TOML reproducing `D-138`'s matrix; the PR's `CHANGELOG.md` entry (`D-167` (1)) | the file expands |
 
 To check when coding: what the sdist takes from `benchmarks/`; where the tests live so CI collects them; that a
@@ -244,3 +248,15 @@ Push and PR only when asked. Facts to port, from `benchmark-results/colgen/drive
 - Environment: `.venv` has an old `rcspp` in site-packages (the source guard's reason). Until the README exists, the
   build line and the `PYTHONPATH` order are in `benchmark-results/colgen/HANDOFF.md` (update of 2026-11-13); built on
   the laptop in `../rcspp-dev/build-python-highs`.
+
+## 11. Comparisons and plots for the next tasks (2026-11-18, `D-221`, `D-222`)
+
+| task | question | comparison / plot | needs |
+|---|---|---|---|
+| `T-1.18` | the port as fast as the old example? | `compare.py` with the time rule (`D-148`) | 8b |
+| `T-1.16` | how much tighter the LP, at what cost? | per instance LP (or gap) and pricing time against `graph.ng_size`; bound against time | `runs.csv`; a series over one option |
+| `T-1.21` | same LP, faster pricing? | LP gate against the forward search; pricing-time ratio per instance; half-way sweep; performance profile or shifted geometric mean | pairing with a reference; aggregation over instances; later label counts |
+| `T-1.20` | extra time per iteration constant? bindings or Python? | time per iteration per layer; (A − B) / iterations against iterations; master / pricing / other bars; the time rule per cell; LP against time | 8b twice against `cpp-native`; per-iteration data (`D-206`) |
+| `T-1.22` | which stages converge fastest? | LP against time; iterations, columns; performance profile | per-iteration data |
+| any | noise small enough? | box plot of each cell's rounds; other-CPU load against time; spread against median | `runs.csv` with `load` |
+| regression (`Q-66`) | a change slower? | ratio new / old per run, the rounds' spread as a band | 8b across two folders |
