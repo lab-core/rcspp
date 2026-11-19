@@ -206,6 +206,10 @@ Step 7 done 2026-11-17 (`F-68`, `D-214`–`D-218`, `9efea8da` on `7190eb83`, not
 Step 8 done 2026-11-18 (`F-70`, `D-220`, `e72c99cd` on `b1d434aa`, pushed 2026-11-18; 261 tests). Step 8b (`D-221`)
 reuses its reader (`read_folder`, `Cell`, `Round`) for A and B, and `agreed` / `measure` for the fields.
 
+Step 8b done 2026-11-18 (`F-71`, `D-225`, `19160d73` on `e72c99cd`, pushed 2026-11-18; 285 tests): `compare.py`;
+hand-written folders for tests in `tests/benchmark_folders.py`. Step 9 adds `example.toml` and the
+CHANGELOG entry only.
+
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
 `add_benchmark_options`, checks `options` then `build` unless `--no-check`, prints the dropped matrix points, passes

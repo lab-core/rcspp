@@ -125,7 +125,8 @@ tests); the comparison is step 8b (`D-221`), plots `T-1.23`; the colleague's que
 and plots per task in `benchmark-runner.md` §11.
 2026-11-18: 8b kept in this PR (`D-223`, output in `benchmark-runner.md` §12); step 9's file a generic example, not the
 proof of `D-141` (`D-224`).
-**Next:** step 8b, then 9 (a PR on #88);
+Step 8b done 2026-11-18 (`D-225`, `F-71`): `compare.py`, `19160d73` on top (the user's tidy of the script
+folded in; pushed 2026-11-18; 285 tests). **Next:** step 9, then a PR on #88;
 then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
