@@ -14,6 +14,7 @@ wheel does not have it.
 | `benchmark.py`                 | many runs, each by its runner in its own process                   |
 | `summary.py`                   | the summary of a benchmark folder                                  |
 | `compare.py`                   | the comparison of two runs                                         |
+| `example.toml`                 | an example benchmark file                                          |
 | `runners/`                     | the runners: one run of a layer each                               |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
 | `tests/`                       | the tests                                                          |
@@ -122,10 +123,13 @@ a column is used as many times as its rounded value.
 ## Run a benchmark
 
 `benchmark.py` makes many runs from a benchmark file ([`OPTIONS.md`](OPTIONS.md#a-benchmark-file)): each by its
-layer's runner, in its own process, into one benchmark folder.
+layer's runner, in its own process, into one benchmark folder. [`example.toml`](example.toml) is one to start from,
+each kind of entry commented: every layer and master on C101_25 and R201_25 with two pricing setups, and two runs of
+their own (22 runs, 2 rounds; about a minute and a half on a laptop). Without Gurobi, remove `gurobipy` from it.
 
 ```bash
 cd benchmarks/column_generation
+python benchmark.py example.toml                         # into results/example
 python benchmark.py my_benchmark.toml                    # into results/my_benchmark
 python benchmark.py my_benchmark.toml --check options    # list the runs, run nothing
 python benchmark.py my_benchmark.toml --processes 2 --timeout 600 --machine laptop
@@ -251,7 +255,13 @@ The flags:
 `compare.py A B` compares two runs: A, the run checked, against B, the reference. Each is a round's folder
 (`results/my_benchmark/runs/<run>-r1`), a run folder a runner wrote, or `<benchmark folder>:<run name>`, the run over
 its rounds; the name may be cut short when no other run of the folder starts the same way. A and B may come from two
-benchmark folders, from other layers or from runners that write other fields.
+benchmark folders, from other layers or from runners that write other fields. On the example's results:
+
+```bash
+python compare.py results/example:C101_25-package-highspy-exact results/example:C101_25-cpp-bindings-highspy-exact
+```
+
+On a larger benchmark, with the time rule:
 
 ```text
 $ python compare.py results/five:R201_50-package-highspy results/five:R201_50-cpp-bindings-highspy --time-within 5%

@@ -278,6 +278,8 @@ from = "old/runs/R201_50-package-gurobipy-exact-artificial-r1/run.toml"
 master = "highspy"
 ```
 
+[`example.toml`](example.toml) is a complete file that runs as it is.
+
 - The runs are the matrix's combinations, then the `[[runs]]`; without either, one run of the defaults.
 - `from` is a path, relative to the benchmark file's folder or absolute; the entry's options go over the file's.
 - Runs that come out the same are kept once.
