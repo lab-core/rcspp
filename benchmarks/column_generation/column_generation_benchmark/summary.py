@@ -26,7 +26,7 @@ import math
 import re
 import statistics
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -458,10 +458,14 @@ def records(folder: Folder) -> list[tuple[dict[str, Any], list[Round]]]:
     return sorted(found.values(), key=lambda pair: -len(pair[1]))
 
 
-def record_differences(first: Mapping[str, Any], other: Mapping[str, Any]) -> list[str]:
+def record_differences(
+    first: Mapping[str, Any], other: Mapping[str, Any], shown: Callable[[Any], str] = repr
+) -> list[str]:
+    """The dotted names whose values differ, each with both values as `shown` writes
+    them."""
     old, new = flatten(dict(first)), flatten(dict(other))
     return [
-        f"{name}: {old.get(name)!r} -> {new.get(name)!r}"
+        f"{name}: {shown(old.get(name))} -> {shown(new.get(name))}"
         for name in sorted(set(old) | set(new))
         if old.get(name) != new.get(name)
     ]
@@ -513,6 +517,19 @@ def solver_flags(folder: Folder) -> list[str]:
 def folder_flags(folder: Folder, pairs: Sequence[tuple[Cell, dict[str, Any]]]) -> list[str]:
     """What to know before reading the folder's figures: the folder's, then each
     cell's."""
+    flags = machine_flags(folder)
+    found = records(folder)
+
+    if len(found) > 1:
+        flags.append(f"mixed: {len(found)} records (below)")
+
+    flags += solver_flags(folder)
+    flags += [f"{cell.run}: {row['flags']}" for cell, row in pairs if row["flags"]]
+    return flags
+
+
+def machine_flags(folder: Folder) -> list[str]:
+    """How the machine was shared: runs at a time, and rounds on battery."""
     flags: list[str] = []
     processes = {
         item.metadata.get("benchmark", {}).get("processes")
@@ -533,13 +550,6 @@ def folder_flags(folder: Folder, pairs: Sequence[tuple[Cell, dict[str, Any]]]) -
     if battery:
         flags.append(f"{battery} rounds ran on battery")
 
-    found = records(folder)
-
-    if len(found) > 1:
-        flags.append(f"mixed: {len(found)} records (below)")
-
-    flags += solver_flags(folder)
-    flags += [f"{cell.run}: {row['flags']}" for cell, row in pairs if row["flags"]]
     return flags
 
 
