@@ -165,7 +165,10 @@ def parse_arguments(description: str | None, arguments: Sequence[str]) -> argpar
         action="store_true",
         help="remove the run folder first when it already holds a run",
     )
-    flags.add_argument("--build", help="the build folder of this tree to import rcspp from")
+    flags.add_argument(
+        "--build",
+        help="a build of this tree to import rcspp from (relative to the tree's root)",
+    )
     flags.add_argument("--machine", help="the machine's label, for the record")
     flags.add_argument(
         "--check",

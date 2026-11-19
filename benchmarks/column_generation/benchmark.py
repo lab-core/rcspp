@@ -205,7 +205,10 @@ def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
         "--output",
         help="the benchmark folder (default: results/<file name> in the benchmark's folder)",
     )
-    flags.add_argument("--build", help="the build folder of this tree to import rcspp from")
+    flags.add_argument(
+        "--build",
+        help="a build of this tree to import rcspp from (relative to the tree's root)",
+    )
     flags.add_argument(
         "--check",
         choices=("options", "build"),
