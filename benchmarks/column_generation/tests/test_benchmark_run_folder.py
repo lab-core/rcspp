@@ -155,7 +155,9 @@ def test_collectors_measure_only_when_on():
 def test_the_record_has_every_group(build: Path):
     importlib.import_module("highspy")  # imported, so its versions are recorded
 
-    made = record.make_record(build, machine_label="laptop", processes=2, solver_threads=1)
+    made = record.make_record(
+        build, machine_label="laptop", processes=2, solver_threads=1, integer_threads=2
+    )
 
     assert tuple(made) == record.RECORD_GROUPS
     assert set(made["source"]) == {"commit", "uncommitted_changes", "branch"}
@@ -168,7 +170,7 @@ def test_the_record_has_every_group(build: Path):
     assert made["machine"]["label"] == "laptop"
     assert made["machine"]["logical_cores"] >= 1
     assert made["machine"]["memory_bytes"] > 0
-    assert made["benchmark"] == {"processes": 2, "solver_threads": 1}
+    assert made["benchmark"] == {"processes": 2, "solver_threads": 1, "integer_threads": 2}
 
 
 def test_the_source_is_this_tree():

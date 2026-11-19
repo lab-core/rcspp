@@ -235,7 +235,7 @@ produced.
 | `timeout_s` | its time limit, in seconds: positive and finite, as it can take far longer than the LP | 60 |
 | `relative_gap` | the solver's MIP gap, at which it stops | the layer's (the package's: 1e-4) |
 | `column_type` | `integer`, or `binary` (integer, at most 1) | the instance type's: `binary` for `solomon` |
-| `threads` | the solver's threads in the integer solve; 0 lets the solver choose | `column_generation.threads` |
+| `threads` | the solver's threads in the integer solve; 0 lets the solver choose. HiGHS keeps the count of a process's first solve, so with `highspy` and `highs` it must equal `column_generation.threads` (a runner refuses another) | `column_generation.threads` |
 
 With rows covered exactly once, as Solomon's, `integer` and `binary` give the same solutions; `binary` gives the
 solver the bounds. Its time is `integer_seconds`, outside `solve_seconds`, so column generation times compare

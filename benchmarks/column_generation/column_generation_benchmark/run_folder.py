@@ -21,7 +21,6 @@ it first (:func:`prepare_folder`).
 import json
 import os
 import shlex
-import shutil
 import subprocess  # nosec B404: only to quote a command line on Windows
 import sys
 import tempfile
@@ -97,11 +96,17 @@ class RunFolderError(Exception):
 
 def prepare_folder(folder: Path, overwrite: bool = False) -> None:
     """Makes `folder` ready for a run: made when missing; when it holds a run, refused,
-    or removed first with `overwrite`. A folder without run files is kept as it is.
+    or its run files and log removed first with `overwrite`. Other files are kept, and a
+    folder without run files is kept as it is.
 
     Raises:
-        RunFolderError: When `folder` holds a run and `overwrite` is not set.
+        RunFolderError: When `folder` holds a run and `overwrite` is not set, or is a
+            benchmark's folder, whose runs `overwrite` would remove.
     """
+    # A benchmark's folder has a metadata.json too.
+    if (folder / BENCHMARK_FILE).exists() or (folder / RUNS_FOLDER).is_dir():
+        raise RunFolderError(f"{folder} is a benchmark folder: give a run's own folder")
+
     found = [name for name in RUN_FILES if (folder / name).exists()]
 
     if found and not overwrite:
@@ -110,8 +115,8 @@ def prepare_folder(folder: Path, overwrite: bool = False) -> None:
             "remove it first with --overwrite"
         )
 
-    if found:
-        shutil.rmtree(folder)
+    for name in (*found, LOG_FILE) if found else ():
+        (folder / name).unlink(missing_ok=True)
 
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -231,6 +236,7 @@ def result_problems(result: Mapping[str, Any]) -> list[str]:
 
     if result.get("status") == TIMEOUT:
         known = {name: kind.removesuffix(" or null") + " or null" for name, kind in known.items()}
+
     problems = [f"{name} is missing" for name in RESULT_FIELDS if name not in result]
 
     for name, value in result.items():

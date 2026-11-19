@@ -86,15 +86,21 @@ python runners/cpp_bindings_runner.py --file results/C101_25-package-highspy-exa
 | --------------- | --------------------------------------------------------------------------------------------- |
 | `--file`        | a run file; the command line's run options go over it                                         |
 | `--output`      | the run folder, made when missing; by default `results/<run name>` here                       |
-| `--overwrite`   | remove the run folder first when it already holds a run                                       |
+| `--overwrite`   | remove the run's files from the folder first when it already holds a run                      |
 | `--build`       | the build to import rcspp from, when the tree has several: relative to the tree's root        |
 | `--machine`     | the machine's label, for `metadata.json`                                                      |
 | `--check build` | build the instance, graph, master, pricer and starting columns without solving; write nothing |
 
 `--help` lists them with every run option. Wrong options stop the runner with a message and exit code 2, before
 anything is written. So does an output folder that already holds a run (any of the files below), unless
-`--overwrite` is given: the folder is then removed and written again. A folder without them, or with other files
-only, is used as it is.
+`--overwrite` is given: the run's files and `log.txt` are then removed, other files kept, and the run written again.
+A benchmark's folder (with `benchmark.toml` or `runs/`) is refused, `--overwrite` or not. A folder without run
+files is used as it is. A run stopped after its folder was started, by an error (exit code 1) or Ctrl-C, leaves the
+start in it: run it again with `--overwrite`.
+
+The two runners are twins: each `main` reads the run, builds the instance, master, pricer and start, runs the loop,
+reads the LP solution, solves the integer master and writes the folder, in that order, with its own layer's calls;
+`column_generation_benchmark/runner.py` holds the steps around them.
 
 ## A run's folder
 
@@ -102,7 +108,7 @@ only, is used as it is.
 | --- | --- |
 | `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
 | `command.txt` | the command line that started the run |
-| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
+| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
 | `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
 | `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
@@ -112,7 +118,7 @@ only, is used as it is.
 
 | part | contents |
 | --- | --- |
-| `lp` | the last master LP solution: its `objective`, the `columns` with a value (`id`, `value`, `cost`, `path` as node ids, `rows` as `[index, coefficient]`), the `artificial_columns` still in use (`id`, `value`), the `duals`, one per row, and `solved_again`. When a limit stopped the run after pricing added columns, the master solvers have dropped the last LP's values: the runner solves the LP once more, over every column, and sets `solved_again` (its time is `lp_solved_again_seconds`; `objective` in `result.json` stays the loop's). Null when no LP was solved, or the LP solved again did not end optimal; `lp_missing` says why |
+| `lp` | the last master LP solution: its `objective`, the `columns` with a value (`id`, `value`, `cost`, `path` as node ids, `rows` as `[index, coefficient]`), the `artificial_columns` still in use (`id`, `value`), the `duals`, one per row, and `solved_again`. It is read as the master solver holds it only after `Optimal`, `NotProven` or `Infeasible`: that LP finished and nothing came after. After a limit or a failed solve, pricing may have added columns, which drop the LP's values, or the limit stopped an LP solve: the runner solves the LP once more, over every column, with the run's own time limit at most, and sets `solved_again` (its time is `lp_solved_again_seconds`; `objective` in `result.json` stays the loop's). Null when no LP was solved, or the LP solved again did not end optimal; `lp_missing` says why |
 | `integer` | the integer master over the generated columns (the run option `integer`): `status`, `objective`, `columns` and `artificial_columns` as in `lp`; `objective` null and no columns when it found no solution. Null when it is off |
 | `resolved` | the instance's own solution, from the integer one: for `solomon`, `routes` (customer sequences, without the depot), `vehicles` and `distance` (the columns' costs), and the `errors` its check found: each customer served once, every route within the time windows (back at the depot by its due time) and the capacity, the distance recomputed from the file equal to `distance` and to the integer objective. Null without an integer solution, or when it uses artificial columns; `resolved_missing` says why |
 
@@ -121,7 +127,7 @@ In `result.json`, the integer fields are null when the integer solve is off. `in
 unless column generation ended `Optimal`: only then is the LP value a lower bound. `solution_check` is `passed`,
 `failed`, or null without a resolved solution; the check runs with the statistic `solution` off too. A failed check
 writes the whole folder and exits with code 1. The solvers give integer values up to a few ulps (`1.0000000000000002`):
-a column is used as many times as its rounded value.
+a column is used as many times as its rounded value, and a value within 1e-9 of 0 is no use.
 
 ## Run a benchmark
 

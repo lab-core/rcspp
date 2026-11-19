@@ -212,13 +212,19 @@ def make_record(
     machine_label: str | None = None,
     processes: int = 1,
     solver_threads: int | None = None,
+    integer_threads: int | None = None,
 ) -> dict[str, Any]:
-    """The record of a run: its source, code, versions, machine, and how many runs shared the
-    machine and how many threads its solver had (None: the solver's default)."""
+    """The record of a run: its source, code, versions, machine, how many runs shared the
+    machine, and how many threads its solver had in the LP solves and in the integer solve
+    (None: the solver's default)."""
     return {
         "source": source_record(),
         "code": code_record(build),
         "versions": version_record(),
         "machine": machine_record(machine_label),
-        "benchmark": {"processes": processes, "solver_threads": solver_threads},
+        "benchmark": {
+            "processes": processes,
+            "solver_threads": solver_threads,
+            "integer_threads": integer_threads,
+        },
     }

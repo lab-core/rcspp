@@ -143,8 +143,12 @@ class Load:
             for earlier, later in zip(self.samples, self.samples[1:], strict=False)
         ]
         memory = [sample.memory_used_bytes for sample, _ in self.samples]
-        frequencies = [s.frequency_mhz for s, _ in self.samples if s.frequency_mhz is not None]
-        batteries = [s.on_battery for s, _ in self.samples if s.on_battery is not None]
+        frequencies = [
+            sample.frequency_mhz for sample, _ in self.samples if sample.frequency_mhz is not None
+        ]
+        batteries = [
+            sample.on_battery for sample, _ in self.samples if sample.on_battery is not None
+        ]
         return {
             "interval_seconds": INTERVAL_SECONDS,
             "samples": len(self.samples),

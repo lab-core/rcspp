@@ -2,16 +2,16 @@
 #  All rights reserved.
 """What every runner does around its column generation calls.
 
-A runner holds its layer's calls: build the run's objects, solve, read the LP solution, solve
-the LP again, solve the integer master. :func:`main` calls them in order: it reads the flags and
-the run (:func:`parse_arguments`, :func:`read_run`), fills the run folder before the solve
-(:func:`start_folder`) and after it (:func:`finish_folder`), with what the instance makes of the
-integer solution (:func:`integer_results`). Its flags:
+A runner's ``main`` holds its layer's calls, in order, and calls these steps around them: read
+the flags and the run (:func:`parse_arguments`, :func:`read_run`), fill the run folder before
+the solve (:func:`start_folder`) and after it (:func:`finish_folder`), with what the instance
+makes of the integer solution (:func:`integer_results`), then say how the run ended
+(:func:`report`, or :func:`stop` on an error). Its flags:
 
 - ``--file``: a run file, under the command line's run options;
 - ``--output``: the run folder, ``results/<run name>`` in the benchmark's folder by default;
-- ``--overwrite``: remove the run folder first when it already holds a run;
-- ``--build``: the build folder of this tree to import rcspp from, when it has several;
+- ``--overwrite``: remove the run's files from the folder first when it already holds a run;
+- ``--build``: a build of this tree to import rcspp from, when it has several;
 - ``--machine``: the machine's label, for the record;
 - ``--check build``: build the run's objects without solving, and write nothing.
 """
@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,78 +49,17 @@ RESULTS = Path(__file__).resolve().parents[1] / "results"
 #: What stops a runner with a message instead of a traceback.
 ERRORS = (OptionsError, InstanceError, source_tree.SourceTreeError, run_folder.RunFolderError)
 
+#: The statuses after which the master solver still holds the last LP's solution: that LP
+#: finished, and pricing then found no column. After any other (a limit, a failed solve),
+#: pricing may have added columns, which drop the values, or the limit stopped an LP solve:
+#: the runner solves the LP again instead of reading it.
+LAST_LP_FINISHED = ("Optimal", "NotProven", "Infeasible")
 
-# MARK: Running
-
-
-def main(
-    description: str | None,
-    script: Path,
-    arguments: list[str],
-    *,
-    layer: str,
-    build: Callable[[Run], tuple[Instance, Any, Any]],
-    solve: Callable[[Any], dict[str, Any]],
-    read_solution: Callable[[Any, float | None], dict[str, Any]],
-    solve_lp_again: Callable[[Any, Run], tuple[dict[str, Any], float]],
-    solve_integer: Callable[[Any, Any, Run], dict[str, Any]],
-) -> int:
-    """One run of `layer`, with the runner's own calls: `build` gives the instance, the
-    master and the loop; `solve` runs the loop; then come the LP solution, solved again
-    when a limit after pricing dropped it, and the integer master.
-
-    Returns:
-        The exit code: 0, 1 when the integer solution fails the instance's check, 2 when
-        the run cannot start.
-    """
-    parsed = parse_arguments(description, arguments)
-
-    try:
-        run, build_folder = read_run(parsed, layer)
-        # Built first: wrong options stop the runner before its folder is touched.
-        instance, master, loop = build(run)
-
-        if parsed.check:
-            print(f"{run.name}: built")
-            return 0
-
-        folder = start_folder(parsed, run, [str(script.resolve()), *arguments])
-        result = solve(loop)
-        result["lp_solved_again_seconds"] = None
-        solution = None
-
-        # Read before the integer solve, which drops the LP's values.
-        if run.statistics.solution:
-            solution = read_solution(master, result["objective"])
-
-            # Stopped at a limit after pricing: the added columns took the LP's values.
-            if solution["lp"] is None and result["objective"] is not None:
-                solution, result["lp_solved_again_seconds"] = solve_lp_again(master, run)
-
-        integer = solve_integer(loop, master, run) if run.integer.solve else None
-        fields, parts = integer_results(instance, result, integer)
-        result.update(fields)
-
-        if solution is not None:
-            solution.update(parts)
-
-        finish_folder(folder, parsed, run, build_folder, result, solution)
-    except ERRORS as error:
-        print(f"{script.name}: {error}", file=sys.stderr)
-        return 2
-
-    return report(script.name, run, result, parts)
+#: The masters over HiGHS, which keeps the thread count of a process's first solve.
+HIGHS_MASTERS = ("highspy", "highs")
 
 
-def values_gone() -> tuple[type[Exception], ...]:
-    """What a master solver raises when it has no values to give: the HiGHS masters
-    RuntimeError, gurobipy GurobiError."""
-    errors: tuple[type[Exception], ...] = (RuntimeError,)
-
-    if "gurobipy" in sys.modules:
-        errors += (sys.modules["gurobipy"].GurobiError,)
-
-    return errors
+# MARK: Master rows
 
 
 def gurobipy_model(lower: Sequence[float], upper: Sequence[float]) -> gurobipy.Model:
@@ -135,12 +74,15 @@ def gurobipy_model(lower: Sequence[float], upper: Sequence[float]) -> gurobipy.M
         if low == up:
             model.addLConstr(gurobipy.LinExpr(), GRB.EQUAL, low)
         elif math.isinf(up):
-            # Gurobi reads -1e30 as no bound: a free row.
+            # A free row (an instance's row 0): a right-hand side no column total reaches.
             model.addLConstr(gurobipy.LinExpr(), GRB.GREATER_EQUAL, max(low, -1e30))
         elif math.isinf(low):
             model.addLConstr(gurobipy.LinExpr(), GRB.LESS_EQUAL, up)
         else:
-            raise ValueError(f"gurobipy: a row with two different finite bounds ({low}, {up})")
+            raise InstanceError(
+                f"gurobipy: a row with two different finite bounds ({low}, {up}), which this "
+                "model does not hold"
+            )
 
     return model
 
@@ -198,6 +140,15 @@ def read_run(arguments: argparse.Namespace, layer: str) -> tuple[Run, Path]:
 
     if run.layer != layer:
         raise OptionsError(f"this runner runs layer {layer}, not {run.layer}")
+
+    lp_threads = run.column_generation.threads or 0
+    integer_threads = run.integer.threads
+
+    if run.master.type in HIGHS_MASTERS and integer_threads not in (None, lp_threads):
+        raise OptionsError(
+            f"HiGHS keeps the thread count of a process's first solve: integer.threads "
+            f"{integer_threads} cannot differ from column_generation.threads {lp_threads}"
+        )
 
     return run, build
 
@@ -298,7 +249,11 @@ def finish_folder(
     The processor time is the benchmark's: it cannot read it once the process has ended.
     """
     fields = {**result, **collect(run.statistics.to_table(), solution)}
-    record = make_record(build, arguments.machine, solver_threads=run.column_generation.threads)
+    lp_threads = run.column_generation.threads
+    integer_threads = lp_threads if run.integer.threads is None else run.integer.threads
+    record = make_record(
+        build, arguments.machine, solver_threads=lp_threads, integer_threads=integer_threads
+    )
     end = {"end": now(), "processor_seconds": processor_seconds()}
     run_folder.update_metadata(folder, {**end, **record})
 
@@ -326,3 +281,15 @@ def report(script: str, run: Run, result: Mapping[str, Any], parts: Mapping[str,
         return 1
 
     return 0
+
+
+def stop(script: str, error: Exception, folder: Path | None) -> int:
+    """Prints why the run stopped; the runner's exit code: 2 when it stopped before its
+    folder was started (a benchmark then calls it not started), else 1: its folder holds
+    a start but no result."""
+    if folder is None:
+        print(f"{script}: {error}", file=sys.stderr)
+        return 2
+
+    print(f"{script}: the run stopped after its folder was started: {error}", file=sys.stderr)
+    return 1
