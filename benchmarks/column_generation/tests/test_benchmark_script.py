@@ -1,10 +1,10 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 """The benchmark: the order of its runs, side by side or not, resuming, the timeout, the STOP
-file, Ctrl-C and errors, the runners' exit codes, the checks before the first run, folders
-refused, the events, and the load. A fake runner (``fake_runner.py``) stands for the layers'
-runners, except in the last tests, which run a benchmark of the real ones and each of its runs
-again."""
+file, Ctrl-C and errors, the runners' exit codes, the checks before the first run, the example
+file, folders refused, the events, and the load. A fake runner (``fake_runner.py``) stands for
+the layers' runners, except in the last tests, which run a benchmark of the real ones and each
+of its runs again."""
 
 import json
 import shlex
@@ -485,6 +485,21 @@ def test_wrong_options_start_nothing(
     assert run(build, tmp_path, text) == benchmark.NOT_STARTED
     assert message in capsys.readouterr().err
     assert not (tmp_path / "out").exists()
+
+
+def test_the_example_file_expands_and_its_instances_read(
+    build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    example = Path(benchmark.__file__).resolve().parent / "example.toml"
+    output = tmp_path / "example"
+    arguments = [str(example), "--check", "options", "--build", str(build), "--output", str(output)]
+
+    assert benchmark.main(arguments) == 0
+    printed = capsys.readouterr().out
+    assert printed.count("dropped:") == 4
+    assert "22 runs, 2 rounds, into" in printed
+    assert "RC201_12-package-highspy-exact-single-customer-r<1..2>" in printed
+    assert not output.exists()
 
 
 def test_the_command_line_alone_needs_an_output(build: Path):
