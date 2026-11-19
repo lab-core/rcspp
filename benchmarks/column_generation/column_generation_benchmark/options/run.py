@@ -78,26 +78,32 @@ class Run:
 
     def named(self, names: Names, defaults: dict[str, Any]) -> Run:
         """This run with its name: the parts of :data:`NAMED_OPTIONS`, then of every other
-        block that differs from `defaults` (complete blocks by option), joined by ``-``.
+        block that differs from `defaults` (the presets' complete blocks, by option), joined
+        by ``-``.
 
-        The name depends only on the run's options, not on how they were written.
+        The name depends only on the run's options, not on how they were written nor on
+        which file's ``[defaults]`` gave them.
         """
-        parts = [name_part(option, getattr(self, option), names) for option in NAMED_OPTIONS]
+        instance_type = self.instance.type
+        parts = [
+            name_part(option, getattr(self, option), names, instance_type)
+            for option in NAMED_OPTIONS
+        ]
 
         for option in RUN_OPTIONS:
             default = defaults.get(option)
 
             # The integer block's defaults depend on the run's instance type.
             if isinstance(default, Integer):
-                default = default.for_instance(integer_defaults(self.instance.type))
+                default = default.for_instance(integer_defaults(instance_type))
 
             if option not in NAMED_OPTIONS and getattr(self, option) != default:
-                parts.append(name_part(option, getattr(self, option), names))
+                parts.append(name_part(option, getattr(self, option), names, instance_type))
 
         return replace(self, name="-".join(parts))
 
 
-def name_part(option: str, value: Any, names: Names) -> str:
+def name_part(option: str, value: Any, names: Names, instance_type: str) -> str:
     """How an option shows in a run's name.
 
     The layer and the instance by their names. A block by the name of the definition or
@@ -112,23 +118,29 @@ def name_part(option: str, value: Any, names: Names) -> str:
         return value.name
 
     for name, table in names.get(option, {}).items():
-        if complete_alone(option, table) == value:
+        if complete_alone(option, table, instance_type) == value:
             return name
 
     kind = getattr(value, "type", None)
 
-    if kind is not None and complete_alone(option, {"type": kind}) == value:
+    if kind is not None and complete_alone(option, {"type": kind}, instance_type) == value:
         return kind
 
     return f"{kind or option}_{digest(value.to_table())}"
 
 
-def complete_alone(option: str, table: dict[str, Any]) -> Any:
-    """The block a table makes on its own, or None when it is not complete alone."""
+def complete_alone(option: str, table: dict[str, Any], instance_type: str | None = None) -> Any:
+    """The block a table makes on its own, or None when it is not complete alone; an
+    integer block with `instance_type`'s defaults, when given, as a run's has them."""
     try:
-        return BLOCKS[option].from_table(table, option)
+        block = BLOCKS[option].from_table(table, option)
     except OptionsError:
         return None
+
+    if isinstance(block, Integer) and instance_type is not None:
+        return block.for_instance(integer_defaults(instance_type))
+
+    return block
 
 
 # MARK: Run options
@@ -168,7 +180,7 @@ class RunOptions:
                 continue
 
             if option == "layer":
-                if value not in LAYERS:
+                if not isinstance(value, str) or value not in LAYERS:
                     raise OptionsError(
                         f"{where}: layer {value!r} is not one of {', '.join(LAYERS)}"
                     )
@@ -176,6 +188,8 @@ class RunOptions:
                 layer = value
             else:
                 blocks[option] = resolve(option, value, names, where)
+
+        tolerances_as_table(blocks)
 
         # Dotted names after whole blocks: "master.parameters.Presolve" = 1 sets one key.
         for key, value in given.items():
@@ -200,6 +214,7 @@ class RunOptions:
 
             inner[last] = copy.deepcopy(value)
 
+        tolerances_as_table(blocks)
         return cls(layer, blocks, where)
 
     def over(self, lower: RunOptions) -> RunOptions:
@@ -270,8 +285,7 @@ class RunOptions:
 def integer_defaults(instance_type: str) -> dict[str, Any]:
     """Whether an instance type's runs solve the integer master, and with which column
     type, unless a run says otherwise."""
-    defaults: dict[str, Any] = INSTANCE_TYPES[instance_type].INTEGER
-    return defaults
+    return INSTANCE_TYPES[instance_type].INTEGER
 
 
 def resolve(option: str, value: Any, names: Names, where: str) -> dict[str, Any]:
@@ -296,6 +310,16 @@ def resolve(option: str, value: Any, names: Names, where: str) -> dict[str, Any]
 
     known = [*names.get(option, {}), *types]
     raise OptionsError(f"{where}: unknown {option} {value!r} (known: {', '.join(known)})")
+
+
+def tolerances_as_table(blocks: dict[str, dict[str, Any]]) -> None:
+    """Turns tolerances given by name into a table of that type, so that a table given
+    over them merges into it."""
+    column_generation = blocks.get("column_generation", {})
+    tolerances = column_generation.get("tolerances")
+
+    if isinstance(tolerances, str):
+        column_generation["tolerances"] = {"type": tolerances}
 
 
 def digest(value: Any) -> str:

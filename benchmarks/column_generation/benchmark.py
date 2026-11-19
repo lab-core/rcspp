@@ -195,7 +195,9 @@ def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
     """The benchmark's flags, its options, and the run options it puts over every
     run."""
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument("file", nargs="?", help="the benchmark file")
     flags = parser.add_argument_group("flags")
