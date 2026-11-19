@@ -222,8 +222,8 @@ step.
 | 6 | the `cpp-bindings` runner | the same over the example | the drift test; skipped when the example is not built |
 | 7 | the benchmark | processes, resume, `STOP`, `status.txt`, timeout, load sampler, refuse mixed | a fake runner: order, resume, timeout |
 | 8 | the summary (`D-220`) | the reader, `summary.py`, `summary.md`, `summary.csv`, `runs.csv`; mixed lists, flags; written at every end of `benchmark.py` | on fixed results |
-| 8b | the comparison (`D-221`) | `compare.py A B`: options and records that differ, fields side by side, the time rule as an option | on fixed results |
-| 9 | the comparison's benchmark file and CHANGELOG | a TOML reproducing `D-138`'s matrix; the PR's `CHANGELOG.md` entry (`D-167` (1)) | the file expands |
+| 8b | the comparison (`D-221`, `D-223`) | `compare.py A B`: options and records that differ, fields side by side, the time rule as an option; output as §12 | on fixed results |
+| 9 | the example benchmark file and CHANGELOG (`D-224`) | `example.toml` as §12, generic (not `D-138`'s matrix); the PR's `CHANGELOG.md` entry (`D-167` (1)) | the file expands |
 
 To check when coding: what the sdist takes from `benchmarks/`; where the tests live so CI collects them; that a
 runner's own imports stay inside the folder and the tree.
@@ -260,3 +260,69 @@ Push and PR only when asked. Facts to port, from `benchmark-results/colgen/drive
 | `T-1.22` | which stages converge fastest? | LP against time; iterations, columns; performance profile | per-iteration data |
 | any | noise small enough? | box plot of each cell's rounds; other-CPU load against time; spread against median | `runs.csv` with `load` |
 | regression (`Q-66`) | a change slower? | ratio new / old per run, the rounds' spread as a band | 8b across two folders |
+
+## 12. Step 8b's output and step 9's file (2026-11-18, `D-223`, `D-224`)
+
+`A` and `B`: a round's folder, a run folder, or `<benchmark folder>:<run name>` (the run over its rounds). Numbers
+from `results/manual-checks/five` in `../rcspp-dev` (ignored by git):
+
+```text
+$ python compare.py results/manual-checks/five:R201_50-package-highspy-exact-artificial-column_generation_c9520b \
+    results/manual-checks/five:R201_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b \
+    --time-within 5% --floor 0.25
+A: five / R201_50-package-highspy-...       2 / 2 rounds finished
+B: five / R201_50-cpp-bindings-highspy-...  2 / 2 rounds finished
+Options that differ: layer: package -> cpp-bindings
+Records that differ: none
+Warning: 5 runs at a time, the timings shared the machine
+
+| field             | A                       | B                       | A - B                          |
+|-------------------|-------------------------|-------------------------|--------------------------------|
+| status            | Optimal                 | Optimal                 | equal                          |
+| objective         | 756.339                 | 756.339                 | equal                          |
+| iterations        | 33                      | 33                      | equal                          |
+| columns           | 17929                   | 17929                   | equal                          |
+| integer_objective | 1219.73                 | 1219.73                 | equal                          |
+| solve_seconds     | 89.561 [87.187..91.935] | 89.047 [87.623..90.471] | +0.514 (+0.6 %), within spread |
+| master_seconds    | 3.158                   | 3.036                   | +0.122                         |
+| pricing_seconds   | 86.373                  | 86.010                  | +0.363                         |
+| other_seconds     | 0.030                   | 0.000                   | +0.030                         |
+| per iteration     | 2.714                   | 2.698                   | +15.6 ms                       |
+
+Verdict: equivalent (both Optimal, same LP; +0.514 s <= max(5 % of 89.047, 0.25) = 4.452 s)
+```
+
+Step 9's `example.toml` (44 rounds: 20 matrix runs, package x highs dropped, plus 2 standalone, 2 rounds):
+
+```toml
+[benchmark]
+repeats = 2
+
+[pricing.heuristics-first]
+stages = [
+  { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+  { algorithm = "simple" },
+]
+
+[defaults]
+start = { type = "artificial" }
+
+[matrix]
+instance = ["C101_25", "R201_25"]
+layer = ["package", "cpp-bindings"]
+master = ["highspy", "gurobipy", "highs"]
+pricing = ["exact", "heuristics-first"]
+
+[[runs]]
+instance = "RC201_25"
+layer = "package"
+master = "highspy"
+start = { type = "single-customer" }
+
+[[runs]]
+instance = "C101_25"
+layer = "cpp-bindings"
+master = { type = "gurobipy", parameters = { Method = 0 } }
+column_generation = { timeout_s = 60 }
+statistics = { solution = false }
+```
