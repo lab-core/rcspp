@@ -355,5 +355,7 @@ pytest benchmarks/column_generation/tests
 
 The tests find the build as the benchmark does; `RCSPP_BENCHMARK_BUILD=<folder>` chooses one among several. Without a
 build, the tests that need rcspp skip; without the column generation example in it, those of `cpp-bindings` skip. One
-test checks that every layer the build has gives the same objective, iterations and columns on C101_25. The Gurobi
-tests skip without gurobipy or its licence.
+test checks that every layer the build has gives the same objective on C101_25, and the same iterations and columns
+where the LP solver is the same HiGHS build: the example's two masters. The package's highspy wheel and the example's
+HiGHS can return duals a rounding error apart, and on a degenerate LP that is enough to change the path (the same
+objective in other iterations). The Gurobi tests skip without gurobipy or its licence.
