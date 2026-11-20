@@ -53,9 +53,9 @@ class Fixture {
             context.pool = pool_.get();
             context.params = &params;
             context.quota = &quota;
-            context.completion_bound = &bound;
+            context.completion_bound = &completion_bound;
             context.role = role;
-            context.number_of_abandoned_labels = &abandoned;
+            context.number_of_abandoned_labels = &number_of_abandoned_labels;
         }
 
         /// @brief An entry for a new label at node @p node_id costing @p cost.
@@ -84,8 +84,8 @@ class Fixture {
 
         AlgorithmBaseParams params;
         size_t quota = std::numeric_limits<size_t>::max();
-        size_t abandoned = 0;
-        detail::CompletionBound<Composed> bound;
+        size_t number_of_abandoned_labels = 0;
+        detail::CompletionBound<Composed> completion_bound;
         detail::SearchContext<Composed> context;
 
     private:
@@ -143,7 +143,7 @@ TEST(FifoSchedule, StoresAsideWhatTheQuotaCutsUntilTheNextPhase) {
     fifo.push(f.label(2, 3.0));
     EXPECT_EQ(f.drain(&fifo), (std::vector<double>{1.0, 3.0}));
     EXPECT_EQ(fifo.size(), 0U);
-    EXPECT_EQ(f.abandoned, 0U);
+    EXPECT_EQ(f.number_of_abandoned_labels, 0U);
 
     fifo.prepare_next_phase(f.context);
     EXPECT_EQ(fifo.size(), 1U);
@@ -161,7 +161,7 @@ TEST(FifoSchedule, ABidirectionalSideAbandonsAndCountsWhatTheQuotaCuts) {
     fifo.push(f.label(1, 1.0));
     fifo.push(f.label(1, 2.0));
     EXPECT_EQ(f.drain(&fifo), (std::vector<double>{1.0}));
-    EXPECT_EQ(f.abandoned, 1U);
+    EXPECT_EQ(f.number_of_abandoned_labels, 1U);
     EXPECT_EQ(f.in_use(), 2U) << "an abandoned label stays where it is";
     fifo.prepare_next_phase(f.context);
     EXPECT_EQ(fifo.size(), 0U);
@@ -206,7 +206,7 @@ TEST(FifoSchedule, ABidirectionalSideAbandonsWhatATrimCuts) {
     fifo.push(f.label(1, 0.5, /*dominated=*/true));
     fifo.trim(f.context, 1);
     EXPECT_EQ(fifo.size(), 3U);
-    EXPECT_EQ(f.abandoned, 1U);  // the 5
+    EXPECT_EQ(f.number_of_abandoned_labels, 1U);  // the 5
     EXPECT_EQ(f.in_use(), 4U);
     size_t erased = 0;
     fifo.release_stored_aside(f.context, st::CountingErase{&erased});
@@ -248,7 +248,7 @@ TEST(PerNodeQuota, CountsTheLabelsTakenAtEachNode) {
 
 /// @brief The bound a prune reads, and the one an order reads: -infinity counts as 0 for an
 ///        order; no bound reads -infinity for a prune and 0 for an order.
-TEST(CompletionBounds, ReadsTheBoundAndItsOrderTerm) {
+TEST(CompletionBound, ReadsTheBoundAndItsOrderTerm) {
     namespace st = schedules_test;
     st::Fixture f;
     const auto entry = f.label(1, 1.0);
@@ -437,7 +437,7 @@ TEST(Search, ABackwardSearchEndsAtTheSourceWithTheOptimum) {
 /// @brief One Bellman-Ford run over each arc's share of the cost fills the bound by node
 ///        position: to the sinks for a forward search, from the sources for a backward one; a
 ///        negative-cost cycle leaves minus infinity everywhere.
-TEST(CompletionBounds, FillTheBoundFromOneBellmanFordRun) {
+TEST(CompletionBound, FillTheBoundFromOneBellmanFordRun) {
     namespace sst = search_step_test;
     auto graph = sst::four_nodes();
     EXPECT_EQ(detail::compute_completion_bound<ForwardDirection>(*graph).by_position,

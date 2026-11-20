@@ -22,7 +22,7 @@ class StoredAsideLabels {
         /// @brief Takes a non-dominated label out of the work, as @p context's role says.
         void store_aside(detail::SearchContext<ResourceType>& context,
                          const StoredLabel<ResourceType>& stored) {
-            if (!context.abandons()) {
+            if (!context.should_abandon()) {
                 labels_.push_back(stored);
             } else if (context.number_of_abandoned_labels != nullptr) {
                 ++*context.number_of_abandoned_labels;

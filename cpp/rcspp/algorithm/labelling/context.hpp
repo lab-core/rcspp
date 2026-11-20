@@ -19,7 +19,7 @@
 namespace rcspp::detail {
 
 /// @brief Whether a search runs alone or as one side of a bidirectional search. A cut reads it
-///        (@c parts::StoredAsideLabels::store_aside, through @ref SearchContext::abandons).
+///        (@c parts::StoredAsideLabels::store_aside, through @ref SearchContext::should_abandon).
 enum class Role : std::uint8_t {
     /// A single-direction search: a cut stores the label aside for the next phase.
     Single,
@@ -28,8 +28,8 @@ enum class Role : std::uint8_t {
     BidirectionalSide,
 };
 
-/// @brief What every part of a search reads of its solve. Built once per solve
-///        (@c Algorithm::make_context); every pointer is the algorithm's member.
+/// @brief What every part of a search reads of its solve. Built once per solve, by the
+///        algorithm; every pointer is the algorithm's member.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -63,7 +63,7 @@ struct SearchContext {
 
         /// @brief Whether a cut abandons a label instead of storing it aside: on a bidirectional
         ///        side, which runs one phase, so there is no next phase to store it for.
-        [[nodiscard]] bool abandons() const { return role == Role::BidirectionalSide; }
+        [[nodiscard]] bool should_abandon() const { return role == Role::BidirectionalSide; }
 
         /// @brief Whether the run ends now that an end-node label was recorded: once the solve
         ///        holds @c max_solutions solutions.
