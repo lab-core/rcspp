@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
-#include "vrp/instance.hpp"
+#include "vrp_subproblem/instance.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
