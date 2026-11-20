@@ -7,6 +7,7 @@ import dataclasses
 import importlib
 import math
 import os
+import shlex
 import sys
 import tomllib
 from pathlib import Path
@@ -79,8 +80,12 @@ def test_the_command_line_is_written_quoted(tmp_path: Path):
     text = (tmp_path / "command.txt").read_text()
 
     assert text.endswith("\n")
-    assert "{ type = 'gurobipy' }" in text
-    assert "package_runner.py" in text
+
+    # Each platform quotes its own way: Windows in double quotes, a POSIX shell in single.
+    if sys.platform == "win32":
+        assert "\"{ type = 'gurobipy' }\"" in text
+    else:
+        assert shlex.split(text) == arguments
 
 
 def test_metadata_gathers_what_each_writer_adds(tmp_path: Path):
