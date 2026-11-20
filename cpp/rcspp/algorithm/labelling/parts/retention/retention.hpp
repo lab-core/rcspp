@@ -20,8 +20,7 @@ namespace rcspp::parts {
 ///
 /// The search calls:
 /// - @c reset(number_of_nodes, prototype) at the start of each solve: one container per node, each
-/// a
-///   copy of @p prototype;
+///   a copy of @p prototype;
 /// - @c node(pos), the view an admission rule reads and evicts through (@ref NodeView);
 /// - @c store(pos, label), which keeps a newly admitted label at its node and returns its position
 ///   there, and @c erase(position), which takes a stored label out;

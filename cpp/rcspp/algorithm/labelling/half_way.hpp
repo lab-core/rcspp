@@ -20,7 +20,7 @@ namespace rcspp::detail {
 /// @c critical_resource_index and @c half_way_point). The clock must be monotone (never decreasing
 /// along an arc), so that each path crosses `H` on exactly one arc and the join produces it at
 /// most once (a path whose clock never rises above `H` is found by the forward search instead).
-/// The take rule reads @ref past for each side, and the join reads it for the forward labels it
+/// The take rule reads @ref is_past for each side, and the join reads it for the forward labels it
 /// pairs. Off, it holds no label back.
 ///
 /// @tparam ResourceType The resource type carried by labels.

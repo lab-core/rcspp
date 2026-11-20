@@ -58,7 +58,7 @@ class Fixture {
             context.incumbent = &incumbent;
             context.quota = &quota;
             context.solutions = &solutions;
-            context.completion_bound = &bound;
+            context.completion_bound = &completion_bound;
         }
 
         /// @brief A label at node @p node_id whose resource (its cost) is @p cost.
@@ -76,7 +76,7 @@ class Fixture {
         double incumbent = kInfinity;
         size_t quota = 2;
         std::unordered_set<Solution> solutions;
-        detail::CompletionBound<Composed> bound;
+        detail::CompletionBound<Composed> completion_bound;
         detail::SearchContext<Composed> context;
 
     private:
@@ -125,8 +125,8 @@ TEST(TakeRule, ALabelAtOrAboveTheIncumbentIsPrunedWhenAsked) {
     namespace trt = take_rule_test;
     trt::Fixture f;
     const trt::Search<> search;
-    f.bound.by_position.assign(3, 0.0);
-    f.bound.by_position.at(f.pos(1)) = 2.0;
+    f.completion_bound.by_position.assign(3, 0.0);
+    f.completion_bound.by_position.at(f.pos(1)) = 2.0;
     f.incumbent = 4.0;
     auto& label = f.label(1, 3.0);
     EXPECT_TRUE(trt::is(trt::Forward::live(label, search, f.context), trt::Verdict::Extend))

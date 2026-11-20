@@ -23,7 +23,7 @@ using List = LabelList<Composed>;
 /// A retention with every member but clear(): it must not satisfy parts::Retention.
 struct NoClear {
         static constexpr bool records_at_take = false;
-        void reset(size_t /*num_nodes*/, const List& /*prototype*/) {}
+        void reset(size_t /*number_of_nodes*/, const List& /*prototype*/) {}
         parts::NodeView<List> node(size_t /*pos*/) { return parts::NodeView<List>(&container_); }
         std::list<Label<Composed>*>::iterator store(size_t /*pos*/, Label<Composed>* /*label*/) {
             return {};

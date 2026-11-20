@@ -32,6 +32,13 @@ namespace rcspp::detail {
 //   - the admission rule (parts::Admission) says whether a new label is kept at its node;
 //   - the retention (parts::Retention) says where kept labels live;
 //   - the observer (parts::Observer) is told how each extension ended.
+// The parts are template parameters, not a virtual interface: they run in the innermost loop,
+// once per label or per arc, where the compiler can then inline them. A part that does nothing
+// (NoObserver) compiles to nothing; an answer known at compile time (an admission rule's
+// is_exact) removes the code it rules out; and a retention is a template over the container
+// type, which no virtual function can be. Each part's concept states its contract, as a base
+// class would. The run-time choice is made once per solve: the algorithm is a virtual base, and
+// each strategy and direction is one compiled combination.
 // Every part reads the solve through the search's context (SearchContext): the graph, the params,
 // the label pool, the completion bound, the incumbent and the search's role.
 //
