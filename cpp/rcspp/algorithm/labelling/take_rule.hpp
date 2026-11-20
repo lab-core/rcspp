@@ -63,9 +63,10 @@ struct TakeRule {
         /// that cannot lead to a path cheaper than the incumbent is erased and released
         /// (@c Verdict::EraseAndRelease): its cost plus its completion bound is at or above the
         /// incumbent. That never loses the cheapest path, with negative (reduced) costs too: the
-        /// bound is a lower bound on the cost still to pay. Under a cost that is not additive there
-        /// is no valid bound (@c SearchContext::prune_adds_completion_bound is false): the prune
-        /// compares the cost alone, which may drop the cheapest path when an arc lowers the cost.
+        /// bound is a lower bound on the cost still to pay. Where the bound is not valid (a cost
+        /// that is not additive, or an arc that adds less than its share;
+        /// @c SearchContext::prune_adds_completion_bound is false), the prune compares the cost
+        /// alone, which may drop the cheapest path when an arc lowers the cost.
         ///
         /// @return Extend when the label passes; otherwise what to do with it.
         template <typename SearchType>

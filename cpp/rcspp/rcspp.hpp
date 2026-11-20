@@ -136,6 +136,7 @@
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
 #include "rcspp/utils/utils.hpp"
+#include "rcspp/validation/arc_pair_probe.hpp"
 #include "rcspp/validation/backward_extension_check.hpp"
 #include "rcspp/validation/join_check.hpp"
 #include "rcspp/validation/model_check.hpp"

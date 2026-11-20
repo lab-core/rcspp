@@ -1404,6 +1404,11 @@ TEST(ModelChecks, TheArcPairsPutEveryArcSecond) {
     });
     EXPECT_TRUE(pairs.contains({0, 2})) << "0 -> 1, then 1 -> 2 (-8), is never probed";
 
+    const auto shortfall = detail::find_share_shortfall(*graph);
+    ASSERT_TRUE(shortfall.has_value());
+    EXPECT_EQ(shortfall->second_origin_id, 1U);
+    EXPECT_EQ(shortfall->second_destination_id, 2U);
+
     // The bidirectional join's sum check reads the same pairs, so it sees the floor too.
     EXPECT_NE(mc::problems(*graph, SearchDirection::Bidirectional).find("it is not a sum"),
               std::string::npos);
