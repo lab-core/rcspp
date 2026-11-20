@@ -1,0 +1,7 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+10:40:24,0.0,88.3,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+10:40:30,19.7,88.2,59,MsMpEng.exe 31%; System 8%; pwsh.exe 2%
+10:40:35,21.8,87.8,75,MsMpEng.exe 26%; Code.exe 20%; System 8%
+10:40:41,18.0,87.8,57,MsMpEng.exe 31%; System 6%; dptf_helper.exe 2%
+10:40:47,21.0,87.4,74,MsMpEng.exe 26%; System 11%; Code.exe 11%
+10:40:52,19.2,87.2,59,MsMpEng.exe 33%; System 8%; dptf_helper.exe 3%
