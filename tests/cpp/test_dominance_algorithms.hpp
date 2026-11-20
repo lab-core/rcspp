@@ -549,7 +549,7 @@ TEST(DominanceAlgorithms, ASubclassOverrideOfUpdateNonDominatedLabelsRuns) {
 // A label of infinite cost at a sink stays in its container
 // ============================================================================
 
-namespace infinite_terminal_test {
+namespace infinite_cost_at_end_node_test {
 
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
@@ -562,7 +562,7 @@ struct Exposing {
                 using Base<ResourceType, LabelContainerType>::Base;
 
                 /// @brief The costs of the labels at the sinks.
-                [[nodiscard]] std::vector<double> terminal_costs() const {
+                [[nodiscard]] std::vector<double> end_node_costs() const {
                     std::vector<double> costs;
                     for (const auto* label : this->labels_at_end_nodes()) {
                         costs.push_back(label->get_cost());
@@ -575,7 +575,7 @@ struct Exposing {
 /// @brief The costs a @p Base solve that keeps its labels leaves at the sink of a one-arc graph
 ///        whose only path costs infinity.
 template <template <typename, typename> class Base>
-std::vector<double> terminal_costs() {
+std::vector<double> end_node_costs() {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
                                       std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
@@ -594,17 +594,17 @@ std::vector<double> terminal_costs() {
         AlgorithmParams<Container>(base));
     const SolveResult result = graph->solve(algorithm.get(), kInfinity, /*preprocess=*/false);
     EXPECT_TRUE(result.solutions.empty());
-    return algorithm->terminal_costs();
+    return algorithm->end_node_costs();
 }
 
-}  // namespace infinite_terminal_test
+}  // namespace infinite_cost_at_end_node_test
 
 /// @brief Simple, Pushing and Pulling keep a label of infinite cost at a sink, and return no
 ///        solution for it.
 TEST(DominanceAlgorithms, AnInfiniteCostLabelAtASinkStays) {
-    namespace itt = infinite_terminal_test;
-    const std::vector<double> kept{itt::kInfinity};
-    EXPECT_EQ(itt::terminal_costs<SimpleDominanceAlgorithm>(), kept) << "Simple";
-    EXPECT_EQ(itt::terminal_costs<PushingDominanceAlgorithm>(), kept) << "Pushing";
-    EXPECT_EQ(itt::terminal_costs<PullingDominanceAlgorithm>(), kept) << "Pulling";
+    namespace ect = infinite_cost_at_end_node_test;
+    const std::vector<double> kept{ect::kInfinity};
+    EXPECT_EQ(ect::end_node_costs<SimpleDominanceAlgorithm>(), kept) << "Simple";
+    EXPECT_EQ(ect::end_node_costs<PushingDominanceAlgorithm>(), kept) << "Pushing";
+    EXPECT_EQ(ect::end_node_costs<PullingDominanceAlgorithm>(), kept) << "Pulling";
 }

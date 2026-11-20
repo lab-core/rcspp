@@ -52,10 +52,15 @@ struct CompletionBound {
 /// label has after it is extended along the arc, minus the cost it had before. That is the cost
 /// the search compares, so the bound holds whichever component or components the cost function
 /// reads. Dropping the resource constraints can only lower a path's cost, so the relaxed distance
-/// is a lower bound. The share is the same from any label only under an additive cost, which
-/// every backward and bidirectional solve checks. Under another cost the share is computed from
-/// the origin node's resource values and the result is not a bound: only a forward search's
-/// order reads it then (A*), and an order needs no bound to stay exact.
+/// is a lower bound, provided each share is too.
+///
+/// The share is measured once per arc, from the origin's start value. It is a valid term of a
+/// lower bound only if the arc never adds less than that from any value a label can hold there:
+/// true when the extension adds a fixed amount per arc, false under a floor, a ceiling or a
+/// maximum (an @c AdditionExtensionFunction with a @c min_value, a bottleneck), even though such
+/// a cost may be declared additive (@c Resource::is_cost_additive). The result is then not a
+/// bound. An order needs no bound to stay exact (A*'s); a prune that adds the bound must test
+/// this first.
 ///
 /// A node from which no end node of @p Direction can be reached is bounded by +infinity. A
 /// negative-cost cycle leaves no finite bound: the result is then -infinity everywhere, which a
@@ -67,9 +72,8 @@ struct CompletionBound {
 /// @return The bound, by node position.
 template <typename Direction, typename ResourceType>
 CompletionBound<ResourceType> compute_completion_bound(const Graph<ResourceType>& graph) {
-    // Each live arc's share of the cost. Extends the origin's start value along the arc, as a
-    // label is extended; under an additive cost the difference does not depend on the value
-    // extended from.
+    // Each live arc's share of the cost: the origin's start value is extended along the arc, as a
+    // label is. Whether a prune may sum the shares is decided elsewhere (see the doc above).
     std::vector<BellmanFordAlgorithm::WeightedArc> shares;
     std::unique_ptr<Resource<ResourceType>> start;
     std::unique_ptr<Resource<ResourceType>> extended;
