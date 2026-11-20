@@ -160,8 +160,11 @@ columns equal across layers everywhere (no `F-75` drift with both HiGHS at 1.15.
 R202_50 killed at 3600 s every time (`F-76`). Findings for #97 (`F-77`): the summary calls timeouts a second record,
 `highspy` unpinned, two README build lines: fixed in `ee8b0272` on #97 (394 tests; pushed 2026-11-20, PR description
 updated: commit 29, line counts, the pin under the HiGHS limit); per-iteration data written as it happens (`D-239`), a
-`timeout_s` under the kill for hard instances (`D-240`). **Next:** the user runs ci-full on #97 (`ee8b0272`); the final
-`layers-50` folder, `compare.py` per pair; the server moves to #97's head after it.
+`timeout_s` under the kill for hard instances (`D-240`). `layers-50` finished 2026-11-20 22:32 UTC (210 / 225 rounds, the
+15 timeouts R202_50's, every pair), copied to `benchmark-results/colgen/home-server/layers-50/`; its `summary.md` is the
+server's `b6edcb20` code's (its mixed and not-recorded flags are bugs fixed since, `ee8b0272` and `33c8a53d`).
+**Next:** the user runs ci-full on #97 (`ee8b0272`); `layers-50` summarized again with current code, `compare.py` per
+pair; the server moves to #97's head after it.
 `T-1.18` (the Python VRP example's port) started 2026-11-20: design agreed (`D-241`–`D-249`: the example stays a small
 program, `--master` required, `cg/` and `read_duals` go, a README and a docs section, rows `customer − 1`, integer
 solve on with `--no-integer`, only `solve_vrp.py`). Small and mid tiers on the laptop (`F-78`, `F-79`,
@@ -188,7 +191,15 @@ stage options, Boost in `cpp-native`; dump, gap, `--gh-dir`, `benchmark.yml` dro
 A colleague's open PRs (#41–#50, #63, #74, #82) edit `examples/cpp/` (`F-86`, `F-87`).
 Decided (`D-262`, `D-263`): the port first with the engine benchmarks removed (their features: `T-1.25`,
 `T-1.26`), cleaned up as it goes, five commits on `feature/column-generation-cpp-vrp-example` from #98's head, then a
-rebase pass over the open PRs. **Next:** commit 1.
+rebase pass over the open PRs. Commit 1 `82e6badf` (the core tests' Solomon reader in `tests/cpp/vrp_subproblem/`,
+`.gitignore`'s stale `instances/duals/` line dropped; 722 tests). Commit 2 `34923757` (the port; 759 C++ tests pass, the
+C++ lint hooks cover `examples/cpp/`, no suppression). Commit 3 `f9995cc6` (docs). Commit 4 `33c8a53d` (the HiGHS that
+solves and the build type). Commit 5 `a7838214` (the `cpp-native` leg: `cpp_native/cpp_native_solver.cpp`, its
+runner, `highs` and `gurobi` masters; C101_25 equal to the recorded `cpp-bindings` runs, 16/599, 18/666, 23/691,
+29/723; 759 C++ and 421 benchmark tests pass, one flaky first run of a VRP command-line test not reproduced; the user's
+`example.toml` run with the layer, `F-89`, found a false mixed flag, fixed in it). The user reviewed the five
+commits 2026-11-20: kept as they are, no change. **Next:** the PR (base #98); the measures of `D-251` on an idle
+machine (#98).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
