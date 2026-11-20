@@ -46,9 +46,9 @@ struct AdmissionContext {
 /// (@ref NodeView). It decides keep or reject, and it may evict labels from the node: those the
 /// candidate dominates, and under @c KBest the costliest. It touches nothing else. An evicted
 /// label is erased from its node's container and marked dominated, but not released here (see
-/// @ref NodeView). @c is_exact says
-/// whether the rule keeps every label exact dominance keeps. It must answer @c true only for such
-/// a rule: a search whose admission is not exact is never reported proven.
+/// @ref NodeView). @c is_exact says whether the rule keeps every label exact dominance keeps. It
+/// must answer @c true only for such a rule: a search whose admission is not exact is never
+/// reported proven.
 ///
 /// @c admit is a const member function; @c is_exact is static: whether a rule is exact depends only
 /// on the params (@ref AdmissionContext), not on the rule object.
