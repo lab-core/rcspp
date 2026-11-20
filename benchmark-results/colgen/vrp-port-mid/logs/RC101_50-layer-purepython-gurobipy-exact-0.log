@@ -1,0 +1,9 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\OneDrive\Desktop\programming\git\rcspp-dev\instances\RC101_50.txt
+nb_customers: 51
+construct_graph: 5 ms
+construct_graph: 5 ms
+Set parameter Username
+Set parameter LicenseID to value 2770246
+Academic license - for non-commercial use only - expires 2027-01-26
+RESULT {"status": "Optimal", "lp": 828.3619331998074, "iterations": 28, "rest_s": 0.0063989000063884305, "columns": 715, "master_s": 0.011516499997924257, "pricing_s": 0.08524709999528568}

@@ -1,0 +1,58 @@
+Set parameter Username
+Set parameter LicenseID to value 2770246
+Academic license - for non-commercial use only - expires 2027-01-26
+Set parameter Username
+Set parameter LicenseID to value 2770246
+Academic license - for non-commercial use only - expires 2027-01-26
+InstanceReader::read()
+file_path_=C:\Users\marbe\OneDrive\Desktop\programming\git\rcspp-dev\instances\R101_25.txt
+nb_customers: 26
+construct_graph: 1 ms
+*********************************************
+iter=0  min_rc=-inf
+*********************************************
+[MasterProblem] solver: GRB
+solution.cost=1246.1601802480777
+Solve: 0.002s
+best RCSPP reduced cost: -174.471002
+*********************************************
+iter=1  min_rc=-174.471002
+*********************************************
+solution.cost=699.1847013807372
+Solve: 0.000s
+best RCSPP reduced cost: -66.817306
+*********************************************
+iter=2  min_rc=-66.817306
+*********************************************
+solution.cost=673.0429238846426
+Solve: 0.000s
+best RCSPP reduced cost: -28.984445
+*********************************************
+iter=3  min_rc=-28.984445
+*********************************************
+solution.cost=636.5898354806519
+Solve: 0.000s
+best RCSPP reduced cost: -9.457124
+*********************************************
+iter=4  min_rc=-9.457124
+*********************************************
+solution.cost=636.5898354806519
+Solve: 0.000s
+best RCSPP reduced cost: -8.687101
+*********************************************
+iter=5  min_rc=-8.687101
+*********************************************
+solution.cost=618.3299155462686
+Solve: 0.000s
+best RCSPP reduced cost: -4.539781
+*********************************************
+iter=6  min_rc=-4.539781
+*********************************************
+solution.cost=618.3299155462686
+Solve: 0.000s
+best RCSPP reduced cost: -0.000000
+
+iter=7  min_rc=-0.000000
+
+solution.cost=618.3299155462687
+RESULT {"status": "optimal", "lp": 618.3299155462686, "iterations": 7, "columns": 96, "master_s": 0.028777999998965242, "pricing_s": 0.004778861999511719, "rest_s": 0.002658338001310767, "integer_s": 0.004024200000458222}

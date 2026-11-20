@@ -162,6 +162,15 @@ R202_50 killed at 3600 s every time (`F-76`). Findings for #97 (`F-77`): the sum
 updated: commit 29, line counts, the pin under the HiGHS limit); per-iteration data written as it happens (`D-239`), a
 `timeout_s` under the kill for hard instances (`D-240`). **Next:** the user runs ci-full on #97 (`ee8b0272`); the final
 `layers-50` folder, `compare.py` per pair; the server moves to #97's head after it.
+`T-1.18` (the Python VRP example's port) started 2026-11-20: design agreed (`D-241`–`D-249`: the example stays a small
+program, `--master` required, `cg/` and `read_duals` go, a README and a docs section, rows `customer − 1`, integer
+solve on with `--no-integer`, only `solve_vrp.py`). Small and mid tiers on the laptop (`F-78`, `F-79`,
+`benchmark-results/colgen/vrp-port-{small,mid}/comparison.md`): LP equal, the layer faster everywhere (C201 18.7 s
+against 29.5 s). Outside the master, the two cost the same per iteration where the search is heavy, the layer up to
+0.9 ms more where it is cheap; totals follow the iterations (`F-80`). Branch `feature/column-generation-vrp-example` in
+`../rcspp-dev` from #97's head (`D-250`, supersedes `D-246`; `drivers.py example` fails while it is checked out).
+**Next:** commit 1 (code and tests), then commit 2 (docs); the long tier (R201, about 30 min a run) when the desktop
+or the home server is free.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
