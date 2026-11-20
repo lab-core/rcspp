@@ -53,8 +53,8 @@ class BestFirstSchedule {
                 }
         };
 
-        using Heap = std::priority_queue<StoredLabel<ResourceType>,
-                                         std::vector<StoredLabel<ResourceType>>, Comparator>;
+        using heap_type = std::priority_queue<StoredLabel<ResourceType>,
+                                              std::vector<StoredLabel<ResourceType>>, Comparator>;
 
     public:
         /// @brief Whether the order reads the search's completion bound, which the search must
@@ -69,7 +69,7 @@ class BestFirstSchedule {
         void initialize(detail::SearchContext<ResourceType>& context) {
             context_ = &context;
             taken_.reset(context.graph->get_number_of_nodes());
-            heap_ = Heap(Comparator{.context = context_, .key = {}});
+            heap_ = heap_type(Comparator{.context = context_, .key = {}});
             stored_aside_.clear();
         }
 
@@ -146,7 +146,7 @@ class BestFirstSchedule {
             }
             flat.resize(max_total);
 
-            heap_ = Heap(flat.begin(), flat.end(), Comparator{.context = context_, .key = {}});
+            heap_ = heap_type(flat.begin(), flat.end(), Comparator{.context = context_, .key = {}});
         }
 
         /// @brief Erases (through @p erase) and releases what the cuts stored aside.
@@ -158,14 +158,14 @@ class BestFirstSchedule {
 
         /// @brief Forgets every label, releasing none (the pool owns them), and resets the counts.
         void clear() {
-            heap_ = Heap(Comparator{.context = context_, .key = {}});
+            heap_ = heap_type(Comparator{.context = context_, .key = {}});
             stored_aside_.clear();
             taken_.restart();
         }
 
     private:
         const detail::SearchContext<ResourceType>* context_ = nullptr;
-        Heap heap_{Comparator{}};
+        heap_type heap_{Comparator{}};
         StoredAsideLabels<ResourceType> stored_aside_;
         PerNodeQuota taken_;
 };
