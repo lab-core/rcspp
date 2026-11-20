@@ -362,7 +362,7 @@ TEST(ImprovingTabuSearchTest, DefaultMaxIterationsReturnsEmpty) {
     EXPECT_TRUE(result.solutions.empty());
 }
 
-/// @brief ImprovingTabuSearch finds the single path on a linear graph.
+/// @brief ImprovingTabu finds the single path on a linear graph.
 TEST(ImprovingTabuSearchTest, SinglePathFindsOptimal) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
@@ -372,7 +372,7 @@ TEST(ImprovingTabuSearchTest, SinglePathFindsOptimal) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief ImprovingTabuSearch finds solutions on a two-path graph.
+/// @brief ImprovingTabu finds solutions on a two-path graph.
 TEST(ImprovingTabuSearchTest, TwoPathFindsSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -381,7 +381,7 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsSolutions) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief ImprovingTabuSearch: zero timeout → Timeout status.
+/// @brief ImprovingTabu: zero timeout → Timeout status.
 TEST(ImprovingTabuSearchTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -391,7 +391,7 @@ TEST(ImprovingTabuSearchTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief ImprovingTabuSearch: max_solutions=1 stops early.
+/// @brief ImprovingTabu: max_solutions=1 stops early.
 TEST(ImprovingTabuSearchTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -401,7 +401,7 @@ TEST(ImprovingTabuSearchTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief ImprovingTabuSearch on a graph with no arcs returns empty.
+/// @brief ImprovingTabu on a graph with no arcs returns empty.
 TEST(ImprovingTabuSearchTest, NoFeasiblePathReturnsEmpty) {
     auto g = std::make_unique<ResourceGraph<RealResource>>();
     g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
@@ -416,7 +416,7 @@ TEST(ImprovingTabuSearchTest, NoFeasiblePathReturnsEmpty) {
     EXPECT_TRUE(result.solutions.empty());
 }
 
-/// @brief ImprovingTabuSearch: return_dominated_solutions includes all solutions.
+/// @brief ImprovingTabu: return_dominated_solutions includes all solutions.
 TEST(ImprovingTabuSearchTest, ReturnDominatedSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -427,7 +427,7 @@ TEST(ImprovingTabuSearchTest, ReturnDominatedSolutions) {
     EXPECT_GE(result.solutions.size(), 1U);
 }
 
-/// @brief ImprovingTabuSearch: best path (-6) found within iterations.
+/// @brief ImprovingTabu: best path (-6) found within iterations.
 TEST(ImprovingTabuSearchTest, TwoPathFindsBestPath) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;

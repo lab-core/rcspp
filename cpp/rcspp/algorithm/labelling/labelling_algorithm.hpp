@@ -65,8 +65,7 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         /// @brief Starts the solve: an empty search and its context, and the completion bound
         ///        when the schedule's order or the incumbent prune reads it
         ///        (@ref compute_completion_bound). An admission rule that is not exact loses the
-        ///        proof
-        ///        (@c ProofLoss::RelaxedAdmission).
+        ///        proof (@c ProofLoss::RelaxedAdmission).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
             search_.reset(graph->get_number_of_nodes(),

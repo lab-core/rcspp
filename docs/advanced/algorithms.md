@@ -53,13 +53,15 @@ finish and still not have proved anything:
   reports it.
 - **An arc mask** that is not all open (C++, "Leaving arcs out of a solve" below; a soft-only mask
   too): the search was exhaustive on the graph without the masked arcs, not on the graph.
-- **An admission rule that is not exact** (a strategy of one's own whose `exact` answers
+- **An admission rule that is not exact** (a strategy of one's own whose `is_exact` answers
   `false`).
 - **A heuristic driver**: the tabu searches make the arcs of each path tabu between episodes. A
   solve that did so is not a proof. A tabu solve is a proof only when its first episode, with no
   arc tabu, found no path.
-- **The incumbent prune on a cost that is not additive** (`prune_by_incumbent`): with no valid
-  completion bound, it compares a label's cost alone, which may drop the cheapest path.
+- **The incumbent prune with no valid completion bound** (`prune_by_incumbent`): on a cost that is
+  not additive, or one where an arc adds less than its share of the cost (a floor, a ceiling or a
+  maximum in a priced extension, which the solve finds at the start by running the extension on
+  the model's arcs), it compares a label's cost alone, which may drop the cheapest path.
 
 `result.proven` combines them: it is true when `status` is `complete` and none of these happened,
 so that no path better than those returned exists (none at all, when none is returned).

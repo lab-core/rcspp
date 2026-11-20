@@ -407,9 +407,10 @@ New features are summarised, with a pointer to where they are documented.
   The bound measures each arc's share of the cost once, from the start value, so it holds only if
   no arc ever adds less than that. A floor (`AdditionExtensionFunction` with a `min_value`), a
   ceiling or a maximum in a priced extension breaks this, though it declares an accumulation:
-  the bound then overestimated, and `prune_by_incumbent` could drop the cheapest path. The solve
-  now runs the extension on pairs of the model's arcs before the prune reads the bound. Where an
-  arc adds less than its share, the prune compares the cost alone.
+  the bound then overestimated, and `prune_by_incumbent` could drop the cheapest path and report
+  the result as a proof. The solve now runs the extension on pairs of the model's arcs before the
+  prune reads the bound. Where an arc adds less than its share, the prune compares the cost alone
+  and the result is not a proof (`incumbent_prune`).
 - **A backward search refuses a cost that totals a path differently from its two ends.** A floor
   or a ceiling on an addition is met at the start of a forward label and at the end of a backward
   one, so a backward search returned a path at the wrong cost, or lost it, with a `complete`
