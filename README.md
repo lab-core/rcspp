@@ -3,8 +3,8 @@
 **RCSPP (Resource Constrained Shortest Path Problem)** is a C++ library
 (built as a shared library: DLL on Windows, .so on Linux, .dylib on macOS)
 for solving resource-constrained shortest path problems, with optional Python
-bindings (via [pybind11]). Moreover, the project includes an optional VRP
-column generation example (using Gurobi) to illustrate how to use the library.
+bindings (via [pybind11]). Moreover, the project includes vehicle routing
+examples solved by column generation, in C++ and in Python, to illustrate how to use the library.
 
 ---
 
@@ -21,15 +21,16 @@ column generation example (using Gurobi) to illustrate how to use the library.
 - **Git** (to have pybind11 as a submodule)
 - **[pybind11]** (as a submodule – auto-included when you follow instructions below)
 
-### VRP
+### VRP examples
 
-- **Gurobi >= 12.03**
+- **HiGHS** (open source; the C++ example fetches it when it is not installed) or
+  **Gurobi >= 12.03** (a licence), for the master's LP
 
 ---
 
 ## Getting the Source Code
 
-For the C++ library and the VRP example, clone the RCSPP repository as follows:
+For the C++ library and the VRP examples, clone the RCSPP repository as follows:
 
 ```sh
 git clone https://github.com/lab-core/rcspp.git
@@ -56,7 +57,7 @@ git submodule update --init --recursive
 
 ## Getting the instances
 
-To download the instances that can be used with the VRP example, use the
+To download the instances that can be used with the VRP examples, use the
 following command:
 
 ```sh
@@ -88,20 +89,24 @@ cmake -DUSE_PYTHON=ON ..
 cmake --build .
 ```
 
-### Building the VRP example
+### Building the C++ VRP example
 
-To compile the VRP example, use the CMake option `USE_VRP=ON` (set to `OFF`
-by default):
+The C++ VRP example runs on the C++ column generation example, with one of its master solvers
+(HiGHS, found installed or else fetched, or Gurobi):
 
 ```sh
-cmake -DUSE_VRP=ON ..
+cmake -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON ..
 cmake --build .
 ```
+
+`-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` adds the Gurobi master. How to run it:
+[`examples/cpp/vrp/README.md`](examples/cpp/vrp/README.md). The Python VRP example needs only the
+Python package: [`examples/python/vrp/README.md`](examples/python/vrp/README.md).
 
 Note that these options can be combined:
 
 ```sh
-cmake -DUSE_PYTHON=ON -DUSE_VRP=ON ..
+cmake -DUSE_PYTHON=ON -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON ..
 cmake --build .
 ```
 

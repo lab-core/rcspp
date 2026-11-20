@@ -13,6 +13,9 @@ the wheel does not have it. rcspp's Python package ships `rcspp.column_generatio
 | `python/column_generation_loop.py` | the loop written again in Python from the bound pieces |
 | `tests/cpp/`, `tests/python/` | the tests |
 
+A program built on this layer, a vehicle routing problem with time windows, is in [`examples/cpp/`](../cpp/vrp/README.md):
+it builds with this example and one of its master solvers.
+
 ## Options
 
 | option | builds |

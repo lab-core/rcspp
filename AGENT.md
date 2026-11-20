@@ -30,7 +30,7 @@ tests/
                         test_main.cpp / test_resources.cpp / test_algorithms.cpp)
   python/             ← pytest suite
 examples/
-  cpp/                ← VRP C++ benchmark
+  cpp/                ← VRP C++ example (solve_vrp.cpp, on column_generation/)
   python/             ← VRP Python example (solve_vrp.py)
   column_generation/  ← C++ column generation example (USE_COLUMN_GENERATION_EXAMPLE)
 extern/pybind11/      ← submodule
@@ -360,8 +360,8 @@ cmake --build build --parallel
 # CMake options
 # USE_PYTHON=ON   — build pybind11 extension
 # USE_TESTS=ON    — build GoogleTest suite (default: ON)
-# USE_VRP=ON      — build VRP benchmark (needs Gurobi)
 # USE_COLUMN_GENERATION_EXAMPLE=ON        — the C++ column generation example (examples/column_generation)
+#                                           and, with a master solver, the C++ VRP example (examples/cpp)
 # USE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON — its Gurobi master solver; finds Gurobi (fails without it)
 # USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON  — its HiGHS master solver: HiGHS installed, else v1.15.1 fetched
 # USE_COVERAGE=ON — instrument with gcov (gcc only)

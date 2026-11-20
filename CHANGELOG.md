@@ -131,6 +131,14 @@ New features are summarised, with a pointer to where they are documented.
   `--master highspy` or `--master gurobipy`, and solves the integer plan after the LP unless
   `--no-integer` is given; `python -m vrp` is gone, and so are the example's `VRP` class and
   `InstanceReader`. See `examples/python/vrp/README.md`.
+- **The C++ VRP example (`examples/cpp/`) runs on the C++ column generation example**
+  (`examples/column_generation/`) instead of its own loop over its own Gurobi master, and reads like
+  the Python one. Its program is `rcspp-vrp`, which needs `--master highs` or `--master gurobi` and
+  chooses the route relaxation at run time (`--relaxation none|ng|elementary`, `--ng-size`); it
+  builds with `USE_COLUMN_GENERATION_EXAMPLE` and one of its master solvers. **`USE_VRP` is gone**,
+  and so are the example's `VRP` class, `InstanceReader` and the engine benchmarks built on them
+  (`rcspp-vrp-benchmark`, `rcspp-vrp-benchmark-large`, `rcspp-ng-cg-comparison`, the Boost
+  subproblem) with their workflow. See `examples/cpp/vrp/README.md`.
 
 ### Added
 
