@@ -1,0 +1,14 @@
+# What the column generation benchmark needs besides a build of rcspp from this tree.
+# rcspp's own dependencies: the benchmark imports rcspp from the build, not from an installed package.
+networkx
+numpy
+# The default master solver; gurobipy (with a Gurobi licence) runs the Gurobi ones. Pinned to the
+# HiGHS the column generation example builds (examples/column_generation/CMakeLists.txt), so that
+# both layers solve with the same HiGHS: another version may return other duals on a degenerate
+# LP, and the layers then take other paths to the same objective.
+highspy==1.15.1
+# The process measures and the load of the machine during a run.
+psutil
+# Writing a run's options back as TOML (the standard library only reads it).
+tomli-w
+pytest

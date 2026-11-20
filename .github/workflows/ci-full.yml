@@ -70,7 +70,9 @@ jobs:
           allow-prereleases: true
           # The C++-only job installs nothing with pip, and an empty pip cache fails the save.
           cache: ${{ matrix.suites != 'cpp' && 'pip' || '' }}
-          cache-dependency-path: tests/python/requirements.txt
+          cache-dependency-path: |
+            tests/python/requirements.txt
+            benchmarks/column_generation/requirements.txt
 
       # The column generation example is built and tested here, with its HiGHS master solver
       # (Gurobi needs a license CI does not have), so that it does not rot. Not in the coverage
@@ -112,6 +114,18 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/build/python
         run: pytest -v --tb=short examples/column_generation/tests/python
+
+      # The column generation benchmark's tests. They import rcspp from the build themselves, and
+      # check that it comes from there. The build is named, so that a build they cannot find
+      # fails them instead of skipping them all; -rs lists what skips (Gurobi's tests, without a
+      # licence).
+      - name: Python tests (column generation benchmark)
+        if: matrix.suites != 'cpp'
+        env:
+          RCSPP_BENCHMARK_BUILD: build
+        run: |
+          pip install -r benchmarks/column_generation/requirements.txt
+          pytest -v -rs --tb=short benchmarks/column_generation/tests
 
   build_wheels:
     name: Wheels / ${{ matrix.os }}

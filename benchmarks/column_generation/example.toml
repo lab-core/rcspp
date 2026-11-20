@@ -1,0 +1,50 @@
+# An example benchmark: every layer and master on two small instances, with two pricing setups,
+# then two runs of their own. 22 runs, 2 rounds each: about a minute and a half on a laptop, most
+# of it each runner's start. See OPTIONS.md for every option.
+#
+#   python benchmark.py example.toml          # into results/example
+#
+# Without Gurobi, remove "gurobipy" from the matrix and the last run. Without the column
+# generation example built with its HiGHS part (USE_COLUMN_GENERATION_EXAMPLE=ON and
+# USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON), remove "cpp-bindings" and "highs", and the last run.
+
+[benchmark]
+repeats = 2                     # every run twice: the summary gives each time's median and spread
+
+# A pricing setup of this file, named for the matrix below: a capped tabu search first, then the
+# exact search, which proves the last iteration.
+[pricing.heuristics-first]
+stages = [
+  { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+  { algorithm = "simple" },
+]
+
+# Under every run of the file, unless a run sets it.
+[defaults]
+start = { type = "artificial" }
+
+# Every combination of these lists: 2 x 2 x 3 x 2 = 24, less the 4 whose layer has no such master
+# (the package has no "highs"); the benchmark prints the ones it drops.
+[matrix]
+instance = ["C101_25", "R201_25"]
+layer = ["package", "cpp-bindings"]
+master = ["highspy", "gurobipy", "highs"]
+pricing = ["exact", "heuristics-first"]
+
+# Runs of their own, outside the matrix.
+
+# Another instance and the start the instance type gives: a route per customer.
+[[runs]]
+instance = "RC201_12"
+layer = "package"
+master = "highspy"
+start = { type = "single-customer" }
+
+# A master solver's own parameters, a time limit on column generation, and a statistic switched
+# off: the run's name gets a fingerprint for each block that differs from the defaults.
+[[runs]]
+instance = "C101_25"
+layer = "cpp-bindings"
+master = { type = "gurobipy", parameters = { Method = 0 } }
+column_generation = { timeout_s = 60 }
+statistics = { solution = false }
