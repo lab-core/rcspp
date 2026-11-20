@@ -81,7 +81,7 @@ from .registry import (
 
 # Built with USE_COLUMN_GENERATION_EXAMPLE_HIGHS only.
 try:
-    from rcspp._core.cpp_column_generation import HighsMasterSolver
+    from rcspp._core.cpp_column_generation import HighsMasterSolver, highs_version
 
     from .master_solvers import HighspyMasterSolver
 except ImportError:  # pragma: no cover
@@ -138,6 +138,7 @@ __all__ = [
     "algorithm_names",
     "initialization_names",
     "make_initialization",
+    "highs_version",
     "make_tolerances",
     "register_initialization",
     "register_tolerances",

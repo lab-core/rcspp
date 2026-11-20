@@ -111,7 +111,7 @@ reads the LP solution, solves the integer master and writes the folder, in that 
 | --- | --- |
 | `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
 | `command.txt` | the command line that started the run |
-| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
+| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build, its type and its compiler, the versions of Python, rcspp, numpy and the solvers (`highs`: the HiGHS that solves; `highspy_highs`: highspy's own), the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
 | `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
 | `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
@@ -276,8 +276,9 @@ The flags:
 - rounds on battery (said once, for the folder);
 - mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`); a round killed
   before its runner wrote its record (at its timeout, or still running) is in no record;
-- a solver with several versions in the folder: the layers compare only on the same solver; the `cpp-bindings` layer's
-  `highs` master does not give its version, which is said;
+- a solver with several versions in the folder: the layers compare only on the same solver (`highs` is the HiGHS that
+  solves: the column generation example's on `cpp-bindings`, highspy's on `package`); a round whose master's solver
+  version was not recorded;
 - per run: timeouts, failed checks, rounds not finished, rounds that differ, and, in a folder of run folders, rounds
   of one name with other options (the first round's are shown).
 
