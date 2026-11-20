@@ -134,7 +134,7 @@ template <typename Strategy, typename CostResourceType = RealResource,
         solve(std::type_identity<strategy::Simple>{}, SearchDirection::Forward);
     for (const auto direction :
          {SearchDirection::Forward, SearchDirection::Backward, SearchDirection::Bidirectional}) {
-        if (!detail::searches<Strategy>(direction)) {
+        if (!detail::can_search<Strategy>(direction)) {
             continue;
         }
         const std::string where = std::string(to_string(direction)) + ": ";

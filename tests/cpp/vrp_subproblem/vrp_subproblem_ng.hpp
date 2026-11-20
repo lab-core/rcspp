@@ -41,7 +41,7 @@ class VRPSubproblemNg {
 
         /// @brief Solves the subproblem and returns the solutions.
         ///
-        /// @tparam AlgorithmType The algorithm template to run.
+        /// @tparam AlgorithmType The strategy to solve with.
         /// @param dual_by_id The duals, by customer id.
         /// @param params     Algorithm parameters.
         /// @return The solutions found.
@@ -72,7 +72,7 @@ class VRPSubproblemNg {
 
         /// @brief Solves through an externally-owned algorithm and reports the work done.
         ///
-        /// @tparam AlgorithmType The algorithm template to run.
+        /// @tparam AlgorithmType The strategy to solve with.
         /// @param dual_by_id The duals, by customer id.
         /// @param params     Algorithm parameters.
         /// @return The measurement.

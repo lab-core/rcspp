@@ -147,7 +147,7 @@ using search_parts_t =
 ///        bidirectionally unless it says otherwise (`backward = false`, `bidirectional = false`)
 ///        or it is a class of its own.
 template <typename Strategy>
-constexpr bool searches(SearchDirection direction) {
+constexpr bool can_search(SearchDirection direction) {
     switch (direction) {
         case SearchDirection::Forward:
             return true;
@@ -221,11 +221,11 @@ constexpr void check_strategy() {
         using ForwardList = LabelList<ResourceType>;
         using BackwardList = LabelList<ResourceType, BackwardDirection>;
         check_parts<Forward, ResourceType, ForwardList>();
-        if constexpr (searches<Strategy>(SearchDirection::Backward) ||
-                      searches<Strategy>(SearchDirection::Bidirectional)) {
+        if constexpr (can_search<Strategy>(SearchDirection::Backward) ||
+                      can_search<Strategy>(SearchDirection::Bidirectional)) {
             check_parts<Backward, ResourceType, BackwardList>();
         }
-        if constexpr (searches<Strategy>(SearchDirection::Bidirectional)) {
+        if constexpr (can_search<Strategy>(SearchDirection::Bidirectional)) {
             static_assert(
                 parts::Interleave<interleave_of_t<Strategy>,
                                   Search<ResourceType, ForwardDirection, ForwardList, Forward>,
@@ -268,7 +268,7 @@ template <typename Strategy, typename ResourceType, typename LabelContainerType,
 std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
     ResourceFactory<ResourceType>* resource_factory, AlgorithmParams<LabelContainerType> params) {
     const SearchDirection direction = params.direction;
-    if (!searches<Strategy>(direction)) {
+    if (!can_search<Strategy>(direction)) {
         throw std::invalid_argument(template_name<Strategy>() + " cannot search " +
                                     std::string(to_string(direction)) +
                                     ": it declares backward = false or bidirectional = false, "
@@ -293,7 +293,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
                     resource_factory,
                     std::move(params));
             case SearchDirection::Backward:
-                if constexpr (searches<Strategy>(SearchDirection::Backward) &&
+                if constexpr (can_search<Strategy>(SearchDirection::Backward) &&
                               has_directed_container_v<LC, BackwardDirection>) {
                     using Backward = search_parts_t<Strategy, R, BackwardDirection>;
                     return std::make_unique<LabellingAlgorithm<R, LC, BackwardDirection, Backward>>(
@@ -303,7 +303,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
                     throw std::invalid_argument(no_backward_container_message<LC>(direction));
                 }
             case SearchDirection::Bidirectional:
-                if constexpr (searches<Strategy>(SearchDirection::Bidirectional) &&
+                if constexpr (can_search<Strategy>(SearchDirection::Bidirectional) &&
                               has_directed_container_v<LC, BackwardDirection>) {
                     using Backward = search_parts_t<Strategy, R, BackwardDirection>;
                     return std::make_unique<
