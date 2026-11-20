@@ -1071,8 +1071,10 @@ are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::deta
   schedule, it pulls into the next node and runs the rule on each new label. A heuristic's step
   also places the children just pushed and releases the label it extended.
 - **The completion bound** (`compute_completion_bound`) is one Bellman–Ford run over the arcs' shares of
-  the cost, from the end nodes: A\*'s order, `BoundGuidedGreedy`'s, the incumbent prune (under an
-  additive cost) and the threshold prune read it. It is computed at the start of a solve when something reads it.
+  the cost, from the end nodes: A\*'s order, `BoundGuidedGreedy`'s, the incumbent prune and the
+  threshold prune read it. It is computed at the start of a solve when something reads it. A prune
+  adds it only when it is valid: the cost is additive and no arc adds less than its share
+  (`find_share_shortfall`, which runs the extension on pairs of the model's arcs).
 - **Arc masks.** `Algorithm::set_arc_mask` hands every later solve an `ArcMask`: its hard arcs are
   never extended along, its soft arcs only as the schedule allows (the tabu searches' tabu arcs).
   A mask that is not all open costs the solve its proof, a soft-only one included.
@@ -1082,8 +1084,8 @@ are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::deta
 - **The proof record** says whether a result is a proof (`SolveResult::proven`) and, if not, the
   first thing that lost it (`proof_lost_by`): a status other than `Complete`, otherwise the first
   loss recorded. That is an arc mask that is not all open (`ArcsMasked`; a soft-only mask too), an
-  admission rule that is not exact (`RelaxedAdmission`) or the incumbent prune on a cost that is
-  not additive (`IncumbentPrune`), all recorded at the start of the solve; then a driver that
+  admission rule that is not exact (`RelaxedAdmission`) or the incumbent prune with no valid
+  completion bound (`IncumbentPrune`), all recorded at the start of the solve; then a driver that
   changed the search (`HeuristicDriver`, when a tabu search first makes an arc tabu); then memory
   pressure (`MemoryPressure`, recorded when the solve ends, if it fired).
 - **Three classes run the searches.** `LabellingAlgorithm` runs a single search, forward or
