@@ -51,7 +51,7 @@ SOLVERS = {"highspy": "highs", "highs": "highs", "gurobipy": "gurobi", "gurobi":
 #: The record's groups that must be equal in every round of a folder; versions apart from
 #: the solvers', which a round records only for the masters it uses.
 RECORD_GROUPS = ("source", "code", "versions", "machine")
-SOLVER_VERSIONS = ("highspy", "highs", "gurobipy", "gurobi")
+SOLVER_VERSIONS = ("highspy", "highspy_highs", "highs", "gurobipy", "gurobi")
 
 #: A cell's first columns, before its result fields' figures, and its last ones.
 CELL_COLUMNS = (

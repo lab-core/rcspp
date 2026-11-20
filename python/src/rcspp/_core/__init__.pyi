@@ -8,12 +8,16 @@ from . import graph, logger, resource, solution_pool
 
 __all__: list[str] = [
     "available_memory_bytes",
+    "build_config",
     "graph",
     "logger",
     "process_memory_bytes",
     "resource",
     "solution_pool",
 ]
+
+build_config: str
+"""The build's configuration (``Release``, ``Debug``...); empty when the build named none."""
 
 def available_memory_bytes() -> int:
     """

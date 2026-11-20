@@ -224,6 +224,13 @@ class GraphPricer(Pricer):
         preprocess: bool = True,
     ) -> None: ...
 
+def highs_version() -> str:
+    """The version of the HiGHS this module links, which HighsMasterSolver and
+    HighspyMasterSolver solve with; highspy's own HiGHS can be another.
+
+    Available when rcspp is built with HiGHS.
+    """
+
 class HighsMasterSolver(MasterSolver):
     """A master solver over a HiGHS model it owns, built from arrays: empty by default, or
     the user's model, its columns in compressed sparse column form.

@@ -11,6 +11,10 @@
 
 namespace py = pybind11;
 
+#ifndef RCSPP_BUILD_CONFIG
+#define RCSPP_BUILD_CONFIG ""
+#endif
+
 #ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE
 // The C++ column generation example's bindings (examples/column_generation/bindings).
 void init_cpp_column_generation(py::module_&);
@@ -22,6 +26,10 @@ void init_sigint_handler();
 
 PYBIND11_MODULE(_core, m) {
     m.doc() = "RCSPP module";
+
+    // The build's configuration (Release, Debug...), set by CMake for this module: a
+    // multi-configuration generator such as Visual Studio keeps it out of the build's cache.
+    m.attr("build_config") = RCSPP_BUILD_CONFIG;
 
     // Install the SIGINT handler once, from the main thread (import time).
     // This must happen before any background thread calls solve().

@@ -85,6 +85,11 @@ def test_available_memory_bytes():
     assert _core.available_memory_bytes() >= 0
 
 
+def test_build_config_names_the_configuration():
+    # Empty only for a single-configuration build that set no CMAKE_BUILD_TYPE.
+    assert _core.build_config in ("", "Debug", "Release", "RelWithDebInfo", "MinSizeRel")
+
+
 # ── SolveResult protocol (graph.cpp) ────────────────────────────────────────
 
 
