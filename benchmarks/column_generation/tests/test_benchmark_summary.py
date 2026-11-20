@@ -237,6 +237,27 @@ def test_mixed_records_are_listed_with_their_rounds(tmp_path: Path):
     assert f"- {RUN}-r3" in text
 
 
+def test_a_round_killed_before_its_record_is_in_no_record(tmp_path: Path):
+    # A run killed at its timeout, or still running, has only what the benchmark adds to
+    # its metadata.json: no source, code, versions or machine of its runner.
+    write_benchmark(tmp_path, {RUN: options()}, rounds=2)
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+    killed = {
+        "outcome": run_folder.TIMEOUT,
+        "exit_code": None,
+        "wall_seconds": 600.0,
+        "benchmark": {"processes": 1},
+        "load": {"other_processor_percent_mean": 5.0, "on_battery": False},
+    }
+    write_round(round_folder(tmp_path, RUN, 2), run_folder.timeout_result(600.0), killed)
+    write_summary(tmp_path)
+    text = summary_text(tmp_path)
+
+    assert "mixed" not in text
+    assert "solver version not recorded" not in text
+    assert f"- source.commit: {COMMIT}" in text
+
+
 def test_layers_must_share_their_solvers_versions(tmp_path: Path):
     bindings = RUN.replace("package", "cpp-bindings")
     native = RUN.replace("package-highspy", "cpp-bindings-highs")

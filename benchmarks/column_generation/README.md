@@ -29,7 +29,8 @@ Python 3.11 or later, in a virtual environment:
 pip install -r benchmarks/column_generation/requirements.txt
 ```
 
-`gurobipy` and a Gurobi licence are needed only for the Gurobi master solvers.
+`gurobipy` and a Gurobi licence are needed only for the Gurobi master solvers. `highspy` is pinned to the HiGHS
+version the column generation example builds, so that both layers solve with the same HiGHS.
 
 ## Build rcspp
 
@@ -39,12 +40,14 @@ generation example for the `cpp-bindings` layer (`examples/column_generation/REA
 
 ```bash
 cmake -B build-python -DCMAKE_BUILD_TYPE=Release -DUSE_PYTHON=ON -DUSE_TESTS=OFF \
-    -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON
+    -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON "-DCMAKE_CXX_CLANG_TIDY="
 cmake --build build-python --config Release
 ```
 
-Add `-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` when Gurobi is installed, and `-DPython_EXECUTABLE=<python>` when
-CMake would otherwise find another Python than the environment's.
+`-DCMAKE_CXX_CLANG_TIDY=` turns off clang-tidy, which the project's build otherwise runs on every file. Add
+`-DPython_EXECUTABLE=<python>` when CMake would otherwise find another Python than the environment's. The Gurobi
+master solvers need no build option: both layers reach Gurobi through gurobipy
+(`USE_COLUMN_GENERATION_EXAMPLE_GUROBI` builds the example's C++ Gurobi master, which the benchmark does not use).
 
 The build copies `python/src/rcspp` next to `_core`; build again after changing the Python sources, and after
 changing the C++ ones: nothing checks that `_core` was built from the current C++.
@@ -271,7 +274,8 @@ The flags:
 - more than one process: each run shared the machine with others, and ran its master solver on one thread unless
   told otherwise;
 - rounds on battery (said once, for the folder);
-- mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`);
+- mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`); a round killed
+  before its runner wrote its record (at its timeout, or still running) is in no record;
 - a solver with several versions in the folder: the layers compare only on the same solver; the `cpp-bindings` layer's
   `highs` master does not give its version, which is said;
 - per run: timeouts, failed checks, rounds not finished, rounds that differ, and, in a folder of run folders, rounds

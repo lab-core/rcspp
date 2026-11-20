@@ -456,6 +456,12 @@ def cell_flags(row: Mapping[str, Any], differ: Sequence[str], options_differ: bo
 # MARK: Records
 
 
+def has_record(item: Round) -> bool:
+    """Whether the round's runner wrote its record: one killed before (at its timeout,
+    or still running) has only what the benchmark adds to its ``metadata.json``."""
+    return any(item.metadata.get(group) is not None for group in RECORD_GROUPS)
+
+
 def record_of(item: Round) -> dict[str, Any]:
     """The part of a round's record that every round of a folder must share."""
     record = {group: item.metadata.get(group) for group in RECORD_GROUPS}
@@ -489,7 +495,7 @@ def records(folder: Folder) -> list[tuple[dict[str, Any], list[Round]]]:
     found: dict[str, tuple[dict[str, Any], list[Round]]] = {}
 
     for item in folder.rounds:
-        if not item.metadata:
+        if not has_record(item):
             continue
 
         record = record_of(item)
@@ -533,7 +539,7 @@ def solver_flags(folder: Folder) -> list[str]:
     unknown: Counter[str] = Counter()
 
     for item in folder.rounds:
-        if not item.metadata:
+        if not has_record(item):
             continue
 
         recorded: dict[str, Any] = item.metadata.get("versions") or {}
