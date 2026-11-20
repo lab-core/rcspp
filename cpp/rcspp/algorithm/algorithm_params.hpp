@@ -118,12 +118,15 @@ struct AlgorithmBaseParams {
         /// Compared with @ref prune_by_incumbent: this prune compares with the solve's upper
         /// bound, which does not change, once per label (the take rule's fixed checks), with a
         /// tolerance margin; the incumbent prune compares with the incumbent, which falls as paths
-        /// are found, every time a label is taken. With both on and an additive cost, the
-        /// incumbent prune drops every label this one drops, except within the margin.
+        /// are found, every time a label is taken. With both on, the incumbent prune drops every
+        /// label this one drops, except within the margin.
         ///
         /// The bound needs an additive cost: every component the cost reads has a zero cost or a
-        /// value cost under an @c Accumulate extension (@c Resource::is_cost_additive). Another
-        /// cost throws `std::invalid_argument` when the solve starts. Read by every labelling
+        /// value cost under an @c Accumulate extension (@c Resource::is_cost_additive). It also
+        /// needs every arc to add at least its share of the cost, whatever the label it extends,
+        /// which the solve tests at the start by running the extension on the model's arcs: a
+        /// floor, a ceiling or a maximum in a priced extension fails it. A cost that fails either
+        /// throws `std::invalid_argument` when the solve starts. Read by every labelling
         /// search, Greedy and the tabu searches included, in every direction, and by both sides of
         /// a bidirectional search, each against its own end nodes.
         bool prune_by_threshold = false;

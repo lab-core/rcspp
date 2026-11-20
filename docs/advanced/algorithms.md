@@ -672,8 +672,11 @@ With no upper bound, only labels that reach no end node are dropped. A negative-
 no finite bound, and nothing is dropped. A margin of `tolerance` (relative to the upper bound when
 that is large) keeps rounding in the bound from dropping a path that would be returned. The bound
 needs an additive cost: every resource the cost reads has a zero cost (`TrivialCostFunction`) or a
-value cost (`ValueCostFunction`) under an addition. Another cost raises `ValueError`
-(`std::invalid_argument`) when the solve starts.
+value cost (`ValueCostFunction`) under an addition. It also needs every arc to add at least its
+share of the cost, whatever the label it extends: the solve runs the extension on the model's
+arcs, and a floor (`AdditionExtensionFunction`'s `min_value`, C++ only), a ceiling or a maximum in
+a priced extension fails. A cost that fails either raises `ValueError` (`std::invalid_argument`)
+when the solve starts.
 
 Every labelling search reads it, Greedy and the tabu searches included, in every direction, and
 both halves of a bidirectional search, each against its own end nodes. Unlike `prune_by_incumbent`,

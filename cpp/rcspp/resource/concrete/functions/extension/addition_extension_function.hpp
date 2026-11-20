@@ -26,8 +26,9 @@ namespace rcspp {
 /// With a @p min_value, the step is not a sum: an arc takes off less from a value near the floor
 /// than from a higher one, and a backward label meets the floor at the other end of the path. A
 /// priced component with a floor therefore gets no completion-bound prune (@c prune_by_incumbent
-/// compares the cost alone), and a backward or bidirectional search refuses the model. Both are
-/// found by running the extension on the model's arcs.
+/// compares the cost alone, @c prune_by_threshold refuses to start), and a backward or
+/// bidirectional search refuses the model. Both are found by running the extension on the
+/// model's arcs.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
