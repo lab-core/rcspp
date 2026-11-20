@@ -192,10 +192,18 @@ struct AlgorithmBaseParams {
 
         /// @brief If true (default), release all label memory at the end of solve().
         ///
-        /// Set to false when the same algorithm instance is called repeatedly in a
-        /// tight loop (e.g., inside DiversificationSearch) so the pool capacity is
-        /// retained across calls and shrink_to_fit() overhead is avoided.
+        /// Set to false when the same algorithm solves again and again, as a pricing problem
+        /// in column generation does, or the inner search of DiversificationSearch: the labels
+        /// of a solve stay in the algorithm's pool (and readable in its containers until the next
+        /// solve), and the next solve of a graph with the same resources reuses them instead of
+        /// allocating new ones. @ref max_retained_labels bounds what is kept.
         bool release_after_solve = true;
+
+        /// @brief With @ref release_after_solve false: the most labels kept after a solve. A solve
+        ///        that ends with more releases them all, as @ref release_after_solve true does.
+        ///
+        /// Bounds the memory an algorithm holds between solves. Default: no bound.
+        size_t max_retained_labels = kNoLimit;
 
         /// @brief The tabu searches' base tenure: an arc made tabu stays tabu for the next
         ///        `tabu_tenure` − 1 episodes, plus the adaptive extra (@c parts::TabuEpisodes);

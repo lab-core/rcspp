@@ -171,7 +171,8 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         }
 
         void initialize_labels() override {
-            // No-op: Algorithm::initialize already emptied the pool.
+            // Algorithm::initialize has already made every pooled label reusable (or destroyed
+            // them all), so this releases nothing: it only makes the start safe to repeat.
             this->label_pool_.release_all_labels();
             forward_.create_start_labels(*this->graph_, &this->label_pool_);
             backward_.create_start_labels(*this->graph_, &this->label_pool_);

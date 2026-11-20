@@ -118,6 +118,23 @@ class LabelPool {
             }
         }
 
+        /// @brief Makes every label reusable for a solve whose resources have @p shape (the
+        ///        number of components of each type), or destroys them all when the labels were
+        ///        made for another shape.
+        ///
+        /// A reused label is rebound to its node component by component, so its resource must
+        /// have the same components as the node's.
+        ///
+        /// @param shape The number of components of each resource type of the graph to solve.
+        void recycle(std::vector<size_t> shape) {
+            if (shape == shape_) {
+                release_all_labels();
+            } else {
+                clear();
+                shape_ = std::move(shape);
+            }
+        }
+
         /// @brief Destroy every label, keeping the blocks' memory for the labels to come.
         void clear() {
             for (auto& block : blocks_) {
@@ -260,6 +277,8 @@ class LabelPool {
         std::vector<std::vector<Label<ResourceType>>> blocks_;
         // The first block that may have room; the blocks before it are full.
         size_t current_block_ = 0;
+        // The number of components of each resource type the labels were made for (recycle).
+        std::vector<size_t> shape_;
         std::vector<Label<ResourceType>*> available_labels_;
 
         uint64_t nb_labels_{0};

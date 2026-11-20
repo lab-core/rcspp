@@ -11,6 +11,7 @@
 #include "test_equivalence.hpp"
 #include "test_golden_labelling.hpp"
 #include "test_label_buckets.hpp"
+#include "test_label_recycling.hpp"
 #include "test_rcspp.hpp"
 #include "test_search_direction.hpp"
 #include "test_solve_status.hpp"

@@ -32,8 +32,8 @@ class TabuArcs {
             : params_(&params), tabu_state_(tabu_state), tabu_(params.seed) {}
 
         /// @brief Empties the list, its adaptive extra tenure included, and starts the mask as
-        ///        @p given (open when null). The noise's random generator is not reseeded: it
-        ///        goes on from the previous solve.
+        ///        @p given (open when null). The noise's random generator restarts from the seed
+        ///        (@ref TabuList::clear), so a solve of a kept algorithm repeats a new one's.
         ///
         /// @param graph The graph being solved, which sizes the mask.
         /// @param given The mask the algorithm was given, or null; must outlive the solve.
