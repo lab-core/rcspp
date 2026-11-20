@@ -314,6 +314,30 @@ def test_the_time_rule_judges_a_median_solve_time(
 
 
 @pytest.mark.parametrize(
+    ("iterations_a", "said"),
+    [
+        ([25], "the iterations differ, 25 and 16: the times are of other work"),
+        ([16, 17], "the iterations differ, 16..17 and 16: the times are of other work"),
+        ([16], None),
+    ],
+)
+def test_the_verdict_says_when_the_iterations_differ(
+    tmp_path: Path, iterations_a: list[int], said: str | None
+):
+    # Same LP value, other path: the verdict stands, its reason warns.
+    results_a = [result(iterations=count, solve_seconds=1.0) for count in iterations_a]
+    write_pair(tmp_path, results_a, times(*[1.0] * len(iterations_a)))
+    verdict = pair(tmp_path, TimeRule()).verdict
+
+    assert verdict is not None and verdict[0] == EQUIVALENT
+
+    if said is None:
+        assert "iterations" not in verdict[1]
+    else:
+        assert verdict[1].endswith(f"; {said}")
+
+
+@pytest.mark.parametrize(
     ("results_a", "reason"),
     [
         ([result(objective=191.9)], "the objectives differ: 191.9 and 191.814"),

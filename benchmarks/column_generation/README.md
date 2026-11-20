@@ -330,7 +330,10 @@ PERCENT is in percent, `5` or `5%`, not `0.05`; both are finite, 0 or more. Ever
 timeout, crash or missing round: the finished rounds alone would make a side look faster), both sides `Optimal` with
 the same objective within 1e-6 relative; then A's median solve time may exceed B's by at most
 max(PERCENT of B, SECONDS). A faster is always equivalent. The floor keeps
-short runs, where a fixed cost weighs a lot, from failing on a few milliseconds.
+short runs, where a fixed cost weighs a lot, from failing on a few milliseconds. When the sides' iterations differ,
+the verdict stands but its reason says so (`the iterations differ, 25 and 16: the times are of other work`): the
+same objective was reached by another path, as two LP solvers can do on a degenerate LP with duals a rounding error
+apart, and `per iteration` is then the fairer figure.
 
 | exit code | when |
 | --- | --- |
