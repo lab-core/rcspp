@@ -26,7 +26,7 @@ namespace rcspp::parts {
 /// @tparam ContainerType The per-node label container of the params, which it does not use.
 template <typename ContainerType>
 class KeepWhileWaiting {
-        using Labels =
+        using labels_type =
             std::remove_cvref_t<decltype(std::declval<const ContainerType&>().get_labels())>;
 
     public:
@@ -54,7 +54,7 @@ class KeepWhileWaiting {
         void erase(const IteratorType& /*position*/) {}
 
         /// @brief The labels stored at node position @p pos: none.
-        [[nodiscard]] const Labels& labels_at(size_t /*pos*/) const { return none_; }
+        [[nodiscard]] const labels_type& labels_at(size_t /*pos*/) const { return none_; }
 
         /// @brief The per-node containers: none.
         [[nodiscard]] const std::vector<ContainerType>& containers() const {
@@ -62,7 +62,7 @@ class KeepWhileWaiting {
         }
 
     private:
-        Labels none_;
+        labels_type none_;
         std::vector<ContainerType> no_containers_;
 };
 
