@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: black
         name: Black Python Formatter
-        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
+        files: ^(python|tests|examples/python|examples/column_generation|benchmarks)/.*\.pyi?$
         additional_dependencies: []
 
   # -------------------------
@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: isort
         name: Python Import Sorter
-        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
+        files: ^(python|tests|examples/python|examples/column_generation|benchmarks)/.*\.pyi?$
 
   # -------------------------
   # Python Linter: flake8
@@ -46,7 +46,7 @@ repos:
     hooks:
       - id: flake8
         name: Python Linter
-        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
+        files: ^(python|tests|examples/python|examples/column_generation|benchmarks)/.*\.pyi?$
         # Naming checks; .flake8 selects their codes (N, A).
         additional_dependencies: [pep8-naming==0.15.1, flake8-builtins==3.2.0]
 
@@ -75,7 +75,7 @@ repos:
     hooks:
     - id: docformatter
       args: ["--in-place", "--black"]
-      files: ^(python|tests|benchmarks)/.*\.py$
+      files: ^(python|tests|examples/python|benchmarks)/.*\.py$
 
   # # -------------------------
   # # numpydoc-validation

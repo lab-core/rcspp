@@ -91,6 +91,7 @@ typeCheckingMode = "strict"
 extraPaths = [
   "python/src",
   "tests/python",
+  "examples/python",
   "examples/column_generation/python",
   "examples/column_generation/tests/python",
   "benchmarks/column_generation",
