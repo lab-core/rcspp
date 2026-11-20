@@ -27,8 +27,8 @@ namespace rcspp {
 /// than from a higher one, and a backward label meets the floor at the other end of the path. So
 /// the function says it clamps (@ref is_clamped), and a priced component with a floor has no
 /// additive cost: it gets no completion-bound prune (@c prune_by_incumbent compares the cost
-/// alone), and a backward or bidirectional search refuses the model, whatever arcs the model
-/// has.
+/// alone, @c prune_by_threshold refuses to start), and a backward or bidirectional search refuses
+/// the model, whatever arcs the model has.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
