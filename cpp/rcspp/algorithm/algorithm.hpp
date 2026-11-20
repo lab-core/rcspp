@@ -269,10 +269,10 @@ struct AlgorithmBaseParams {
         /// algorithm.
         size_t critical_resource_index = 0;
 
-        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        /// @brief Half-way point `H` on the critical resource; **0 turns it off**.
         ///
         /// Forward labels stop above `H`, backward labels below it. Set it to about half the
-        /// clock's range. With 0, both searches run unbounded: correct but slower.
+        /// clock's range. With 0, both searches run to their end nodes: correct but slower.
         /// @c BidirectionalStats::bounded_by_half_way, in @c SolveResult::bidirectional, reports
         /// which happened.
         double half_way_point = 0.0;

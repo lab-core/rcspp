@@ -406,9 +406,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
-        /// @brief Empties every queue and sizes them for @p number_of_nodes nodes, for a new solve:
-        /// what
-        ///        an earlier solve left in them names labels the new one is about to recycle.
+        /// @brief Empties every queue and sizes them for @p number_of_nodes nodes, for a new solve.
+        ///
+        /// An earlier solve's queues point to labels the pool is about to hand out again.
         void reset(size_t number_of_nodes) {
             clear_all_queues();
             unprocessed_labels_by_node_pos_.resize(number_of_nodes);

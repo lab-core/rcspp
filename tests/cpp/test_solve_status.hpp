@@ -103,7 +103,7 @@ inline Run run(ResourceGraph<RealResource, IntResource>* graph, AlgorithmPtr& al
 }
 
 /// @brief Solves @ref two_routes three times on one object that keeps its labels, under a quota
-///        that holds labels back, and expects each solve to match a fresh object's.
+///        that stores labels aside, and expects each solve to match a fresh object's.
 template <template <typename, typename> class AlgorithmType>
 inline void expect_each_solve_starts_afresh() {
     const auto params =
