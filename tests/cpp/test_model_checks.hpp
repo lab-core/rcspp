@@ -1362,3 +1362,49 @@ TEST(ModelChecks, ASourceWindowOpeningAfterTheStartIsRefusedForABackwardSearch) 
                 -10.0,
                 mc::kTolerance);
 }
+
+namespace model_checks_test {
+
+/// @brief One cost under an @c AdditionExtensionFunction floored at @p floor (none: a plain sum),
+///        on the given arcs {cost, origin, destination}; node 0 is the source, @p sink the sink.
+inline std::unique_ptr<ResourceGraph<RealResource>> floored_graph(
+    std::optional<double> floor, size_t number_of_nodes, size_t sink,
+    const std::vector<std::tuple<double, size_t, size_t>>& arcs) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(floor),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < number_of_nodes; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == sink);
+    }
+    for (const auto& [cost, origin, destination] : arcs) {
+        graph->add_arc<RealResource>(std::make_tuple(cost), origin, destination, cost);
+    }
+    return graph;
+}
+
+}  // namespace model_checks_test
+
+/// @brief The pairs the checks run the extension on put every arc second at least once: node 1's
+///        first arc out adds 1 and its second takes off 8, so only the pass over the arcs entering
+///        an arc's origin pairs the -8 arc with an arc that raised the value first.
+TEST(ModelChecks, TheArcPairsPutEveryArcSecond) {
+    namespace mc = model_checks_test;
+    auto graph =
+        mc::floored_graph(0.0, 4, 3, {{10.0, 0, 1}, {1.0, 1, 3}, {-8.0, 1, 2}, {0.0, 2, 3}});
+    std::set<std::pair<size_t, size_t>> pairs;  // (first arc's origin, second arc's destination)
+    const auto removed = threshold_probe::index_removed_arcs(*graph);
+    arc_pair_probe::for_each_arc_pair(*graph, removed, [&](const auto& first, const auto& second) {
+        if (first.destination == second.origin) {
+            pairs.emplace(first.origin->id, second.destination->id);
+        }
+        return true;
+    });
+    EXPECT_TRUE(pairs.contains({0, 2})) << "0 -> 1, then 1 -> 2 (-8), is never probed";
+
+    // The bidirectional join's sum check reads the same pairs, so it sees the floor too.
+    EXPECT_NE(mc::problems(*graph, SearchDirection::Bidirectional).find("it is not a sum"),
+              std::string::npos);
+}

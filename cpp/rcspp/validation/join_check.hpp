@@ -4,7 +4,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -15,6 +14,7 @@
 #include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/arc_pair_probe.hpp"
 #include "rcspp/validation/model_check.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
@@ -152,14 +152,14 @@ class JoinCheck final : public ModelCheck<ResourceType> {
         /// @brief The sum check of @ref check_accumulations: from the type default, two steps
         ///        must give the sum of the two single steps.
         ///
-        /// For each arc `a` of the model, and an arc `b` leaving its destination (or `a` again),
-        /// `extend(extend(0, a), b)` must be `extend(0, a) + extend(0, b)`, exactly for an
-        /// integral value and to a relative 1e-9 for floating point. Each step starts from a
-        /// cleared output, as a label's does, since an extension may write nothing. The model's
-        /// own arcs are a sample, not a proof: a step that adds on these arcs' values but not on
-        /// others still passes.
+        /// For each pair of arcs `a`, `b` of the model (@c arc_pair_probe::for_each_arc_pair: every
+        /// arc first and second), `extend(extend(0, a), b)` must be `extend(0, a) + extend(0, b)`,
+        /// exactly for an integral value and to a relative 1e-9 for floating point
+        /// (@c arc_pair_probe::is_close). Each step starts from a cleared output, as a label's
+        /// does, since an extension may write nothing. The model's own arcs are a sample, not a
+        /// proof: a step that adds on these arcs' values but not on others still passes.
         ///
-        /// Costs one pass over the arcs, with three steps each.
+        /// Costs two passes over the arcs, with three steps per pair.
         ///
         /// @param graph    The graph.
         /// @param any      Any node's resource.
@@ -187,76 +187,54 @@ class JoinCheck final : public ModelCheck<ResourceType> {
                                                }
                                            });
             };
-            threshold_probe::for_each_model_arc(graph, [&](const Arc<ResourceType>& arc) {
-                if (arc.extender == nullptr ||
-                    std::ranges::find(*checked, true) == checked->end()) {
-                    return;
-                }
-                const auto* next = threshold_probe::arc_to_probe(arc.destination->out_arcs,
-                                                                 removed.leaving,
-                                                                 arc.destination->id);
-                const Arc<ResourceType>& then = next != nullptr ? *next : arc;
-                step(&first, start, arc);
-                step(&second, first, then);
-                step(&direct, start, then);
-                size_t index = 0;
-                second.for_each_component(
-                    first,
-                    direct,
-                    [&](const auto& both, const auto& one, const auto& other) {
-                        const size_t component_index = index++;
-                        using Value = std::decay_t<decltype(both.get_value())>;
-                        if constexpr (is_numerical_resource_v<Value>) {
-                            if (!(*checked)[component_index]) {
-                                return;
+            arc_pair_probe::for_each_arc_pair(
+                graph,
+                removed,
+                [&](const Arc<ResourceType>& arc, const Arc<ResourceType>& then) {
+                    step(&first, start, arc);
+                    step(&second, first, then);
+                    step(&direct, start, then);
+                    size_t index = 0;
+                    second.for_each_component(
+                        first,
+                        direct,
+                        [&](const auto& both, const auto& one, const auto& other) {
+                            const size_t component_index = index++;
+                            using Value = std::decay_t<decltype(both.get_value())>;
+                            if constexpr (is_numerical_resource_v<Value>) {
+                                if (!(*checked)[component_index]) {
+                                    return;
+                                }
+                                const auto two_steps = both.get_value().get_value();
+                                const auto first_step = one.get_value().get_value();
+                                const auto second_step = other.get_value().get_value();
+                                if (arc_pair_probe::is_close(two_steps, first_step + second_step)) {
+                                    return;
+                                }
+                                (*checked)[component_index] = false;  // report once
+                                problems->push_back(
+                                    "component " + std::to_string(component_index) +
+                                    ": its extension declares DirectionalResourceKind::Accumulate, "
+                                    "but "
+                                    "along " +
+                                    std::to_string(arc.origin->id) + " -> " +
+                                    std::to_string(arc.destination->id) + " -> " +
+                                    std::to_string(then.destination->id) +
+                                    " it is not a sum: the two steps give " +
+                                    std::to_string(two_steps) + ", the single steps " +
+                                    std::to_string(first_step) + " and " +
+                                    std::to_string(second_step) +
+                                    "; its cost, or its feasibility function's join test, adds the "
+                                    "two "
+                                    "halves, which is exact only for a sum: write the step as an "
+                                    "addition, or give the component a zero cost "
+                                    "(TrivialCostFunction) "
+                                    "and a join test that does not add");
                             }
-                            const auto two_steps = both.get_value().get_value();
-                            const auto first_step = one.get_value().get_value();
-                            const auto second_step = other.get_value().get_value();
-                            if (is_sum(two_steps, first_step, second_step)) {
-                                return;
-                            }
-                            (*checked)[component_index] = false;  // report once
-                            problems->push_back(
-                                "component " + std::to_string(component_index) +
-                                ": its extension declares DirectionalResourceKind::Accumulate, but "
-                                "along " +
-                                std::to_string(arc.origin->id) + " -> " +
-                                std::to_string(arc.destination->id) + " -> " +
-                                std::to_string(then.destination->id) +
-                                " it is not a sum: the two steps give " +
-                                std::to_string(two_steps) + ", the single steps " +
-                                std::to_string(first_step) + " and " + std::to_string(second_step) +
-                                "; its cost, or its feasibility function's join test, adds the two "
-                                "halves, which is exact only for a sum: write the step as an "
-                                "addition, or give the component a zero cost (TrivialCostFunction) "
-                                "and a join test that does not add");
-                        }
-                    });
-            });
-        }
-
-        /// @brief Whether @p both is @p one plus @p other: exactly for an integral type, to a
-        ///        relative 1e-9 for floating point, where an infinite sum (an arc that costs
-        ///        infinity, say) must match exactly.
-        ///
-        /// @param both  The value two steps give.
-        /// @param one   The value the first step gives alone.
-        /// @param other The value the second step gives alone.
-        /// @return Whether the two steps add up.
-        template <typename Scalar>
-        [[nodiscard]] static bool is_sum(Scalar both, Scalar one, Scalar other) {
-            const Scalar sum = one + other;
-            if (both == sum) {
-                return true;
-            }
-            if constexpr (std::is_floating_point_v<Scalar>) {
-                constexpr Scalar kRelative = 1e-9;
-                return std::abs(both - sum) <=
-                       kRelative * std::max({Scalar{1}, std::abs(both), std::abs(sum)});
-            } else {
-                return false;
-            }
+                        });
+                    // Go on while a component is still to check.
+                    return std::ranges::find(*checked, true) != checked->end();
+                });
         }
 
         /// @brief The start check of @ref check_accumulations: at each sink, a checked component
