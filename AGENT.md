@@ -579,7 +579,7 @@ strategy of one's own"). The kernel's files:
 cpp/rcspp/algorithm/
   strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy, Tabu,
                                  ImprovingTabu, Diversification<Inner>
-  make_algorithm.hpp             make_algorithm, search_parts_t, searches, check_strategy: from a
+  make_algorithm.hpp             make_algorithm, search_parts_t, can_search, check_strategy: from a
                                  descriptor and a direction to a class
   labelling/
     parts/                       rcspp::parts: the parts a strategy is built from, one header per

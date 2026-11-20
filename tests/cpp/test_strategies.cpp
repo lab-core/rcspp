@@ -142,10 +142,10 @@ TEST(Strategies, ThePartsMeetTheirConceptsAndAMalformedPartDoesNot) {
     static_assert(!parts::Schedule<st::NotASchedule, R>, "no trim, no next phase, no clear");
     static_assert(!parts::Admission<st::NoExact, R>, "no exact");
 
-    static_assert(detail::searches<st::BestFirstForward>(SearchDirection::Bidirectional));
-    static_assert(detail::searches<st::SimpleAtMostThree>(SearchDirection::Backward));
-    static_assert(!detail::searches<st::SimpleAtMostThree>(SearchDirection::Bidirectional));
-    static_assert(!detail::searches<strategy::Greedy>(SearchDirection::Backward));
+    static_assert(detail::can_search<st::BestFirstForward>(SearchDirection::Bidirectional));
+    static_assert(detail::can_search<st::SimpleAtMostThree>(SearchDirection::Backward));
+    static_assert(!detail::can_search<st::SimpleAtMostThree>(SearchDirection::Bidirectional));
+    static_assert(!detail::can_search<strategy::Greedy>(SearchDirection::Backward));
     static_assert(std::is_same_v<detail::search_parts_t<strategy::Simple, R, ForwardDirection>,
                                  detail::SearchParts<parts::FifoSchedule<R>>>,
                   "a strategy that names only its schedule gets the exact search's parts");

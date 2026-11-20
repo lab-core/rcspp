@@ -47,7 +47,7 @@ struct TimedNg {
 
 /// @brief Runs @p subproblem once and times it.
 ///
-/// @tparam AlgorithmType The algorithm template to run.
+/// @tparam AlgorithmType The strategy to solve with.
 /// @param subproblem The ng subproblem to solve.
 /// @param duals      The duals, by customer id.
 /// @param params     Algorithm parameters.
