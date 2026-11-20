@@ -23,6 +23,11 @@ namespace rcspp {
 /// Directional resource kind: @c Accumulate; the inherited @c extend_back adds like @c extend. For
 /// a bounded accumulation (capacity, duration) use @c CapacityExtensionFunction instead.
 ///
+/// With a @p min_value, the step is not a sum: an arc takes off less from a value near the floor
+/// than from a higher one. A priced component with a floor therefore gets no completion-bound
+/// prune (@c prune_by_incumbent compares the cost alone), and a bidirectional search refuses
+/// the model. Both are found by running the extension on the model's arcs.
+///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
 template <typename ResourceType>

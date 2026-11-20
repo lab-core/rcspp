@@ -58,7 +58,8 @@ struct SearchContext {
         const CompletionBound<ResourceType>* completion_bound = nullptr;  ///< the completion bound
         Role role = Role::Single;
         /// Whether the incumbent prune adds the completion bound to a label's cost: the bound is
-        /// valid (the cost is additive). Otherwise the prune compares the cost alone.
+        /// valid (@c Algorithm::refresh_completion_bound_validity). Otherwise the prune compares
+        /// the cost alone.
         bool prune_adds_completion_bound = false;
         /// A bidirectional side: counts the labels its cuts abandon. Null for a single-direction
         /// search, whose cuts store labels aside.

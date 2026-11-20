@@ -269,6 +269,13 @@ New features are summarised, with a pointer to where they are documented.
   a label whose path goes on to a negative arc could be dropped. Under a cost that is not additive
   there is no valid bound, and the prune compares the cost alone, as before. A solve with the
   prune on runs one Bellman–Ford pass more, to compute the bound.
+- **The completion bound is no longer trusted on a cost that only declares itself additive.**
+  The bound measures each arc's share of the cost once, from the start value, so it holds only if
+  no arc ever adds less than that. A floor (`AdditionExtensionFunction` with a `min_value`), a
+  ceiling or a maximum in a priced extension breaks this, though it declares an accumulation:
+  the bound then overestimated, and `prune_by_incumbent` could drop the cheapest path. The solve
+  now runs the extension on pairs of the model's arcs before the prune reads the bound. Where an
+  arc adds less than its share, the prune compares the cost alone.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a

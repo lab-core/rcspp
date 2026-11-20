@@ -4,16 +4,21 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 #include "rcspp/resource/base/resource.hpp"
+#include "rcspp/validation/arc_pair_probe.hpp"
+#include "rcspp/validation/threshold_probe.hpp"
 
 namespace rcspp::detail {
 
@@ -58,9 +63,10 @@ struct CompletionBound {
 /// lower bound only if the arc never adds less than that from any value a label can hold there:
 /// true when the extension adds a fixed amount per arc, false under a floor, a ceiling or a
 /// maximum (an @c AdditionExtensionFunction with a @c min_value, a bottleneck), even though such
-/// a cost may be declared additive (@c Resource::is_cost_additive). The result is then not a
-/// bound. An order needs no bound to stay exact (A*'s); a prune that adds the bound must test
-/// this first.
+/// a cost may be declared additive (@c Resource::is_cost_additive). A prune reads the bound only
+/// after the solve has tested this by running the extension (@ref find_share_shortfall).
+/// Otherwise the result is not a bound, and only an order reads it (A*), which needs no bound to
+/// stay exact.
 ///
 /// A node from which no end node of @p Direction can be reached is bounded by +infinity. A
 /// negative-cost cycle leaves no finite bound: the result is then -infinity everywhere, which a
@@ -113,6 +119,93 @@ CompletionBound<ResourceType> compute_completion_bound(const Graph<ResourceType>
         std::ranges::fill(bound.by_position, -std::numeric_limits<double>::infinity());
     }
     return bound;
+}
+
+/// @brief Where an arc was seen adding less to the cost than its share: the second arc of a pair,
+///        extended after the first (@ref find_share_shortfall).
+struct ShareShortfall {
+        size_t first_origin_id = 0;        ///< the first arc's origin
+        size_t first_destination_id = 0;   ///< the first arc's destination
+        size_t second_origin_id = 0;       ///< the second arc's origin
+        size_t second_destination_id = 0;  ///< the second arc's destination
+        double share = 0.0;  ///< what the bound counts for the second arc, from its start value
+        double added = 0.0;  ///< what the second arc added to the cost after the first
+};
+
+/// @brief Describes @p shortfall in words, for a message: which arcs, and the two amounts.
+[[nodiscard]] inline std::string to_string(const ShareShortfall& shortfall) {
+    const auto arc = [](size_t origin_id, size_t destination_id) {
+        return std::to_string(origin_id) + " -> " + std::to_string(destination_id);
+    };
+    return "arc " + arc(shortfall.second_origin_id, shortfall.second_destination_id) + " adds " +
+           std::to_string(shortfall.share) + " to the cost from its start value, but " +
+           std::to_string(shortfall.added) + " after arc " +
+           arc(shortfall.first_origin_id, shortfall.first_destination_id);
+}
+
+/// @brief The first pair of arcs along which the second arc adds less to the cost than its share
+///        (the cost it adds from its origin's start value, as @ref compute_completion_bound
+///        measures it); none when every pair passes.
+///
+/// The completion bound sums shares, so it is a lower bound only if no arc ever adds less than
+/// its share. Measured on the composed cost (@c Resource::get_cost), the quantity the bound sums,
+/// so that it holds whatever components the cost function reads. One-sided: an arc that adds more
+/// than its share leaves the bound valid, only looser. The pairs are the model's own arcs, every
+/// arc first and second (@c arc_pair_probe::for_each_arc_pair): a sample, not a proof.
+///
+/// Costs two passes over the arcs, with three steps per pair.
+///
+/// @tparam ResourceType The resource type carried by labels.
+/// @param graph The graph.
+/// @return The first shortfall found, or @c std::nullopt.
+template <typename ResourceType>
+[[nodiscard]] std::optional<ShareShortfall> find_share_shortfall(const Graph<ResourceType>& graph) {
+    const auto* node = threshold_probe::node_with_resource(graph);
+    if (node == nullptr) {
+        return std::nullopt;
+    }
+    Resource<ResourceType> start(*node->resource);
+    Resource<ResourceType> first(*node->resource);
+    Resource<ResourceType> second(*node->resource);
+    Resource<ResourceType> second_start(*node->resource);
+    Resource<ResourceType> second_alone(*node->resource);
+    std::optional<ShareShortfall> shortfall;
+    const auto removed = threshold_probe::index_removed_arcs(graph);
+    arc_pair_probe::for_each_arc_pair(
+        graph,
+        removed,
+        [&](const Arc<ResourceType>& first_arc, const Arc<ResourceType>& second_arc) {
+            if (first_arc.origin->resource == nullptr ||
+                first_arc.destination->resource == nullptr ||
+                second_arc.origin->resource == nullptr ||
+                second_arc.destination->resource == nullptr) {
+                return true;
+            }
+            // reset() adopts a node's function objects without cloning them, as a label does.
+            start.reset(*first_arc.origin->resource);
+            first.reset(*first_arc.destination->resource);
+            first_arc.extender->extend(start, &first);
+            second.reset(*second_arc.destination->resource);
+            second_arc.extender->extend(first, &second);
+            second_start.reset(*second_arc.origin->resource);
+            second_alone.reset(*second_arc.destination->resource);
+            second_arc.extender->extend(second_start, &second_alone);
+
+            const double share = second_alone.get_cost() - second_start.get_cost();
+            const double added = second.get_cost() - first.get_cost();
+            if (!std::isfinite(share) || !std::isfinite(added) || added >= share ||
+                arc_pair_probe::is_close(added, share)) {
+                return true;
+            }
+            shortfall = ShareShortfall{.first_origin_id = first_arc.origin->id,
+                                       .first_destination_id = first_arc.destination->id,
+                                       .second_origin_id = second_arc.origin->id,
+                                       .second_destination_id = second_arc.destination->id,
+                                       .share = share,
+                                       .added = added};
+            return false;
+        });
+    return shortfall;
 }
 
 }  // namespace rcspp::detail

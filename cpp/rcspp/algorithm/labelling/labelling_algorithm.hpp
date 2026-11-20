@@ -71,8 +71,8 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
-            // The incumbent prune adds the completion bound whenever it is valid (an additive
-            // cost), so the bound is computed then.
+            // The incumbent prune adds the completion bound whenever it is valid, so the bound is
+            // computed then.
             search_.completion_bound = context_.prune_adds_completion_bound
                                            ? compute_completion_bound<Direction>(*graph)
                                            : CompletionBound<ResourceType>{};
