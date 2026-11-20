@@ -34,7 +34,7 @@ namespace rcspp::parts {
 /// The caller then runs the take rule on the node's labels (@ref current), and takes off
 /// those it drops (@ref remove_current; @c detail::step_node). The first visit is to the sweep's
 /// second node. The first node is pulled from on the first sweep, and pulled into only from the
-/// second loop.
+/// second sweep.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.

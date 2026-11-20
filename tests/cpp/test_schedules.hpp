@@ -630,12 +630,12 @@ using Composed = ResourceTypeComposition<RealResource>;
 using Forward = parts::NodeQueues<Composed, ForwardDirection>;
 using Backward = parts::NodeQueues<Composed, BackwardDirection>;
 
-/// @brief The positions a sweep of @p num_nodes visits from its first, @p steps times, with a
+/// @brief The positions a sweep of @p number_of_nodes visits from its first, @p steps times, with a
 ///        `*` after a position reached by wrapping around.
 template <typename QueuesType>
-std::string sweep(size_t num_nodes, size_t steps) {
+std::string sweep(size_t number_of_nodes, size_t steps) {
     QueuesType queues;
-    queues.reset(num_nodes);
+    queues.reset(number_of_nodes);
     std::string out = std::to_string(queues.node_position());
     for (size_t i = 0; i < steps; ++i) {
         const bool wrapped = queues.move_to_next_node();
@@ -676,10 +676,10 @@ TEST(NodeQueues, ACutStoresAsideOrAbandonsAsTheRoleSays) {
         queues.restore_stored_aside();
         if (role == detail::Role::Single) {
             EXPECT_EQ(queues.size(), 3U) << "the two stored aside are back";
-            EXPECT_EQ(f.abandoned, 0U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 0U);
         } else {
             EXPECT_EQ(queues.size(), 1U);
-            EXPECT_EQ(f.abandoned, 2U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 2U);
         }
     }
 }
