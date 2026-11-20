@@ -1,40 +1,57 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
+// A vehicle routing problem with time windows, read from a file in Solomon's format.
+
 #pragma once
 
-#include <map>
-#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#include "customer.hpp"
+namespace vrp {
 
-class Instance {
-    public:
-        Instance(int nb_vehicles, int capacity, std::optional<std::string> name);
+/// @brief A customer, or the depot (number 0): where it is, what it asks for and when.
+struct Customer {
+        size_t number = 0;
+        double x = 0.0;
+        double y = 0.0;
+        double demand = 0.0;
+        double ready_time = 0.0;
+        double due_time = 0.0;
+        double service_time = 0.0;
 
-        const Customer& add_customer(int id, double pos_x, double pos_y, int demand, int ready_time,
-                                     int due_time, int service_time, bool depot = false);
-
-        [[nodiscard]] const std::map<size_t, Customer>& get_customers_by_id() const;
-
-        [[nodiscard]] const Customer& get_customer(size_t id) const;
-
-        [[nodiscard]] const Customer& get_depot_customer() const;
-
-        [[nodiscard]] const std::vector<size_t>& get_demand_customers_id() const;
-
-        [[nodiscard]] int get_nb_vehicles() const;
-
-        [[nodiscard]] int get_capacity() const;
-
-    private:
-        int nb_vehicles_;
-        int capacity_;
-        std::optional<std::string> name_;
-        std::map<size_t, Customer> customers_by_id_;
-
-        size_t depot_customer_id_{0};
-        std::vector<size_t> demand_customers_id_;
+        bool operator==(const Customer&) const = default;
 };
+
+/// @brief The vehicles and the customers, the depot first.
+struct Instance {
+        std::string name;
+        int vehicles = 0;
+        double capacity = 0.0;
+        std::vector<Customer> customers;
+
+        [[nodiscard]] const Customer& depot() const { return customers.front(); }
+};
+
+/// @brief The Euclidean distance between two customers, also the travel time.
+[[nodiscard]] double distance(const Customer& first, const Customer& second);
+
+/// @brief The file @p path, or a file of that name in the repository's `instances/`.
+///
+/// `C101_25`, `C101_25.txt` and `instances/C101_25.txt` all find the same file.
+///
+/// @throws std::runtime_error When neither exists.
+[[nodiscard]] std::string find_instance(std::string_view path);
+
+/// @brief Reads a Solomon file: a title line, the line with the number of vehicles and their
+///        capacity, then one line of seven numbers per customer (number, x, y, demand, ready
+///        time, due time, service time), the depot first. Other lines are headers.
+///
+/// The instance is named after the file (`C101_25`): its title line names the full instance.
+///
+/// @throws std::runtime_error When the file cannot be read, has no vehicle line or no customers,
+///                            or its customers are not numbered 0, 1, 2, ...
+[[nodiscard]] Instance read_solomon(const std::string& path);
+
+}  // namespace vrp
