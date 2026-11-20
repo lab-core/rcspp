@@ -1,0 +1,97 @@
+{
+  "record": {
+    "source": {
+      "commit": "b6edcb202a2cd26640e3c11dc46170492ad203f1",
+      "uncommitted_changes": false,
+      "changes_digest": null,
+      "branch": "feature/column-generation-benchmark"
+    },
+    "code": {
+      "rcspp": "/home/leo/rcspp/build-python/python/rcspp/__init__.py",
+      "core": "/home/leo/rcspp/build-python/python/rcspp/_core.cpython-312-x86_64-linux-gnu.so",
+      "core_file": {
+        "bytes": 13206760,
+        "modified": "2026-11-20T03:49:17.100805+00:00"
+      },
+      "build": "/home/leo/rcspp/build-python",
+      "generator": "Ninja",
+      "build_type": "Release",
+      "compiler": "/usr/bin/c++",
+      "compiler_id": "GNU",
+      "compiler_version": "13.3.0",
+      "options": {
+        "USE_COLUMN_GENERATION_EXAMPLE": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_GUROBI": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_HIGHS": "ON",
+        "USE_COVERAGE": "OFF",
+        "USE_DOTNET_STD_21": "ON",
+        "USE_PYTHON": "ON",
+        "USE_TESTS": "OFF",
+        "USE_VRP": "OFF"
+      }
+    },
+    "versions": {
+      "python": "3.12.16",
+      "rcspp": "0.0.2.dev1",
+      "numpy": "2.5.5",
+      "highspy": "1.15.1",
+      "highs": "1.15.1",
+      "gurobipy": "13.0.1",
+      "gurobi": "13.0.1"
+    },
+    "machine": {
+      "label": "home-server",
+      "system": "Linux-6.8.0-149-generic-x86_64-with-glibc2.39",
+      "processor": "Intel(R) Celeron(R) CPU 2950M @ 2.00GHz",
+      "physical_cores": 2,
+      "logical_cores": 2,
+      "memory_bytes": 8236953600
+    },
+    "benchmark": {
+      "processes": 1,
+      "solver_threads": null,
+      "integer_threads": null
+    }
+  },
+  "events": [
+    {
+      "time": "2026-11-20T05:10:24.584+00:00",
+      "event": "started",
+      "total": 225,
+      "finished": 0,
+      "to_run": 225,
+      "unfinished": 0,
+      "timeouts_to_run_again": 0,
+      "crashes_to_run_again": 0
+    },
+    {
+      "time": "2026-11-20T22:32:09.613+00:00",
+      "event": "finished",
+      "total": 225,
+      "finished": 225,
+      "timeouts": 15,
+      "failed_checks": 0,
+      "crashed": 0
+    }
+  ],
+  "processes": 1,
+  "runs": 75,
+  "rounds": 3,
+  "dropped": [
+    "layers-50.toml: matrix {'instance': 'C101_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'C102_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'C103_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'C201_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'C202_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R101_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R102_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R103_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R105_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R107_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R201_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'R202_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'RC101_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'RC102_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "layers-50.toml: matrix {'instance': 'RC201_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)"
+  ]
+}

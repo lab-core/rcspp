@@ -1,0 +1,17 @@
+{
+  "status": "timeout",
+  "objective": null,
+  "iterations": null,
+  "columns": null,
+  "artificial_columns": null,
+  "master_seconds": null,
+  "pricing_seconds": null,
+  "other_seconds": null,
+  "solve_seconds": 3600.0632213870413,
+  "lp_solved_again_seconds": null,
+  "integer_status": null,
+  "integer_objective": null,
+  "integer_seconds": null,
+  "gap": null,
+  "solution_check": null
+}
