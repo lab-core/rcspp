@@ -16,7 +16,7 @@
 
 #include "rcspp/rcspp.hpp"
 #include "util/benchmark_constants.hpp"
-#include "vrp/instance_reader.hpp"
+#include "vrp_subproblem/instance_reader.hpp"
 #include "vrp_subproblem/vrp_subproblem.hpp"
 
 namespace kernel_timing {

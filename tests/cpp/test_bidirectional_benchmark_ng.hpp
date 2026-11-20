@@ -19,7 +19,7 @@
 #include "rcspp/rcspp.hpp"
 #include "util/benchmark_constants.hpp"
 #include "util/bidirectional_test_util.hpp"
-#include "vrp/instance_reader.hpp"
+#include "vrp_subproblem/instance_reader.hpp"
 #include "vrp_subproblem/vrp_subproblem_ng.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
