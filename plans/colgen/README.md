@@ -169,8 +169,11 @@ solve on with `--no-integer`, only `solve_vrp.py`). Small and mid tiers on the l
 against 29.5 s). Outside the master, the two cost the same per iteration where the search is heavy, the layer up to
 0.9 ms more where it is cheap; totals follow the iterations (`F-80`). Branch `feature/column-generation-vrp-example` in
 `../rcspp-dev` from #97's head (`D-250`, supersedes `D-246`; `drivers.py example` fails while it is checked out).
-**Next:** commit 1 (code and tests), then commit 2 (docs); the long tier (R201, about 30 min a run) when the desktop
-or the home server is free.
+Commit 1 `335290a9` (`F-81`: tests 606 passed, pyright and pre-commit clean, `examples/python` added to both).
+Commit 2 `91432461` (docs; Sphinx not built here, Doxygen's XML missing). Commit 3 `b28a8e5d`, the test that the
+example and the benchmark build the same model (arcs, priced routes, starting routes; 403 benchmark tests). All three
+pushed 2026-11-20; PR description drafted. **Next:** the user opens the PR (base #97's branch) and runs CI;
+the long tier (R201, about 30 min a run) when the desktop or the home server is free; then `T-1.19`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
