@@ -173,6 +173,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
                 new_resource_components;
             this->apply(new_resource_components,
                         [&](const auto& sing_res_vec, auto& sing_new_res_vec) {
+                            sing_new_res_vec.reserve(sing_res_vec.size());
                             std::transform(
                                 sing_res_vec.begin(),
                                 sing_res_vec.end(),
@@ -196,8 +197,11 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         [[nodiscard]] auto copy() const -> std::unique_ptr<Resource> {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
+            // Reserved: a new label is a copy of its node's resource, and growing each vector one
+            // component at a time costs several allocations per label.
             this->apply(new_resource_components,
                         [&](const auto& sing_res_vec, auto& sing_new_res_vec) {
+                            sing_new_res_vec.reserve(sing_res_vec.size());
                             std::transform(sing_res_vec.begin(),
                                            sing_res_vec.end(),
                                            std::back_inserter(sing_new_res_vec),

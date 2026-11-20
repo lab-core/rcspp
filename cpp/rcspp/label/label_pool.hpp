@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <algorithm>
 #include <concepts>
+#include <cstddef>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -14,16 +16,34 @@
 
 namespace rcspp {
 
-inline constexpr size_t DEFAULT_LABEL_POOL_SIZE = 1e4;
+/// @brief The number of labels a new pool reserves its free list for. Small, as the first block
+///        is: the free list grows as labels are released.
+inline constexpr size_t DEFAULT_LABEL_POOL_SIZE = 16;
 
+/// @brief Owns the labels of an algorithm, and hands them out, new or released.
+///
+/// Labels are constructed in place in blocks, each a vector reserved once and never grown, so that
+/// a label never moves and a new label costs no allocation of its own (its resource state still
+/// does). The blocks grow: the first holds @ref kFirstBlockLabels labels and each next one twice as
+/// many as the one before, up to @ref kMaxBlockLabels. A pool that makes a few labels therefore
+/// takes a small block, and one that makes millions allocates once per @ref kMaxBlockLabels. A
+/// released label goes to a free list and is reused before a new one is made.
+///
+/// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class LabelPool {
     public:
+        /// @brief How many labels the first block holds.
+        static constexpr size_t kFirstBlockLabels = 16;
+        /// @brief The most labels a block holds: blocks double up to it.
+        static constexpr size_t kMaxBlockLabels = 4096;
+
+        /// @param label_factory The factory that makes the labels' resource state.
+        /// @param initial_size  The number of labels the free list is first reserved for.
         explicit LabelPool(std::unique_ptr<LabelFactory<ResourceType>> label_factory,
                            size_t initial_size = DEFAULT_LABEL_POOL_SIZE)
             : label_factory_(std::move(label_factory)) {
-            labels_.reserve(initial_size);
             available_labels_.reserve(initial_size);
         }
 
@@ -46,9 +66,7 @@ class LabelPool {
                 ++nb_reused_labels_;
             } else {
                 // A new label is created
-                labels_.emplace_back(
-                    label_factory_->make_label(nb_labels_, end_node, in_arc, out_arc));
-                label_ptr = labels_.back().get();
+                label_ptr = &emplace_label(end_node, in_arc, out_arc);
                 ++nb_created_labels_;
             }
             ++nb_labels_;
@@ -92,13 +110,20 @@ class LabelPool {
         /// @brief Return all labels to the free list without destroying them.
         void release_all_labels() {
             available_labels_.clear();
-            for (auto& label_uptr : labels_) {
-                available_labels_.push_back(label_uptr.get());
+            available_labels_.reserve(get_nb_total_labels());
+            for (auto& block : blocks_) {
+                for (auto& label : block) {
+                    available_labels_.push_back(&label);
+                }
             }
         }
 
+        /// @brief Destroy every label, keeping the blocks' memory for the labels to come.
         void clear() {
-            labels_.clear();
+            for (auto& block : blocks_) {
+                block.clear();
+            }
+            current_block_ = 0;
             available_labels_.clear();
         }
 
@@ -109,8 +134,9 @@ class LabelPool {
         /// both internal vectors.  Use this at the end of a solve to reclaim
         /// RAM when the pool will not be reused immediately.
         void release() {
-            labels_.clear();
-            labels_.shrink_to_fit();
+            blocks_.clear();
+            blocks_.shrink_to_fit();
+            current_block_ = 0;
             available_labels_.clear();
             available_labels_.shrink_to_fit();
         }
@@ -123,7 +149,23 @@ class LabelPool {
         [[nodiscard]] size_t get_nb_available_labels() const { return available_labels_.size(); }
 
         /// @brief Total number of label objects owned by the pool (in use + available).
-        [[nodiscard]] size_t get_nb_total_labels() const { return labels_.size(); }
+        [[nodiscard]] size_t get_nb_total_labels() const {
+            size_t total = 0;
+            for (const auto& block : blocks_) {
+                total += block.size();
+            }
+            return total;
+        }
+
+        /// @brief How many labels the pool's blocks hold without allocating: the labels it owns
+        ///        and the room left in its blocks.
+        [[nodiscard]] size_t get_label_capacity() const {
+            size_t capacity = 0;
+            for (const auto& block : blocks_) {
+                capacity += block.capacity();
+            }
+            return capacity;
+        }
 
         /// @brief Diagnostic: verify the prev_label / ref_count bookkeeping is consistent.
         ///
@@ -148,35 +190,76 @@ class LabelPool {
 
             // Count, for each label, how many in-use labels reference it as their predecessor.
             std::unordered_map<const Label<ResourceType>*, size_t> referencing_count;
-            for (const auto& label_uptr : labels_) {
-                const Label<ResourceType>* label = label_uptr.get();
-                if (!in_use(label) || label->prev_label == nullptr) {
-                    continue;
+            for (const auto& block : blocks_) {
+                for (const auto& label : block) {
+                    if (!in_use(&label) || label.prev_label == nullptr) {
+                        continue;
+                    }
+                    if (!in_use(label.prev_label)) {
+                        return false;  // dangling: in-use label points to a recycled predecessor
+                    }
+                    ++referencing_count[label.prev_label];
                 }
-                if (!in_use(label->prev_label)) {
-                    return false;  // dangling: in-use label points to a recycled predecessor
-                }
-                ++referencing_count[label->prev_label];
             }
 
             // Every in-use label's ref_count must equal its in-use referrer count.
-            for (const auto& label_uptr : labels_) {
-                const Label<ResourceType>* label = label_uptr.get();
-                if (!in_use(label)) {
-                    continue;
-                }
-                const auto it = referencing_count.find(label);
-                const size_t expected = (it == referencing_count.end()) ? 0 : it->second;
-                if (label->ref_count != expected) {
-                    return false;
+            for (const auto& block : blocks_) {
+                for (const auto& label : block) {
+                    if (!in_use(&label)) {
+                        continue;
+                    }
+                    const auto it = referencing_count.find(&label);
+                    const size_t expected = (it == referencing_count.end()) ? 0 : it->second;
+                    if (label.ref_count != expected) {
+                        return false;
+                    }
                 }
             }
             return true;
         }
 
     private:
+        /// @brief Constructs a new label in the first block with room, adding a block when
+        ///        every block is full.
+        ///
+        /// A block is reserved to @ref next_block_capacity when added and filled up to its
+        /// capacity only, so it never reallocates and its labels never move.
+        Label<ResourceType>& emplace_label(const Node<ResourceType>* end_node,
+                                           const Arc<ResourceType>* in_arc,
+                                           const Arc<ResourceType>* out_arc) {
+            while (current_block_ < blocks_.size() &&
+                   blocks_[current_block_].size() == blocks_[current_block_].capacity()) {
+                ++current_block_;
+            }
+            if (current_block_ == blocks_.size()) {
+                // Reserved before it joins the pool: an allocation that fails leaves the pool as
+                // it was.
+                std::vector<Label<ResourceType>> block;
+                block.reserve(next_block_capacity());
+                blocks_.push_back(std::move(block));
+            }
+            return blocks_[current_block_].emplace_back(nb_labels_,
+                                                        label_factory_->make_resource(*end_node),
+                                                        end_node,
+                                                        in_arc,
+                                                        out_arc);
+        }
+
+        /// @brief The capacity of the next block: @ref kFirstBlockLabels for the first, then twice
+        ///        the last block's, up to @ref kMaxBlockLabels.
+        [[nodiscard]] size_t next_block_capacity() const {
+            if (blocks_.empty()) {
+                return kFirstBlockLabels;
+            }
+            return std::min(2 * blocks_.back().capacity(), kMaxBlockLabels);
+        }
+
         std::unique_ptr<LabelFactory<ResourceType>> label_factory_;
-        std::vector<std::unique_ptr<Label<ResourceType>>> labels_;
+        // The labels, in blocks that never reallocate (see emplace_label). Moving a block (when
+        // blocks_ grows) moves its buffer, not its labels.
+        std::vector<std::vector<Label<ResourceType>>> blocks_;
+        // The first block that may have room; the blocks before it are full.
+        size_t current_block_ = 0;
         std::vector<Label<ResourceType>*> available_labels_;
 
         uint64_t nb_labels_{0};
