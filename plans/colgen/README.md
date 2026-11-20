@@ -174,6 +174,21 @@ Commit 2 `91432461` (docs; Sphinx not built here, Doxygen's XML missing). Commit
 example and the benchmark build the same model (arcs, priced routes, starting routes; 403 benchmark tests). All three
 pushed 2026-11-20; PR description drafted. **Next:** the user opens the PR (base #97's branch) and runs CI;
 the long tier (R201, about 30 min a run) when the desktop or the home server is free; then `T-1.19`.
+`T-1.19` (the C++ VRP example's port) started 2026-11-20: what the example has that the layer lacks (`F-82`: the
+engine benchmarks' algorithms on one dual sequence, Boost, a dead duals dump, a compile-time relaxation, no pool; the
+core tests read Solomon files with its reader; a CI workflow builds it with `USE_VRP`). Small tier on the laptop
+(`F-83`, `benchmark-results/colgen/vrp-port-cpp/`; `drivers.py cpp` is dead, so three throwaway programs over the
+checkout): LP equal, `D-148` passes, pricing equal on one dual sequence. Versions and build type: `F-84`. **Proposed,
+for the user:** `D-251`–`D-259` (mid tier next, `examples/column_generation/vrp/`, `--master {gurobi,highs}`, the
+engine benchmarks on the layer, a C++ `cpp-native` program of the benchmark, versions, the three legs' test, docs,
+branch from the Python port's head, five commits). Accepted 2026-11-20: all but `D-252` (revised: `examples/cpp/`
+mirroring `examples/python/`) and `D-254` (explained); real measures on an idle machine (#98). **Next:** the user
+`D-254` amended by `D-260` (the engine benchmarks' features go to the benchmark: replay `Q-68`,
+stage options, Boost in `cpp-native`; dump, gap, `--gh-dir`, `benchmark.yml` dropped); `Q-70` (a comparison module).
+A colleague's open PRs (#41–#50, #63, #74, #82) edit `examples/cpp/` (`F-86`, `F-87`).
+Decided (`D-262`, `D-263`): the port first with the engine benchmarks removed (their features: `T-1.25`,
+`T-1.26`), cleaned up as it goes, five commits on `feature/column-generation-cpp-vrp-example` from #98's head, then a
+rebase pass over the open PRs. **Next:** commit 1.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
