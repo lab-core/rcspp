@@ -117,3 +117,14 @@ Linux and macOS signal paths untested locally (Docker Desktop off), first run in
 | `test_every_layer_gives_the_same_run` | Ubuntu only | one `cpp-bindings` run: 25 iterations against 16, objective equal; HiGHS 1.15.1 everywhere | not our code (`F-75`): HiGHS builds return duals 1e-13 apart on a degenerate LP, the pricer keeps other tied paths; `8b80353b` compares the objective across layers, iterations within one HiGHS build (`D-237`); `bd6822d4` the time rule says when iterations differ (`D-238`) |
 
 The Linux and macOS signal paths left open in §6 pass.
+
+## 8. A long run on Linux (2026-11-20, `F-77`)
+
+`layers-50` on the home server (`T-1.24`, `home-server-runs.md`), at `b6edcb20`:
+
+| finding | fix |
+|---|---|
+| a round killed at its timeout (or running) has no record; the summary counted it as a second, empty one: "mixed", "solver version not recorded" | `ee8b0272`: `folder.has_record`, rounds without a record left out of the records and the solver check; a test |
+| `requirements.txt` left `highspy` unpinned (1.16.0) while the example builds HiGHS 1.15.1 | `ee8b0272`: `highspy==1.15.1`, with why |
+| the README's build command lacked `-DCMAKE_CXX_CLANG_TIDY=`; it suggested the example's Gurobi option, which the benchmark never uses | `ee8b0272`: both lines |
+| a run prints nothing while it runs: a timeout leaves no progress | not here: `D-239` (per-iteration data written as it happens), `D-240` |

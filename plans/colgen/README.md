@@ -152,6 +152,16 @@ when iterations differ, `D-238`) on top, pushed 2026-11-20 (head `bd6822d4`, 393
 26-28, line counts, the drift as a known limit). Debug branch, worktree and Docker volume removed. **Next:** the user
 runs ci-full on #97, then out of draft when the user chooses;
 then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
+Home server (`T-1.24`, the gateway laptop of `D-233`; `server-setup.md`, `home-server-runs.md`): set up 2026-11-19/20 in
+the user's home without `sudo` (uv Python, highspy pinned to 1.15.1, Gurobi WLS); 389 benchmark tests pass at
+`b6edcb20`; a looping LXD container left from a password recovery removed (load 0.00 after). `layers-50` (15 instances,
+5 layer-master pairs, 3 rounds) **in progress** since 2026-11-20 05:10 UTC; partial (125 / 225 rounds): iterations and
+columns equal across layers everywhere (no `F-75` drift with both HiGHS at 1.15.1), every pair within `D-139`'s rule,
+R202_50 killed at 3600 s every time (`F-76`). Findings for #97 (`F-77`): the summary calls timeouts a second record,
+`highspy` unpinned, two README build lines: fixed in `ee8b0272` on #97 (394 tests; pushed 2026-11-20, PR description
+updated: commit 29, line counts, the pin under the HiGHS limit); per-iteration data written as it happens (`D-239`), a
+`timeout_s` under the kill for hard instances (`D-240`). **Next:** the user runs ci-full on #97 (`ee8b0272`); the final
+`layers-50` folder, `compare.py` per pair; the server moves to #97's head after it.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -237,6 +247,8 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `benchmark-review.md` | the read of PR #97: checks run, blockers, should-fix, test gaps, docs, proposal | before fixing #97 |
 | `benchmark-solutions.md` | the runner's solutions: `--overwrite`, `solution.json`, the integer solve, the instance's resolved solution, per-iteration data | before step 5's fixup, the integer solve or per-iteration data |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
+| `server-setup.md` | the home server (`T-1.24`): the machine, choices, every setup step from scratch, updating, log | setting up or updating a benchmark machine |
+| `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
 ## Project conventions that apply here
 
