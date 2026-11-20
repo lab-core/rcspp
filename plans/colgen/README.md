@@ -128,8 +128,29 @@ proof of `D-141` (`D-224`).
 Step 8b done 2026-11-18 (`D-225`, `F-71`): `compare.py`, `19160d73` on top (the user's tidy of the script
 folded in; pushed 2026-11-18; 285 tests). Step 9 done 2026-11-18 (`D-226`, `F-72`): `example.toml` and
 the CHANGELOG entry, `ac832b35` on top (pushed 2026-11-18; 286 tests). PR #97 opened by the user
-2026-11-18 (draft, base #88's branch, head `ac832b35`; description drafted with the user). **Next:** its
-review;
+2026-11-18 (draft, base #88's branch, head `ac832b35`; description drafted with the user). Review done 2026-11-19
+(`benchmark-review.md`, `F-73`): 286 tests pass, 12 blockers (e.g. `--overwrite` can delete a benchmark folder, a
+resume skips crashed rounds), about 25 should-fix, integration gaps (gurobipy and `cpp-bindings` never run by a
+test, ci-full not run on #97). Fixes decided (`D-227`–`D-232`, §6): six commits on top, done in one chat, one per prompt
+(the user). Commit 1 done 2026-11-19: `1f823b59` (options; 315 tests); commit 2 `06ff47f7` (source tree; 322 tests);
+commit 3 `35f42019` (runners; 346 tests; C101_25 and R201_25 LP as recorded); commit 4 `f96247b8` (`benchmark.py`; 366
+tests; Linux and macOS signal paths not run: Docker Desktop off, left to ci-full); pre-commit and pyright clean; not
+pushed. `../rcspp-dev/build` was configured from `../rcspp`: the guard now refuses it. B1 kept as `D-229` says: a crash
+without a result still runs again on resume. Commit 5 `310b4b22` (summary and compare: `folder.py`; 390 tests); commit 6
+`324fac42` (CI: `RCSPP_BENCHMARK_BUILD: build`, `-rs`). Fixes done 2026-11-19, head `324fac42`, pushed by the user; PR
+description updated 2026-11-19 (commits 20-25, line counts, limits). First ci-full 2026-11-20 (`F-74`): the signal paths
+pass on Linux and macOS; a quoting test written for Windows fails on POSIX; on Ubuntu one `cpp-bindings` run of C101_25
+takes 25 iterations against 16 (objective equal). `b6edcb20` on top (not yet pushed when written): the test fixed, the
+drift test names the layer; the user re-runs ci-full. Three chats in parallel (`D-233`; `D-234` proposed): this one
+fixes ci-full, one sets up the gateway laptop (`T-1.24`), one starts `T-1.18`; #97 stays a draft for now. Proposed
+2026-11-20: where to measure (`D-235`), the scripts at the root (`D-236`). Re-run read 2026-11-20: the drift is the C++
+example layer on Linux, both of its masters alike (`F-74`). Traced 2026-11-20 (`F-75`): not reproduced locally (gcc 13
+and 15 in Docker, sanitizers, valgrind clean); on the CI runner the example's HiGHS build returns duals 1e-13 from the
+highspy wheel's on C101_25's degenerate seventh LP, and the pricer keeps other tied paths: not our code. `8b80353b` (the
+layers' test: objective across layers, iterations within one HiGHS build, `D-237`) and `bd6822d4` (the time rule says
+when iterations differ, `D-238`) on top, pushed 2026-11-20 (head `bd6822d4`, 393 tests); PR description updated (commits
+26-28, line counts, the drift as a known limit). Debug branch, worktree and Docker volume removed. **Next:** the user
+runs ci-full on #97, then out of draft when the user chooses;
 then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
@@ -213,6 +234,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
 | `fold-review.md` | the read of the eight folded PRs: heads, findings `V.`, coverage, questions | before the fixups or the merge |
 | `benchmark-runner.md` | `T-1.10`'s runner: shape, TOML input, output folders, records, statistics, growth per task, coding steps | before coding the runner or a follow-up's option |
+| `benchmark-review.md` | the read of PR #97: checks run, blockers, should-fix, test gaps, docs, proposal | before fixing #97 |
 | `benchmark-solutions.md` | the runner's solutions: `--overwrite`, `solution.json`, the integer solve, the instance's resolved solution, per-iteration data | before step 5's fixup, the integer solve or per-iteration data |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
