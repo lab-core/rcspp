@@ -752,11 +752,11 @@ TEST(DepthFirstSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {
         EXPECT_EQ(f.in_use(), 2U) << "the dominated label is released";
         dfs.prepare_next_phase(f.context);
         if (role == detail::Role::Single) {
-            EXPECT_EQ(f.abandoned, 0U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 0U);
             EXPECT_EQ(bft::drain(&dfs, f.context),
                       (std::vector<std::pair<size_t, double>>{{1, 2.0}}));
         } else {
-            EXPECT_EQ(f.abandoned, 1U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 1U);
             EXPECT_EQ(dfs.size(), 0U);
         }
     }

@@ -83,7 +83,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_two_path_graph() {
 // strategy::Greedy tests
 // ============================================================================
 
-/// @brief GreedyAlgorithm finds the single feasible path in a linear graph.
+/// @brief Greedy finds the single feasible path in a linear graph.
 ///
 /// The graph has only one path (0->1->2), so the algorithm must find it.
 TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
@@ -93,14 +93,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief GreedyAlgorithm on single-path graph reports Complete status.
+/// @brief Greedy on single-path graph reports Complete status.
 TEST(GreedyAlgorithmTest, SinglePathGraphStatusComplete) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief GreedyAlgorithm on single-path graph visits nodes in order.
+/// @brief Greedy on single-path graph visits nodes in order.
 TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
@@ -111,14 +111,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     EXPECT_EQ(result.solutions[0].path_node_ids[2], 2U);
 }
 
-/// @brief GreedyAlgorithm on a two-path graph returns at least one solution.
+/// @brief Greedy on a two-path graph returns at least one solution.
 TEST(GreedyAlgorithmTest, TwoPathGraphNonEmpty) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief GreedyAlgorithm picks the lower-cost first arc and finds the best path.
+/// @brief Greedy picks the lower-cost first arc and finds the best path.
 ///
 /// On the two-path graph, greedy sorts children by label cost and picks
 /// the arc with cost -2 (to node 1) before the arc with cost -1 (to node 2),
@@ -204,7 +204,7 @@ TEST(GreedyAlgorithmTest, AppliesThePerNodeQuota) {
     EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
 }
 
-/// @brief GreedyAlgorithm finds both solutions when max solutions is large.
+/// @brief Greedy finds both solutions when max solutions is large.
 TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
