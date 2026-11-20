@@ -194,7 +194,7 @@ template <typename GraphType, typename ResourceType>
 ///        hands every accepted path to @p on_path.
 ///
 /// A forward **boundary label** is a non-start label past the half-way point `H`
-/// (@ref HalfWay::past): its last arc, the **join arc**, took the clock above `H`, so it was
+/// (@ref HalfWay::is_past): its last arc, the **join arc**, took the clock above `H`, so it was
 /// stored at its node and never extended. With the half-way point off, every non-start forward
 /// label counts as a boundary label. Each boundary label at a node is paired with every backward
 /// label stored at that node; sinks are skipped.

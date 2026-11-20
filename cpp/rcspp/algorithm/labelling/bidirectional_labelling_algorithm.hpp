@@ -45,7 +45,7 @@ enum class EarlyStop { None, Timeout, Interrupted, MemoryLimit };
 ///
 /// @param stop Why the search stopped.
 /// @return @c true unless the search was interrupted.
-[[nodiscard]] constexpr bool join_runs_after(EarlyStop stop) {
+[[nodiscard]] constexpr bool should_join_after(EarlyStop stop) {
     return stop != EarlyStop::Interrupted;
 }
 
@@ -232,11 +232,11 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         ///     off), paired with a backward label at the same node.
         ///
         /// 1 and 2 are needed because the join only sees paths that cross `H`. They run first so
-        /// that `joined_paths` counts only the paths the join alone adds: `record_path` drops a
-        /// path it already holds. The join prunes against the incumbent, which a search lowers
-        /// when it takes an end-node label (`TakeRule::fixed`), not when 1 and 2 record one; after
-        /// an early stop, a label still waiting at an end node has not lowered it. The join is
-        /// skipped after an interrupt.
+        /// that `number_of_joined_paths` counts only the paths the join alone adds: `record_path`
+        /// drops a path it already holds. The join prunes against the incumbent, which a search
+        /// lowers when it takes an end-node label (`TakeRule::fixed`), not when 1 and 2 record one;
+        /// after an early stop, a label still waiting at an end node has not lowered it. The join
+        /// is skipped after an interrupt.
         void record_remaining_solutions() override {
             // 1. The forward labels at a sink.
             for (const auto* label : forward_.labels_at_end_nodes(*this->graph_)) {
@@ -319,7 +319,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
 
         /// @brief Runs the join, feeding every accepted pair to `record_path`.
         ///
-        /// After a timeout or the memory limit the join still runs (see @ref join_runs_after),
+        /// After a timeout or the memory limit the join still runs (see @ref should_join_after),
         /// with the incumbent cutoff forced on. It is skipped after an interrupt, or after any
         /// early stop when `join_after_early_stop` is false.
         void run_join() {
@@ -328,7 +328,8 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
             // incumbent (below), unless join_after_early_stop is off.
             const EarlyStop stop = early_stop();
             const bool stopped_early = stop != EarlyStop::None;
-            if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
+            if (stopped_early &&
+                (!this->params_.join_after_early_stop || !should_join_after(stop))) {
                 LOG_DEBUG(
                     "BidirectionalLabellingAlgorithm: the search stopped early, so the join is "
                     "skipped.\n");
