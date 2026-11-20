@@ -14,7 +14,8 @@ side, over each side's finished rounds:
 
 The time rule, when asked for, judges A: every round of both sides finished, both
 ``Optimal`` with the same objective (to 1e-6 relative), then A's median solve time may exceed
-B's by at most max(margin x B, floor).
+B's by at most max(margin x B, floor). Its reason says when the sides' iterations differ:
+their times then measure other work.
 """
 
 from collections import Counter
@@ -414,11 +415,28 @@ def time_verdict(a: Side, b: Side, rule: TimeRule) -> tuple[str, str]:
         f" = {allowed:.3f} s"
     )
     figures = f"both {OPTIMAL}, same objective; {excess:+.3f} s"
+    note = iterations_note(a, b)
 
     if excess <= allowed:
-        return EQUIVALENT, f"{figures} <= {bound}"
+        return EQUIVALENT, f"{figures} <= {bound}{note}"
 
-    return SLOWER, f"{figures} > {bound}"
+    return SLOWER, f"{figures} > {bound}{note}"
+
+
+def iterations_note(a: Side, b: Side) -> str:
+    """What the verdict adds when the sides' iterations differ: the same LP value
+    reached by another path (on a degenerate LP, other duals of equal value are enough),
+    so their times measure other work."""
+    results_a, results_b = a.cell.results, b.cell.results
+    same_a, iterations_a = agreed([result.get("iterations") for result in results_a])
+    same_b, iterations_b = agreed([result.get("iterations") for result in results_b])
+
+    if same_a and same_b and agreed([iterations_a, iterations_b])[0]:
+        return ""
+
+    shown_a = text(iterations_a) if same_a else disagreement(results_a, "iterations")
+    shown_b = text(iterations_b) if same_b else disagreement(results_b, "iterations")
+    return f"; the iterations differ, {shown_a} and {shown_b}: the times are of other work"
 
 
 # MARK: Comparing
