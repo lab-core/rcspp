@@ -1,12 +1,14 @@
 # An example benchmark: every layer and master on two small instances, with two pricing setups,
-# then two runs of their own. 22 runs, 2 rounds each: about a minute and a half on a laptop, most
-# of it each runner's start. See OPTIONS.md for every option.
+# then two runs of their own. 26 runs, 2 rounds each: about two minutes on a laptop, most of it
+# each runner's start. See OPTIONS.md for every option.
 #
 #   python benchmark.py example.toml          # into results/example
 #
 # Without Gurobi, remove "gurobipy" from the matrix and the last run. Without the column
 # generation example built with its HiGHS part (USE_COLUMN_GENERATION_EXAMPLE=ON and
-# USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON), remove "cpp-bindings" and "highs", and the last run.
+# USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON), remove "cpp-bindings", "cpp-native" and "highs", and the
+# last run. With its Gurobi part too (USE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON), add "gurobi", the
+# cpp-native layer's Gurobi master, to the matrix's masters.
 
 [benchmark]
 repeats = 2                     # every run twice: the summary gives each time's median and spread
@@ -23,11 +25,12 @@ stages = [
 [defaults]
 start = { type = "artificial" }
 
-# Every combination of these lists: 2 x 2 x 3 x 2 = 24, less the 4 whose layer has no such master
-# (the package has no "highs"); the benchmark prints the ones it drops.
+# Every combination of these lists: 2 x 3 x 3 x 2 = 36, less the 12 whose layer has no such master
+# (the package has no "highs", cpp-native neither "highspy" nor "gurobipy"); the benchmark prints
+# the ones it drops.
 [matrix]
 instance = ["C101_25", "R201_25"]
-layer = ["package", "cpp-bindings"]
+layer = ["package", "cpp-bindings", "cpp-native"]
 master = ["highspy", "gurobipy", "highs"]
 pricing = ["exact", "heuristics-first"]
 

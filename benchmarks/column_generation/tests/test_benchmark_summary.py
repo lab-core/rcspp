@@ -283,6 +283,35 @@ def test_layers_must_share_their_solvers_versions(tmp_path: Path):
     assert "mixed" not in text
 
 
+def test_the_cpp_native_program_is_checked_apart_from_the_record(tmp_path: Path):
+    native = RUN.replace("package-highspy", "cpp-native-highs")
+    write_benchmark(tmp_path, {RUN: options(), native: options("cpp-native", "highs")}, rounds=2)
+    program = {"path": "build/bin/cpp-native-solver", "modified": "today", "config": "Release"}
+
+    for number in (1, 2):
+        write_round(round_folder(tmp_path, RUN, number), result(), metadata())
+        with_program = metadata(master="highs")
+        with_program["versions"]["highs"] = "1.15.1"
+        with_program["code"] = {**with_program["code"], "program": program}
+        write_round(round_folder(tmp_path, native, number), result(), with_program)
+
+    write_summary(tmp_path)
+
+    # Only the cpp-native rounds have a program: that is not a mixed folder.
+    assert "mixed" not in summary_text(tmp_path)
+    assert "programs differ" not in summary_text(tmp_path)
+
+    rebuilt = metadata(master="highs")
+    rebuilt["versions"]["highs"] = "1.15.1"
+    rebuilt["code"] = {**rebuilt["code"], "program": {**program, "modified": "tomorrow"}}
+    run_folder.write_json(round_folder(tmp_path, native, 2) / run_folder.METADATA_FILE, rebuilt)
+    write_summary(tmp_path)
+
+    assert "- programs differ: build/bin/cpp-native-solver (today): 1 rounds, " in summary_text(
+        tmp_path
+    )
+
+
 # MARK: Files
 
 

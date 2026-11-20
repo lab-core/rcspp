@@ -472,7 +472,33 @@ def record_of(item: Round) -> dict[str, Any]:
             name: value for name, value in versions.items() if name not in SOLVER_VERSIONS
         }
 
+    # The program a layer solves in (cpp-native's), which the other layers' rounds have not:
+    # checked apart (:func:`program_flags`).
+    code: dict[str, Any] | None = record.get("code")
+
+    if code is not None and "program" in code:
+        record["code"] = {name: value for name, value in code.items() if name != "program"}
+
     return record
+
+
+def program_flags(folder: Folder) -> list[str]:
+    """The programs the rounds solved in (``code.program``, the cpp-native layer's): one
+    over the folder, unless rebuilt between rounds."""
+    programs: Counter[str] = Counter()
+
+    for item in folder.rounds:
+        code: dict[str, Any] = item.metadata.get("code") or {}
+        program: dict[str, Any] | None = code.get("program")
+
+        if program is not None:
+            programs[f"{program.get('path')} ({program.get('modified')})"] += 1
+
+    if len(programs) < 2:
+        return []
+
+    listed = ", ".join(f"{name}: {count} rounds" for name, count in programs.most_common())
+    return [f"programs differ: {listed}"]
 
 
 def flatten(value: Any, prefix: str = "") -> dict[str, Any]:
@@ -558,7 +584,7 @@ def solver_flags(folder: Folder) -> list[str]:
     flags += [
         f"solver version not recorded: {what} ({count} rounds)" for what, count in unknown.items()
     ]
-    return flags
+    return flags + program_flags(folder)
 
 
 def machine_flags(folder: Folder) -> list[str]:

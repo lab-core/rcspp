@@ -3,7 +3,8 @@
 """The runners: a run fills its folder, refuses one that holds a run, writes the LP solution,
 solves the integer master and checks its routes, and runs the same again from its ``run.toml``
 and from its ``command.txt``; every layer gives the same column generation. The
-``cpp-bindings`` runner's tests skip when the build has no column generation example."""
+``cpp-bindings`` runner's tests skip when the build has no column generation example; the
+``cpp-native`` runner's own tests are in ``test_benchmark_cpp_native.py``."""
 
 import math
 import shlex
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import cpp_bindings_runner
+import cpp_native_runner
 import package_runner
 import pytest
 from column_generation_benchmark import options, record, run_folder, runner, source_tree
@@ -86,6 +88,29 @@ def layer(request: pytest.FixtureRequest, build: Path) -> str:
 def run(layer: str, build: Path, folder: Path, *arguments: str) -> dict[str, Any]:
     """The result of a run of `layer`'s runner into `folder`."""
     main = RUNNERS[layer].main
+    assert main(["--build", str(build), "--output", str(folder), *arguments]) == 0
+    result = run_folder.read_result(folder)
+    assert result is not None
+    return result
+
+
+def has_cpp_native(build: Path, master: str = "highs") -> bool:
+    """Whether the build has the cpp-native program, with `master`."""
+    try:
+        program = source_tree.cpp_native_program(build)
+    except source_tree.SourceTreeError:
+        return False
+
+    flags = ["--instance", str(source_tree.TREE / "instances" / "C101_5.txt"), "--master", master]
+    flags += ["--start", "single-customer", "--check"]
+    code, _, _ = cpp_native_runner.execute(program, flags)
+    return code == 0
+
+
+def run_layer(layer: str, build: Path, folder: Path, *arguments: str) -> dict[str, Any]:
+    """The result of a run of any layer's runner, ``cpp-native`` included, into
+    `folder`."""
+    main = cpp_native_runner.main if layer == "cpp-native" else RUNNERS[layer].main
     assert main(["--build", str(build), "--output", str(folder), *arguments]) == 0
     result = run_folder.read_result(folder)
     assert result is not None
@@ -702,8 +727,11 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
     if has_example():
         runs += [("cpp-bindings", "highspy"), ("cpp-bindings", "highs")]
 
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
     results = {
-        (layer, master): run(
+        (layer, master): run_layer(
             layer,
             build,
             tmp_path / f"{layer}-{master}",
@@ -720,10 +748,43 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
     if not has_example():
         return
 
-    # Both of the example's masters solve with its own HiGHS build.
+    # Both of the example's masters solve with its own HiGHS build, and so does its C++ program.
     highspy, highs = results["cpp-bindings", "highspy"], results["cpp-bindings", "highs"]
 
     assert (highspy["iterations"], highspy["columns"]) == (highs["iterations"], highs["columns"])
+
+    if ("cpp-native", "highs") in results:
+        native = results["cpp-native", "highs"]
+
+        assert (native["iterations"], native["columns"]) == (highs["iterations"], highs["columns"])
+
+
+@pytest.mark.usefixtures("gurobi")
+@pytest.mark.parametrize("start", ["artificial", "single-customer"])
+def test_every_layer_gives_the_same_run_over_gurobi(build: Path, tmp_path: Path, start: str):
+    """With one Gurobi library, gurobipy's from Python and the C++ API in the example's
+    program give the same objective, iterations and columns."""
+    runs = [("package", "gurobipy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "gurobipy"))
+
+    if has_cpp_native(build, "gurobi"):
+        runs.append(("cpp-native", "gurobi"))
+
+    results = [
+        run_layer(
+            layer,
+            build,
+            tmp_path / f"{layer}-{master}",
+            *("--instance", "C101_25", "--master", master, "--start", start),
+        )
+        for layer, master in runs
+    ]
+
+    for result in results:
+        assert result["status"] == "Optimal"
+        assert same(result, SAME_COLUMN_GENERATION) == same(results[0], SAME_COLUMN_GENERATION)
 
 
 def test_a_package_run_runs_on_the_cpp_bindings(build: Path, tmp_path: Path):
