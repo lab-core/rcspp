@@ -709,7 +709,14 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
     for result in results.values():
         assert result["status"] == "Optimal"
         assert result["objective"] == pytest.approx(first["objective"], rel=1e-9)
-        assert (result["iterations"], result["columns"]) == (first["iterations"], first["columns"])
+
+    # All layers at once, so a failure shows which one differs.
+    found = {
+        f"{layer} {master}": (result["iterations"], result["columns"])
+        for (layer, master), result in results.items()
+    }
+
+    assert found == dict.fromkeys(found, found["package highspy"])
 
 
 def test_a_package_run_runs_on_the_cpp_bindings(build: Path, tmp_path: Path):
