@@ -1,0 +1,5 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+C103_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b: Optimal, objective 361.03688095251346; integer Optimal, objective 400.9143083702541

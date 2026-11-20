@@ -1,0 +1,70 @@
+{
+  "start": "2026-11-20T10:59:38.094+00:00",
+  "end": "2026-11-20T10:59:43.851+00:00",
+  "processor_seconds": 6.37,
+  "source": {
+    "commit": "b6edcb202a2cd26640e3c11dc46170492ad203f1",
+    "uncommitted_changes": false,
+    "changes_digest": null,
+    "branch": "feature/column-generation-benchmark"
+  },
+  "code": {
+    "rcspp": "/home/leo/rcspp/build-python/python/rcspp/__init__.py",
+    "core": "/home/leo/rcspp/build-python/python/rcspp/_core.cpython-312-x86_64-linux-gnu.so",
+    "core_file": {
+      "bytes": 13206760,
+      "modified": "2026-11-20T03:49:17.100805+00:00"
+    },
+    "build": "/home/leo/rcspp/build-python",
+    "generator": "Ninja",
+    "build_type": "Release",
+    "compiler": "/usr/bin/c++",
+    "compiler_id": "GNU",
+    "compiler_version": "13.3.0",
+    "options": {
+      "USE_COLUMN_GENERATION_EXAMPLE": "ON",
+      "USE_COLUMN_GENERATION_EXAMPLE_GUROBI": "ON",
+      "USE_COLUMN_GENERATION_EXAMPLE_HIGHS": "ON",
+      "USE_COVERAGE": "OFF",
+      "USE_DOTNET_STD_21": "ON",
+      "USE_PYTHON": "ON",
+      "USE_TESTS": "OFF",
+      "USE_VRP": "OFF"
+    }
+  },
+  "versions": {
+    "python": "3.12.16",
+    "rcspp": "0.0.2.dev1",
+    "numpy": "2.5.5",
+    "gurobipy": "13.0.1",
+    "gurobi": "13.0.1"
+  },
+  "machine": {
+    "label": "home-server",
+    "system": "Linux-6.8.0-149-generic-x86_64-with-glibc2.39",
+    "processor": "Intel(R) Celeron(R) CPU 2950M @ 2.00GHz",
+    "physical_cores": 2,
+    "logical_cores": 2,
+    "memory_bytes": 8236953600
+  },
+  "benchmark": {
+    "processes": 1,
+    "solver_threads": 1,
+    "integer_threads": 1
+  },
+  "exit_code": 0,
+  "outcome": "finished",
+  "started": "2026-11-20T10:59:37.602+00:00",
+  "wall_seconds": 6.380181661981624,
+  "load": {
+    "interval_seconds": 1.0,
+    "samples": 9,
+    "other_processor_percent_mean": 2.119309261820718,
+    "other_processor_percent_max": 33.33333333277907,
+    "memory_used_bytes_mean": 1003539115,
+    "memory_used_bytes_max": 1013800960,
+    "frequency_mhz_mean": 1473.8902777777778,
+    "frequency_mhz_min": 798.164,
+    "on_battery": null
+  }
+}

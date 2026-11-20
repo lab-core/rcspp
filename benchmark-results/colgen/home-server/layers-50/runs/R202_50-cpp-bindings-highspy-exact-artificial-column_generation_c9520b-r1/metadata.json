@@ -1,0 +1,21 @@
+{
+  "start": "2026-11-20T07:56:00.703+00:00",
+  "exit_code": null,
+  "outcome": "timeout",
+  "started": "2026-11-20T07:56:00.245+00:00",
+  "wall_seconds": 3600.0795903859544,
+  "benchmark": {
+    "processes": 1
+  },
+  "load": {
+    "interval_seconds": 1.0,
+    "samples": 3563,
+    "other_processor_percent_mean": 1.2865570303583744,
+    "other_processor_percent_max": 50.0,
+    "memory_used_bytes_mean": 1112044483,
+    "memory_used_bytes_max": 1158750208,
+    "frequency_mhz_mean": 1791.5826365422397,
+    "frequency_mhz_min": 798.071,
+    "on_battery": null
+  }
+}

@@ -1,0 +1,33 @@
+layer = "package"
+
+[instance]
+type = "solomon"
+name = "R202_50"
+
+[master]
+type = "gurobipy"
+
+[master.parameters]
+
+[pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[start]
+type = "artificial"
+cost_factor = 10000.0
+
+[graph]
+
+[column_generation]
+threads = 1
+
+[integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true
