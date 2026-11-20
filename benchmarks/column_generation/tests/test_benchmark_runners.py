@@ -688,8 +688,15 @@ def test_the_cpp_highs_master_takes_parameters(
 
 @pytest.mark.parametrize("start", ["artificial", "single-customer"])
 def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str):
-    """Every runner the build has, over HiGHS, gives the same objective, iterations and
-    columns: the layers do the same column generation."""
+    """Every runner the build has, over HiGHS, gives the same objective; runs over the
+    same HiGHS build also give the same iterations and columns.
+
+    The package solves its LPs with the highspy wheel, the example with the HiGHS built
+    with it, even for its ``highspy`` master, which copies the model. Two builds can
+    return duals a rounding error apart (1e-13 on a Linux CI runner), and on a degenerate
+    LP that is enough for the pricer to keep other tied paths: the same LP value is then
+    reached in other iterations.
+    """
     runs = [("package", "highspy")]
 
     if has_example():
@@ -710,13 +717,13 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
         assert result["status"] == "Optimal"
         assert result["objective"] == pytest.approx(first["objective"], rel=1e-9)
 
-    # All layers at once, so a failure shows which one differs.
-    found = {
-        f"{layer} {master}": (result["iterations"], result["columns"])
-        for (layer, master), result in results.items()
-    }
+    if not has_example():
+        return
 
-    assert found == dict.fromkeys(found, found["package highspy"])
+    # Both of the example's masters solve with its own HiGHS build.
+    highspy, highs = results["cpp-bindings", "highspy"], results["cpp-bindings", "highs"]
+
+    assert (highspy["iterations"], highspy["columns"]) == (highs["iterations"], highs["columns"])
 
 
 def test_a_package_run_runs_on_the_cpp_bindings(build: Path, tmp_path: Path):
