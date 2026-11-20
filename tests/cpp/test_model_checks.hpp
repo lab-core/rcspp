@@ -1408,3 +1408,59 @@ TEST(ModelChecks, TheArcPairsPutEveryArcSecond) {
     EXPECT_NE(mc::problems(*graph, SearchDirection::Bidirectional).find("it is not a sum"),
               std::string::npos);
 }
+
+namespace model_checks_test {
+
+/// @brief The floor graph: 0->1 adds 10, 1->2 adds -8, 0->2 adds 3, floored at @p floor. The
+///        path 0-1-2 costs max(0, 10 - 8) = 2 forward, but a backward label meets the floor
+///        first: max(0, 0 - 8) + 10 = 10.
+inline std::unique_ptr<ResourceGraph<RealResource>> floor_graph(std::optional<double> floor) {
+    return floored_graph(floor, 3, 2, {{10.0, 0, 1}, {-8.0, 1, 2}, {3.0, 0, 2}});
+}
+
+}  // namespace model_checks_test
+
+/// @brief A floored addition declares an accumulation and an additive cost, but a backward label
+///        meets the floor at the other end of the path, so it costs the path differently: refused
+///        for a backward search, and for a bidirectional one; a forward search finds the path.
+TEST(ModelChecks, AFlooredAdditionIsRefusedForABackwardSearch) {
+    namespace mc = model_checks_test;
+    auto graph = mc::floor_graph(0.0);
+    for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        const std::string message = mc::problems(*graph, direction);
+        EXPECT_NE(message.find("the model's cost is not the same read backward: along 0 -> 1, "
+                               "then 1 -> 2, the forward search costs the path 2.000000 and the "
+                               "backward search 10.000000"),
+                  std::string::npos)
+            << to_string(direction) << ": " << message;
+    }
+    EXPECT_EQ(mc::problems(*graph, SearchDirection::Forward), "");
+    EXPECT_THROW((void)graph->solve<strategy::Simple>(mc::searching(SearchDirection::Backward)),
+                 ModelRefused);
+    EXPECT_NEAR(mc::best_cost(graph->solve<strategy::Simple>(AlgorithmBaseParams{})),
+                2.0,
+                mc::kTolerance);
+
+    // Without the floor it is a sum, and the backward search finds the same path.
+    auto sum = mc::floor_graph(std::nullopt);
+    EXPECT_EQ(mc::problems(*sum, SearchDirection::Backward), "");
+    EXPECT_NEAR(
+        mc::best_cost(sum->solve<strategy::Simple>(mc::searching(SearchDirection::Backward))),
+        2.0,
+        mc::kTolerance);
+}
+
+/// @brief A priced bottleneck reads the same in either order, so a backward search costs its paths
+///        as the forward one does, and the backward check accepts it (the join, which adds the
+///        halves, refuses it).
+TEST(ModelChecks, APricedBottleneckReadsTheSameBackward) {
+    namespace mc = model_checks_test;
+    auto graph = mc::load_line(std::make_unique<mc::Bottleneck>(),
+                               std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                               std::make_unique<ValueCostFunction<RealResource>>());
+    EXPECT_EQ(mc::problems(*graph, SearchDirection::Backward), "");
+    EXPECT_NEAR(
+        mc::best_cost(graph->solve<strategy::Simple>(mc::searching(SearchDirection::Backward))),
+        7.0,
+        mc::kTolerance);
+}

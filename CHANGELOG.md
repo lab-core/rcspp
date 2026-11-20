@@ -304,6 +304,13 @@ New features are summarised, with a pointer to where they are documented.
   the bound then overestimated, and `prune_by_incumbent` could drop the cheapest path. The solve
   now runs the extension on pairs of the model's arcs before the prune reads the bound. Where an
   arc adds less than its share, the prune compares the cost alone.
+- **A backward search refuses a cost that totals a path differently from its two ends.** A floor
+  or a ceiling on an addition is met at the start of a forward label and at the end of a backward
+  one, so a backward search returned a path at the wrong cost, or lost it, with a `complete`
+  status. `BackwardExtensionCheck` now runs the extension both ways on pairs of the model's arcs,
+  and refuses the model (`the model's cost is not the same read backward`), for a bidirectional
+  search too. A maximum (a bottleneck) reads the same in either order and is still accepted. The
+  join's sum check reads the same pairs, which now put every arc second at least once.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a
