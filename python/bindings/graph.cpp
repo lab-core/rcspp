@@ -276,7 +276,8 @@ void init_graph(py::module_& m) {
                        "bound_guided_greedy is meant to be used with it. With no upper_bound, only "
                        "labels that can reach no end node are dropped. Needs an additive cost: "
                        "every resource the cost reads uses TrivialCostFunction, or "
-                       "ValueCostFunction under an addition (AdditionExtensionFunction); another "
+                       "ValueCostFunction under an addition (AdditionExtensionFunction), and each "
+                       "arc must add its share whatever the label, which the solve tests; another "
                        "raises ValueError when solve() starts.")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)

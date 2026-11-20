@@ -482,7 +482,7 @@ class AlgorithmParams:
     @property
     def prune_by_threshold(self) -> bool:
         """
-        Whether a search drops a label whose cost plus a lower bound on the cost still to pay from its node is at or above the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Read by every algorithm (simple, pushing, pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; bound_guided_greedy is meant to be used with it. With no upper_bound, only labels that can reach no end node are dropped. Needs an additive cost: every resource the cost reads uses TrivialCostFunction, or ValueCostFunction under an addition (AdditionExtensionFunction); another raises ValueError when solve() starts.
+        Whether a search drops a label whose cost plus a lower bound on the cost still to pay from its node is at or above the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Read by every algorithm (simple, pushing, pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; bound_guided_greedy is meant to be used with it. With no upper_bound, only labels that can reach no end node are dropped. Needs an additive cost: every resource the cost reads uses TrivialCostFunction, or ValueCostFunction under an addition (AdditionExtensionFunction), and each arc must add its share whatever the label, which the solve tests; another raises ValueError when solve() starts.
         """
 
     @prune_by_threshold.setter
