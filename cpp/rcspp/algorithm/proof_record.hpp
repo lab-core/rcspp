@@ -25,8 +25,9 @@ enum class ProofLoss : std::uint8_t {
     /// a heuristic changed the search between runs: a tabu search's driver, once it makes an arc
     /// tabu (DiversificationSearch records it too, but is never proven anyway)
     HeuristicDriver,
-    /// the incumbent prune compared a label's cost alone (the cost is not additive): it may have
-    /// dropped the cheapest path
+    /// the incumbent prune compared a label's cost alone (the completion bound is not valid: the
+    /// cost is not additive, or an arc adds less than its share): it may have dropped the
+    /// cheapest path
     IncumbentPrune,
 };
 

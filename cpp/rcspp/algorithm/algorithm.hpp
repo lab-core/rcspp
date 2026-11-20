@@ -173,7 +173,7 @@ class Algorithm {
             // initialize labels
             this->initialize_labels();
 
-            size_t runs = 0;
+            size_t number_of_runs = 0;
             while (!should_end_loop() && number_of_waiting_labels() > 0) {
                 // main labeling loop
                 main_loop();
@@ -182,7 +182,7 @@ class Algorithm {
                 record_remaining_solutions();
 
                 // the next phase, or a driver's next run (if any)
-                if (!prepare_next_run(++runs)) {
+                if (!prepare_next_run(++number_of_runs)) {
                     break;
                 }
             }
@@ -325,9 +325,9 @@ class Algorithm {
         friend class DiversificationSearch;
 
         /// @brief Promises that the graph, costs included, has not changed since the last solve,
-        ///        so that the completion bound computed then can be kept
-        ///        (@c LabellingAlgorithm::refresh_completion_bound), until this is set back to @c
-        ///        false.
+        ///        so that the completion bound computed then, and whether a prune may add it, can
+        ///        be kept (@c LabellingAlgorithm::refresh_completion_bound,
+        ///        @ref refresh_completion_bound_validity), until this is set back to @c false.
         ///
         /// Protected: only @ref DiversificationSearch makes this promise, between its inner
         /// solves. A wrong promise leaves a stale bound, so wrong pruning and ordering. The arc
@@ -343,7 +343,8 @@ class Algorithm {
         /// @brief Starts a solve: stores the graph and the upper bound, sets the incumbent to
         ///        the upper bound, clears the pool and the solutions, resets the counters, the
         ///        quota, the pressure flag and the proof record, and records the proof losses
-        ///        known at the start (an arc mask, a prune on a cost that is not additive).
+        ///        known at the start (an arc mask, an incumbent prune with no valid completion
+        ///        bound, @ref refresh_completion_bound_validity).
         ///
         /// An override calls this first, then sets up its own search(es).
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
@@ -379,16 +380,22 @@ class Algorithm {
         ///        is on: the cost is declared additive (@ref is_cost_additive) and no arc of the
         ///        model was seen adding less than its share (@c detail::find_share_shortfall).
         ///
-        /// Run at the start of each solve with a prune on.
+        /// Run at the start of each solve with a prune on; the verdict is kept when the graph is
+        /// promised unchanged (@ref set_graph_unchanged), as the bound is.
         void refresh_completion_bound_validity(const Graph<ResourceType>& graph) {
             if (!params_.prune_by_incumbent) {
                 completion_bound_valid_ = false;
+                completion_bound_validity_graph_ = nullptr;
+                return;
+            }
+            if (is_graph_unchanged() && completion_bound_validity_graph_ == &graph) {
                 return;
             }
             cost_declared_additive_ = is_cost_additive(graph);
             share_shortfall_ =
                 cost_declared_additive_ ? detail::find_share_shortfall(graph) : std::nullopt;
             completion_bound_valid_ = cost_declared_additive_ && !share_shortfall_.has_value();
+            completion_bound_validity_graph_ = &graph;
         }
 
         /// @brief Warns, once per algorithm, that the incumbent prune compares the cost alone
@@ -818,6 +825,8 @@ class Algorithm {
         bool cost_declared_additive_ = false;  ///< see @ref is_cost_additive
         /// @brief Where an arc was seen adding less than its share, if anywhere.
         std::optional<detail::ShareShortfall> share_shortfall_;
+        /// @brief The graph the verdict was reached on; null when none is kept.
+        const Graph<ResourceType>* completion_bound_validity_graph_ = nullptr;
         bool share_shortfall_warned_ = false;  ///< see @ref warn_about_share_shortfall
 
         size_t number_of_extended_labels_ = 0;

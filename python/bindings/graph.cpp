@@ -160,17 +160,17 @@ void init_graph(py::module_& m) {
                       "none is returned): status is 'complete', the admission rule is exact, "
                       "memory pressure did not trim the labels, a tabu search never made an arc "
                       "tabu (so a tabu solve is a proof only when its first episode found no "
-                      "path), and the incumbent prune did not compare a cost that is not additive. "
-                      "proof_lost_by says why it is not.")
+                      "path), and the incumbent prune had a valid completion bound (an additive "
+                      "cost whose arcs each add their share). proof_lost_by says why it is not.")
         .def_readonly("proof_lost_by",
                       &SolveResult::proof_lost_by,
                       "Why the result is not a proof; empty when it is. When the search did not "
                       "finish: the status's name ('truncated', 'timeout', 'max_solutions', "
                       "'interrupted', 'memory_limit'). Otherwise, the first loss: "
                       "'relaxed_admission' (admission_rule), 'heuristic_driver' (a tabu search "
-                      "made an arc tabu), 'incumbent_prune' (prune_by_incumbent on a cost that is "
-                      "not additive) or 'memory_pressure'. ('arcs_masked' comes only from the C++ "
-                      "arc masks.)")
+                      "made an arc tabu), 'incumbent_prune' (prune_by_incumbent with no valid "
+                      "completion bound) or 'memory_pressure'. ('arcs_masked' comes only from "
+                      "the C++ arc masks.)")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -232,8 +232,10 @@ void init_graph(py::module_& m) {
                        "Whether a search drops a label that cannot lead to a path cheaper than the "
                        "incumbent (the cheapest path found so far, or the upper bound until one is "
                        "found): its cost plus its completion bound is at or above the incumbent "
-                       "(default False). Exact under an additive cost; under another, the cost "
-                       "alone is compared and the result is not a proof ('incumbent_prune').")
+                       "(default False). Exact when the completion bound is valid: an additive "
+                       "cost whose arcs each add their share whatever the label, which the solve "
+                       "tests at the start. Otherwise the cost alone is compared and the result "
+                       "is not a proof ('incumbent_prune').")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
