@@ -401,28 +401,69 @@ class Algorithm {
             }
             dominance_mask_ = admission_mask(*graph);
             if (params_.prune_by_threshold) {
-                require_additive_cost(*graph);
+                require_valid_completion_bound();
             }
         }
 
-        /// @brief Throws unless the cost of @p graph's model is additive, as the threshold prune's
-        ///        bound needs (@c Resource::is_cost_additive, read off any node's resource).
+        /// @brief Decides whether a prune may add the completion bound on @p graph, when a prune
+        ///        is on: the cost is declared additive (@ref is_cost_additive) and no arc of the
+        ///        model was seen adding less than its share (@c detail::find_share_shortfall).
         ///
-        /// @throws std::invalid_argument when it is not.
-        static void require_additive_cost(const Graph<ResourceType>& graph) {
-            for (const size_t node_id : graph.get_node_ids()) {
-                const auto* node = graph.get_node(node_id);
-                if (node == nullptr || node->resource == nullptr) {
-                    continue;
-                }
-                if (!node->resource->is_cost_additive()) {
-                    throw std::invalid_argument(
-                        "prune_by_threshold needs an additive cost, so that the cost still to pay "
-                        "from a node is bounded by the sum of the arcs' shares: every component "
-                        "the cost reads must have a zero cost (TrivialCostFunction) or a value "
-                        "cost (ValueCostFunction) under an accumulating extension");
-                }
+        /// Run at the start of each solve with a prune on; the verdict is kept when the graph is
+        /// promised unchanged (@ref set_graph_unchanged), as the bound is.
+        void refresh_completion_bound_validity(const Graph<ResourceType>& graph) {
+            if (!params_.prune_by_incumbent && !params_.prune_by_threshold) {
+                completion_bound_valid_ = false;
+                completion_bound_validity_graph_ = nullptr;
                 return;
+            }
+            if (is_graph_unchanged() && completion_bound_validity_graph_ == &graph) {
+                return;
+            }
+            cost_declared_additive_ = is_cost_additive(graph);
+            share_shortfall_ =
+                cost_declared_additive_ ? detail::find_share_shortfall(graph) : std::nullopt;
+            completion_bound_valid_ = cost_declared_additive_ && !share_shortfall_.has_value();
+            completion_bound_validity_graph_ = &graph;
+        }
+
+        /// @brief Warns, once per algorithm, that the incumbent prune compares the cost alone
+        ///        because an arc adds less than its share (@ref share_shortfall_). A cost declared
+        ///        not additive is documented to do the same, and gets no warning.
+        void warn_about_share_shortfall() {
+            if (!share_shortfall_.has_value() || share_shortfall_warned_) {
+                return;
+            }
+            share_shortfall_warned_ = true;
+            LOG_WARN(
+                "prune_by_incumbent compares a label's cost alone, without the completion "
+                "bound, which could drop the cheapest path: ",
+                detail::to_string(*share_shortfall_),
+                ".\n");
+        }
+
+        /// @brief Throws unless a prune may add the completion bound on this solve's graph
+        ///        (@ref refresh_completion_bound_validity), as the threshold prune needs.
+        ///
+        /// @throws std::invalid_argument when the cost is not declared additive, or an arc was
+        ///         seen adding less than its share.
+        void require_valid_completion_bound() const {
+            if (!cost_declared_additive_) {
+                throw std::invalid_argument(
+                    "prune_by_threshold needs an additive cost, so that the cost still to pay "
+                    "from a node is bounded by the sum of the arcs' shares: every component "
+                    "the cost reads must have a zero cost (TrivialCostFunction) or a value "
+                    "cost (ValueCostFunction) under an accumulating extension");
+            }
+            if (share_shortfall_.has_value()) {
+                throw std::invalid_argument(
+                    "prune_by_threshold needs every arc to add at least its share of the cost, "
+                    "whatever the label it extends: " +
+                    detail::to_string(*share_shortfall_) +
+                    ", so the bound the prune reads could drop the cheapest path. A floor "
+                    "(AdditionExtensionFunction's min_value), a ceiling or a maximum in a priced "
+                    "extension does this; turn the prune off, or price only components whose "
+                    "extension adds a fixed amount per arc");
             }
         }
 
@@ -482,43 +523,6 @@ class Algorithm {
                 }
             }
             return 0;
-        }
-
-        /// @brief Decides whether a prune may add the completion bound on @p graph, when a prune
-        ///        is on: the cost is declared additive (@ref is_cost_additive) and no arc of the
-        ///        model was seen adding less than its share (@c detail::find_share_shortfall).
-        ///
-        /// Run at the start of each solve with a prune on; the verdict is kept when the graph is
-        /// promised unchanged (@ref set_graph_unchanged), as the bound is.
-        void refresh_completion_bound_validity(const Graph<ResourceType>& graph) {
-            if (!params_.prune_by_incumbent) {
-                completion_bound_valid_ = false;
-                completion_bound_validity_graph_ = nullptr;
-                return;
-            }
-            if (is_graph_unchanged() && completion_bound_validity_graph_ == &graph) {
-                return;
-            }
-            cost_declared_additive_ = is_cost_additive(graph);
-            share_shortfall_ =
-                cost_declared_additive_ ? detail::find_share_shortfall(graph) : std::nullopt;
-            completion_bound_valid_ = cost_declared_additive_ && !share_shortfall_.has_value();
-            completion_bound_validity_graph_ = &graph;
-        }
-
-        /// @brief Warns, once per algorithm, that the incumbent prune compares the cost alone
-        ///        because an arc adds less than its share (@ref share_shortfall_). A cost declared
-        ///        not additive is documented to do the same, and gets no warning.
-        void warn_about_share_shortfall() {
-            if (!share_shortfall_.has_value() || share_shortfall_warned_) {
-                return;
-            }
-            share_shortfall_warned_ = true;
-            LOG_WARN(
-                "prune_by_incumbent compares a label's cost alone, without the completion "
-                "bound, which could drop the cheapest path: ",
-                detail::to_string(*share_shortfall_),
-                ".\n");
         }
 
         /// @brief Throws unless this algorithm supports the direction its params ask for.
@@ -630,9 +634,9 @@ class Algorithm {
         /// Every pointer in it points to the graph being solved, into this algorithm (its pool,
         /// params, incumbent, quota and solutions), into @p search (its completion bound), or to
         /// the arc mask set with @ref set_arc_mask: the context is valid while this algorithm, the
-        /// search and the mask live. It also says whether the
-        /// incumbent prune adds the completion bound (@c prune_adds_completion_bound: the prune is
-        /// on and the bound is valid, @ref refresh_completion_bound_validity).
+        /// search and the mask live. It also says whether the incumbent prune adds the completion
+        /// bound (@c prune_adds_completion_bound: the prune is on and the bound is valid,
+        /// @ref refresh_completion_bound_validity).
         ///
         /// @param search    The search (a @c detail::Search).
         /// @param role      Whether it runs alone or as a side of a bidirectional search.
@@ -951,9 +955,6 @@ class Algorithm {
         ///        (@ref admission_mask); built again at the start of each solve.
         DominanceMask dominance_mask_;
 
-        /// @brief The first reason this solve is not a proof that its status does not show
-        ///        (@c ProofLoss). @ref initialize resets it.
-        ProofRecord proof_;
         /// @brief Whether a prune may add the completion bound
         ///        (@ref refresh_completion_bound_validity).
         bool completion_bound_valid_ = false;
@@ -964,6 +965,10 @@ class Algorithm {
         ///        while that graph is promised unchanged; null when nothing is kept.
         const Graph<ResourceType>* completion_bound_validity_graph_ = nullptr;
         bool share_shortfall_warned_ = false;  ///< see @ref warn_about_share_shortfall
+
+        /// @brief The first reason this solve is not a proof that its status does not show
+        ///        (@c ProofLoss). @ref initialize resets it.
+        ProofRecord proof_;
 
         size_t number_of_extended_labels_ = 0;
 

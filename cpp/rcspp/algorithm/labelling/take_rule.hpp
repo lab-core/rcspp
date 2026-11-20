@@ -143,7 +143,8 @@ struct TakeRule {
         ///        plus its completion bound is at or above it, with a margin of the params'
         ///        tolerance, relative to the upper bound when that is above 1 in magnitude.
         ///
-        /// Dropping such a label loses no path below the upper bound, under an additive cost. The
+        /// Dropping such a label loses no path below the upper bound, the bound being valid (the
+        /// solve refuses the prune otherwise, @c Algorithm::require_valid_completion_bound). The
         /// bound is consistent: at each arc, the bound at the tail is at most the arc's share plus
         /// the bound at the head. So every label extended from it would be out of reach too. And
         /// every label it evicted at admission cost at least as much at the same node, so it was
