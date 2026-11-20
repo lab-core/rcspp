@@ -325,6 +325,20 @@ small = master.add_pricer(GraphPricer(small_vehicle_graph), ConvexityRow(max_pat
 Every class and option is described in its docstring, e.g.
 `help(rcspp.column_generation.GraphPricer)`.
 
+### A complete example: vehicle routing
+
+`examples/python/` solves the vehicle routing problem with time windows with this package: it reads a
+Solomon instance, builds the pricing graph (distance, time windows, capacity), runs column
+generation over a highspy or gurobipy master, then picks an integer set of routes among those
+generated. From the repository's root, with rcspp and one of the two LP solvers installed:
+
+```bash
+python examples/python/solve_vrp.py instances/C101_25.txt --master highspy
+```
+
+Its README, `examples/python/vrp/README.md`, describes the options, the output, and what to change
+for elementary routes, a heuristic pricing stage or a fleet limit.
+
 ### The C++ example
 
 The repository also has the same column generation written in C++ over the C++ library, with

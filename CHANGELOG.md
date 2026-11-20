@@ -126,6 +126,11 @@ New features are summarised, with a pointer to where they are documented.
 - **A plain `cmake --install` installs the C++ library alone**: the library, its headers and the
   CMake package `find_package(rcspp)` reads. It no longer installs the Python extension and
   package, which the wheel build installs (`pip install .`), nor GoogleTest.
+- **The Python VRP example (`examples/python/`) runs on `rcspp.column_generation`** instead of its
+  own loop over a python-mip master: python-mip is no longer used. `solve_vrp.py` needs
+  `--master highspy` or `--master gurobipy`, and solves the integer plan after the LP unless
+  `--no-integer` is given; `python -m vrp` is gone, and so are the example's `VRP` class and
+  `InstanceReader`. See `examples/python/vrp/README.md`.
 
 ### Added
 
