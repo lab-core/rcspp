@@ -466,7 +466,7 @@ TEST(BestFirstSchedule, HandsLabelsOutLowestKeyFirstOlderFirstOnTies) {
     namespace st = schedules_test;
     namespace bft = best_first_test;
     st::Fixture f;
-    f.bound.by_position = {0.0, 10.0, 0.0};
+    f.completion_bound.by_position = {0.0, 10.0, 0.0};
 
     bft::BestFirst best_first;
     best_first.initialize(f.context);
@@ -492,7 +492,7 @@ TEST(BestFirstSchedule, AFailedBoundCountsAsZero) {
     namespace st = schedules_test;
     namespace bft = best_first_test;
     st::Fixture f;
-    f.bound.by_position = {0.0, -std::numeric_limits<double>::infinity(), 0.0};
+    f.completion_bound.by_position = {0.0, -std::numeric_limits<double>::infinity(), 0.0};
     bft::BestFirst best_first;
     best_first.initialize(f.context);
     best_first.push(f.label(2, 2.0));
@@ -520,11 +520,11 @@ TEST(BestFirstSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {
         EXPECT_EQ(f.in_use(), 2U) << "the dominated label is released";
         best_first.prepare_next_phase(f.context);
         if (role == detail::Role::Single) {
-            EXPECT_EQ(f.abandoned, 0U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 0U);
             EXPECT_EQ(bft::drain(&best_first, f.context),
                       (std::vector<std::pair<size_t, double>>{{1, 2.0}}));
         } else {
-            EXPECT_EQ(f.abandoned, 1U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 1U);
             EXPECT_EQ(best_first.size(), 0U);
         }
     }
@@ -558,7 +558,7 @@ TEST(BestFirstSchedule, ATrimCutsAsTheRoleSays) {
             EXPECT_EQ(f.in_use(), 1U);
         } else {
             EXPECT_EQ(erased, 0U);
-            EXPECT_EQ(f.abandoned, 3U);
+            EXPECT_EQ(f.number_of_abandoned_labels, 3U);
         }
     }
 

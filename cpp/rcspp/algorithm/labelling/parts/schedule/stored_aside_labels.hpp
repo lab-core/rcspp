@@ -30,7 +30,7 @@ class StoredAsideLabels {
     public:
         /// @brief Stores a non-dominated label aside for the next phase (until a later
         ///        memory-pressure event releases it: see the class); on a bidirectional side
-        ///        (@c context.abandons()), abandons it and counts it instead.
+        ///        (@c context.should_abandon()), abandons it and counts it instead.
         void store_aside(detail::SearchContext<ResourceType>& context,
                          const StoredLabel<ResourceType>& stored) {
             if (!context.should_abandon()) {
