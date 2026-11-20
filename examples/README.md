@@ -21,17 +21,20 @@ The large benchmark target is `rcspp-vrp-benchmark-large`.
 
 ## Python (`examples/python/`)
 
-[`solve_vrp.py`](python/solve_vrp.py) solves a single VRPTW instance. Build the
-Python extension first (`cmake -B build -DUSE_PYTHON=ON && cmake --build build`),
-then run:
+[`solve_vrp.py`](python/solve_vrp.py) solves a VRPTW instance by column generation with
+`rcspp.column_generation`, over a HiGHS or Gurobi master, then picks an integer set of routes.
+Install rcspp with one of the two LP solvers (`pip install ".[highspy]"` or `".[gurobipy]"` from the
+repository's root), then run:
 
 ```bash
-# RCSPP subproblem only — no Gurobi required
-python examples/python/solve_vrp.py instances/C101_5.txt --subproblem-only
+# Column generation, then the integer plan
+python examples/python/solve_vrp.py instances/C101_25.txt --master highspy
 
-# Full column generation — requires Gurobi + mip
-python examples/python/solve_vrp.py instances/C101_5.txt
+# One pricing call with zero duals: no LP solver needed
+python examples/python/solve_vrp.py instances/C101_5.txt --subproblem-only
 ```
+
+The options, the output and how to extend the model: [`python/vrp/README.md`](python/vrp/README.md).
 
 ## C++ column generation (`examples/column_generation/`)
 
