@@ -363,7 +363,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 // join only owes the improving paths, and that keeps its output to a handful.
                 .prune_by_incumbent = this->params_.prune_by_incumbent || stopped_early,
                 .upper_bound = this->upper_bound_,
-                .max_solutions = this->params_.max_solutions,
+                .max_solutions = this->max_solutions_,
             };
             join(*this->graph_,
                  forward_.labels.containers(),

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <unordered_set>
 
 #include "rcspp/algorithm/algorithm.hpp"
@@ -45,6 +46,9 @@ struct SearchContext {
         const Graph<ResourceType>* graph = nullptr;
         LabelPool<ResourceType>* pool = nullptr;
         const AlgorithmBaseParams* params = nullptr;
+        /// This solve's number of solutions (@c Algorithm::make_context sets it: the params'
+        /// @c max_solutions, or the solve's own, @c SolveLimitParams). Empty: the params'.
+        std::optional<size_t> max_solutions;
         /// The cost upper bound the solve was given (`cost_upper_bound`): a path costing at or
         /// above it is not returned. It does not change during the solve; +infinity: no bound.
         double upper_bound = std::numeric_limits<double>::infinity();
@@ -81,9 +85,10 @@ struct SearchContext {
 
         /// @brief Whether the run ends now that an end-node label was recorded: always in a driven
         ///        run that ends at its first path (@ref run_ends_at_end_node), and otherwise once
-        ///        the solve holds @c max_solutions solutions.
+        ///        the solve holds @ref max_solutions solutions.
         [[nodiscard]] bool should_end_run() const {
-            return run_ends_at_end_node || solutions->size() >= params->max_solutions;
+            return run_ends_at_end_node ||
+                   solutions->size() >= max_solutions.value_or(params->max_solutions);
         }
 };
 

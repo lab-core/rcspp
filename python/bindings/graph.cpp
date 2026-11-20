@@ -239,6 +239,36 @@ void init_graph(py::module_& m) {
             return text + ")";
         });
 
+    // ── Solver ────────────────────────────────────────────────────────────────
+    // Bound before the graphs, whose _make_solver returns it.
+
+    py::class_<PySolver>(m,
+                         "_Solver",
+                         "The C++ side of rcspp.graph.Solver: an algorithm kept for one graph.")
+        .def(
+            "solve",
+            [](PySolver& solver,
+               double upper_bound,
+               bool preprocess,
+               size_t cost_index,
+               std::optional<double>
+                   timeout_s,
+               std::optional<size_t>
+                   max_solutions) {
+                const SolveLimitParams limits{.timeout_s = timeout_s,
+                                              .max_solutions = max_solutions};
+                return ActiveCall::run_interruptible(
+                    [&] { return solver.solve(upper_bound, preprocess, cost_index, limits); });
+            },
+            py::arg("upper_bound"),
+            py::arg("preprocess"),
+            py::arg("cost_index"),
+            py::arg("timeout_s") = py::none(),
+            py::arg("max_solutions") = py::none())
+        .def_property_readonly("number_of_extended_labels", &PySolver::number_of_extended_labels)
+        .def_property_readonly("number_of_retained_labels", &PySolver::number_of_retained_labels)
+        .def_property_readonly("number_of_created_labels", &PySolver::number_of_created_labels);
+
     // ── Shared scalar types ───────────────────────────────────────────────────
 
     py::class_<Row>(m, "Row")
@@ -297,12 +327,16 @@ void init_graph(py::module_& m) {
         .def_readwrite("tolerance",
                        &PyAlgorithmParams::tolerance,
                        "Numerical tolerance for cost comparisons (default 1e-9).")
-        .def_readwrite(
-            "release_after_solve",
-            &PyAlgorithmParams::release_after_solve,
-            "If true (default), release label memory after solve(). Set to false when the "
-            "same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() "
-            "overhead.")
+        .def_readwrite("release_after_solve",
+                       &PyAlgorithmParams::release_after_solve,
+                       "If true (default), release label memory after solve(). A Solver "
+                       "(ResourceGraph.solver) ignores it: it keeps its labels for its next "
+                       "solve, as many as max_retained_labels.")
+        .def_readwrite("max_retained_labels",
+                       &PyAlgorithmParams::max_retained_labels,
+                       "The most labels a Solver (ResourceGraph.solver) keeps after a solve: a "
+                       "solve that ends with more releases them all. Default: no bound; 0 "
+                       "releases them after every solve.")
         .def_readwrite("tabu_tenure",
                        &PyAlgorithmParams::tabu_tenure,
                        "The tabu searches' base tenure: an arc made tabu stays tabu for the next "

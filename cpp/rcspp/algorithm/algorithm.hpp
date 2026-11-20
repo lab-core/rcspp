@@ -136,12 +136,15 @@ class Algorithm {
         /// @param graph            The graph; it must not change during the solve.
         /// @param cost_upper_bound Only paths cheaper than this are returned; +infinity for no
         ///                         bound.
-        /// @return The paths, each once, at most @c max_solutions, cheapest first; and the
-        ///         status.
+        /// @param limits           This solve's limits, in place of the params' (@c timeout_s,
+        ///                         @c max_solutions); a limit left empty is the params'.
+        /// @return The paths, each once, at most @c max_solutions (this solve's), cheapest
+        ///         first; and the status.
         /// @throws std::invalid_argument when the algorithm does not support the direction.
         /// @throws ModelRefused when the model checks of a backward or bidirectional search
         ///         fail.
-        virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
+        virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound,
+                                  const SolveLimitParams& limits = {}) {
             require_supported_direction();
             // The checks this direction needs, whoever calls: ResourceGraph::solve ran them
             // already, before preprocessing, but a direct call or an algorithm running another
@@ -152,6 +155,8 @@ class Algorithm {
             // initialization
             Timer timer(true);
             timed_out_ = false;
+            max_solutions_ = limits.max_solutions.value_or(params_.max_solutions);
+            timeout_s_ = limits.timeout_s.value_or(params_.timeout_s);
             last_solve_proven_ = false;
             solve_timer_ = &timer;
             memory_limit_.resolve(params_.max_memory_gb,
@@ -210,8 +215,8 @@ class Algorithm {
             LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
             // resize solutions if needed
-            if (solutions.size() > params_.max_solutions) {
-                solutions.resize(params_.max_solutions);
+            if (solutions.size() > max_solutions_) {
+                solutions.resize(max_solutions_);
             }
 
             // Determine the exit status. "All labels processed" (number_of_waiting_labels() == 0)
@@ -233,7 +238,7 @@ class Algorithm {
                 status = AlgorithmStatus::Interrupted;
             } else if (memory_limit_.is_exceeded()) {
                 status = AlgorithmStatus::MemoryLimit;
-            } else if (solutions.size() >= params_.max_solutions) {
+            } else if (solutions.size() >= max_solutions_) {
                 status = AlgorithmStatus::MaxSolutions;
             } else {
                 status = AlgorithmStatus::Truncated;
@@ -624,6 +629,7 @@ class Algorithm {
                 .graph = graph_,
                 .pool = &label_pool_,
                 .params = &params_,
+                .max_solutions = max_solutions_,
                 .upper_bound = upper_bound_,
                 .incumbent = &incumbent_,
                 .quota = &quota_,
@@ -851,29 +857,45 @@ class Algorithm {
         /// calls are O(1) (no timer read).  Safe to call only during solve().
         bool is_time_out() {
             if (!timed_out_ && solve_timer_ != nullptr &&
-                solve_timer_->elapsed_seconds() >= params_.timeout_s) {
+                solve_timer_->elapsed_seconds() >= timeout_s_) {
                 timed_out_ = true;
             }
             return timed_out_;
         }
 
+        /// @brief The time this solve has left before its limit (@ref timeout_s_), in seconds:
+        ///        +infinity without a limit, and 0 outside a solve.
+        [[nodiscard]] double remaining_time_s() const {
+            if (solve_timer_ == nullptr) {
+                return 0.0;
+            }
+            return std::max(0.0, timeout_s_ - solve_timer_->elapsed_seconds());
+        }
+
         /// @brief Whether a loop must stop: @p iteration has reached @c max_iterations (0, the
-        ///        default, skips this check), @c max_solutions solutions are held, the time limit
-        ///        has passed, or the caller's @c should_stop callback asks to stop
+        ///        default, skips this check), this solve's @ref max_solutions_ solutions are held,
+        ///        its time limit has passed, or the caller's @c should_stop callback asks to stop
         ///        (@ref is_interrupted).
         ///
         /// Every loop asks it: @ref solve's loop over phases, and each algorithm's own loop.
         ///
         /// @param iteration The loop's iteration count (0 skips the iteration check).
         bool should_end_loop(size_t iteration = 0) {
-            return iteration >= params_.max_iterations ||
-                   solutions_.size() >= params_.max_solutions || is_time_out() || is_interrupted();
+            return iteration >= params_.max_iterations || solutions_.size() >= max_solutions_ ||
+                   is_time_out() || is_interrupted();
         }
 
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams<LabelContainerType> params_;
         MemoryLimitHelper memory_limit_;  ///< Resolved at the start of each solve().
+
+        /// @brief This solve's number of solutions: the params' @c max_solutions, or the solve's
+        ///        own (@c SolveLimitParams). Set at the start of each solve.
+        size_t max_solutions_ = kNoLimit;
+        /// @brief This solve's wall-clock limit in seconds: the params' @c timeout_s, or the
+        ///        solve's own (@c SolveLimitParams). Set at the start of each solve.
+        double timeout_s_ = std::numeric_limits<double>::infinity();
 
         /// @brief Effective per-node extension cap.
         ///

@@ -77,6 +77,74 @@ while True:
 
 ---
 
+## One solver per pricing problem
+
+`rg.solve()` builds a new algorithm at every call, and with it every label of the search. A
+pricing problem is solved again at every iteration, so keep one solver for it instead: each of its
+solves reuses the labels of the solves before it rather than allocating new ones.
+
+```python
+pricing = rg.solver("pulling")  # once, before the loop
+
+while True:
+    rg.update_reduced_costs(duals, cost_index=0)
+    result = pricing.solve(upper_bound=-1e-9, timeout_s=time_left)
+
+    if not result.solutions:
+        # LP optimal only if the search proves it: a timeout proves nothing
+        lp_optimal = result.proven
+        break
+
+    for sol in result.solutions:
+        master.add_column(sol.column)
+
+    duals = master.solve_and_get_duals()
+```
+
+- A solver solves its graph as it stands at each solve: reduced costs updated, and arcs added,
+  removed or restored since, are taken into account. It keeps the graph alive.
+- `rg.solver(algorithm, params, direction)` reads its arguments once. Each `solve` may set its own
+  `timeout_s` and `max_solutions`, in place of the params'. `params.could_be_non_optimal()` does
+  not see them: read the result's `status`. A solve that returns no column proves the LP optimal
+  only when `result.proven` is true: a `Complete` status alone is not a proof (memory pressure,
+  a relaxed admission rule or masked arcs leave it `Complete`; see `proof_lost_by`).
+- A solver keeps the labels of its largest solve, whatever `params.release_after_solve` says.
+  `params.max_retained_labels` bounds them: a solve that ends with more releases them all (0
+  releases them after every solve).
+- `solver.number_of_created_labels` counts the labels allocated since the solver was built: a
+  solve that needs no more labels than one before it allocates none.
+- A solver is not thread-safe: do not solve its graph from two threads at once.
+
+In C++, keep the algorithm: build it once with `release_after_solve = false`, and solve with it.
+The last argument of `ResourceGraph::solve`, a `SolveLimitParams`, gives one solve its own time
+limit or number of solutions in place of the params'.
+
+<!-- docs-check: given std::vector<double> duals; double time_left_s = 10.0; -->
+
+```cpp
+using Labels = LabelList<ResourceTypeComposition<RealResource, IntResource>>;
+AlgorithmParams<Labels> params;
+params.release_after_solve = false;  // keep the labels for the next iteration
+auto pricing = graph.create_algorithm<strategy::Pulling>(params);
+
+bool lp_optimal = false;
+while (true) {
+    graph.update_reduced_costs(duals);
+    const SolveResult result = graph.solve(pricing.get(), /*upper_bound=*/-1e-9,
+                                           /*preprocess=*/true, /*cost_index=*/0,
+                                           SolveLimitParams{.timeout_s = time_left_s});
+    if (result.solutions.empty()) {
+        // LP optimal only if the search proves it: a timeout proves nothing
+        lp_optimal = result.proven;
+        break;
+    }
+    // add result.solutions to the master, solve it, and read the new duals
+}
+std::cout << (lp_optimal ? "LP optimal\n" : "stopped early\n");
+```
+
+---
+
 ## `PricingPool` — column pool with activity tracking
 
 For large CG applications, reusing previously found columns across iterations

@@ -305,6 +305,26 @@ class SolveResult:
     @solutions.setter
     def solutions(self, arg0: collections.abc.Sequence[Solution]) -> None: ...
 
+class _Solver:
+    """
+    The C++ side of rcspp.graph.Solver: an algorithm kept for one graph.
+    """
+
+    def solve(
+        self,
+        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
+        preprocess: bool,
+        cost_index: typing.SupportsInt | typing.SupportsIndex,
+        timeout_s: typing.SupportsFloat | typing.SupportsIndex | None = None,
+        max_solutions: typing.SupportsInt | typing.SupportsIndex | None = None,
+    ) -> SolveResult: ...
+    @property
+    def number_of_created_labels(self) -> int: ...
+    @property
+    def number_of_extended_labels(self) -> int: ...
+    @property
+    def number_of_retained_labels(self) -> int: ...
+
 class Row:
     @typing.overload
     def __init__(self) -> None: ...
@@ -432,6 +452,14 @@ class AlgorithmParams:
     @max_phases.setter
     def max_phases(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
     @property
+    def max_retained_labels(self) -> int:
+        """
+        The most labels a Solver (ResourceGraph.solver) keeps after a solve: a solve that ends with more releases them all. Default: no bound; 0 releases them after every solve.
+        """
+
+    @max_retained_labels.setter
+    def max_retained_labels(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
+    @property
     def max_solutions(self) -> int: ...
     @max_solutions.setter
     def max_solutions(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
@@ -490,7 +518,7 @@ class AlgorithmParams:
     @property
     def release_after_solve(self) -> bool:
         """
-        If true (default), release label memory after solve(). Set to false when the same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() overhead.
+        If true (default), release label memory after solve(). A Solver (ResourceGraph.solver) ignores it: it keeps its labels for its next solve, as many as max_retained_labels.
         """
 
     @release_after_solve.setter
@@ -686,6 +714,11 @@ class _real_resource_graph(Graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -890,6 +923,11 @@ class _real_int_resource_graph(_real_int_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -1109,6 +1147,11 @@ class _real_real_set_resource_graph(_real_real_set_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -1332,6 +1375,11 @@ class _real_int_set_resource_graph(_real_int_set_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -1553,6 +1601,11 @@ class _real_bitset_resource_graph(_real_bitset_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -1777,6 +1830,11 @@ class _real_int_real_set_resource_graph(_real_int_real_set_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -2010,6 +2068,11 @@ class _real_int_int_set_resource_graph(_real_int_int_set_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -2245,6 +2308,11 @@ class _real_int_set_bitset_resource_graph(_real_int_set_bitset_graph):
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[
@@ -2488,6 +2556,11 @@ class _real_int_real_set_int_set_bitset_resource_graph(_real_int_real_set_int_se
             tuple[typing.SupportsInt | typing.SupportsIndex, bool, bool]
         ],
     ) -> None: ...
+    def _make_solver(self, algorithm: Algorithm, params: AlgorithmParams) -> _Solver:
+        """
+        Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.
+        """
+
     def add_arc(
         self,
         resource_consumption: tuple[

@@ -12,12 +12,14 @@
 #include <pybind11/typing.h>
 
 #include <atomic>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
@@ -138,6 +140,13 @@ struct AlgoEntry {
                                                                                      pre,
                                                                                      ci);
         }
+
+        template <typename ResourceGraphType, typename CostResourceType,
+                  typename LabelContainerType>
+        static auto create(ResourceGraphType& rg, AlgorithmParams<LabelContainerType> p) {
+            return rg.template create_algorithm<Strategy, LabelContainerType, CostResourceType>(
+                std::move(p));
+        }
 };
 
 using AlgorithmTable =
@@ -186,6 +195,101 @@ SolveResult dispatch_algorithm(SolverAlgorithm alg, ResourceGraphType& rg, doubl
         ci,
         static_cast<AlgorithmTable*>(nullptr));
 }
+
+// Builds the algorithm alg names (a Solver's), as dispatch_algorithm solves with it.
+template <typename ResourceGraphType, typename CompositionType, typename CostResourceType,
+          typename LabelContainerType, typename... Entries>
+std::unique_ptr<Algorithm<CompositionType, LabelContainerType>> create_algorithm_impl(
+    SolverAlgorithm alg, ResourceGraphType& rg, const AlgorithmParams<LabelContainerType>& p,
+    std::tuple<Entries...>* /*tag*/) {
+    std::unique_ptr<Algorithm<CompositionType, LabelContainerType>> algorithm;
+    const bool matched =
+        ((Entries::value == alg ? (algorithm = Entries::template create<ResourceGraphType,
+                                                                        CostResourceType,
+                                                                        LabelContainerType>(rg, p),
+                                   true)
+                                : false) ||
+         ...);
+    // An enum value outside the table (Algorithm(42) from Python) would leave a null algorithm.
+    if (!matched || algorithm == nullptr) {
+        throw std::invalid_argument("unknown algorithm");
+    }
+    return algorithm;
+}
+
+template <typename ResourceGraphType, typename CompositionType, typename CostResourceType,
+          typename LabelContainerType>
+std::unique_ptr<Algorithm<CompositionType, LabelContainerType>> create_solver_algorithm(
+    SolverAlgorithm alg, ResourceGraphType& rg, AlgorithmParams<LabelContainerType> p) {
+    p.should_stop = &ActiveCall::is_interrupted;
+    return create_algorithm_impl<ResourceGraphType,
+                                 CompositionType,
+                                 CostResourceType,
+                                 LabelContainerType>(alg,
+                                                     rg,
+                                                     p,
+                                                     static_cast<AlgorithmTable*>(nullptr));
+}
+
+// ─── Solver: one algorithm kept for one graph ─────────────────────────────────
+// What Python's Solver holds: an algorithm built once, which solves its graph again and again and
+// reuses its labels. Bound once, as _Solver, whatever the graph's resource types; SolverFor holds
+// the typed graph and algorithm.
+
+class PySolver {
+    public:
+        PySolver() = default;
+        PySolver(const PySolver&) = delete;
+        PySolver& operator=(const PySolver&) = delete;
+        PySolver(PySolver&&) = delete;
+        PySolver& operator=(PySolver&&) = delete;
+        virtual ~PySolver() = default;
+
+        /// @brief Solves the graph, as ResourceGraph::solve with an algorithm; the caller releases
+        ///        the GIL.
+        virtual SolveResult solve(double upper_bound, bool preprocess, size_t cost_index,
+                                  const SolveLimitParams& limits) = 0;
+        /// @brief How many labels the last solve extended.
+        [[nodiscard]] virtual size_t number_of_extended_labels() const = 0;
+        /// @brief How many labels the algorithm holds, for its next solve.
+        [[nodiscard]] virtual size_t number_of_retained_labels() const = 0;
+        /// @brief How many labels the algorithm has allocated since it was built.
+        [[nodiscard]] virtual int64_t number_of_created_labels() const = 0;
+};
+
+template <typename ResourceGraphType, typename CompositionType, typename CostResourceType,
+          typename LabelContainerType>
+class SolverFor final : public PySolver {
+    public:
+        using AlgorithmType = Algorithm<CompositionType, LabelContainerType>;
+
+        // The graph outlives the solver: _make_solver keeps it alive (py::keep_alive), and the
+        // algorithm reads its resource factory.
+        SolverFor(ResourceGraphType* graph, std::unique_ptr<AlgorithmType> algorithm)
+            : graph_(graph), algorithm_(std::move(algorithm)) {}
+
+        SolveResult solve(double upper_bound, bool preprocess, size_t cost_index,
+                          const SolveLimitParams& limits) override {
+            return graph_->template solve<AlgorithmType, CostResourceType>(algorithm_.get(),
+                                                                           upper_bound,
+                                                                           preprocess,
+                                                                           cost_index,
+                                                                           limits);
+        }
+        [[nodiscard]] size_t number_of_extended_labels() const override {
+            return algorithm_->get_number_of_extended_labels();
+        }
+        [[nodiscard]] size_t number_of_retained_labels() const override {
+            return algorithm_->get_label_pool().get_nb_total_labels();
+        }
+        [[nodiscard]] int64_t number_of_created_labels() const override {
+            return algorithm_->get_label_pool().get_nb_created_labels();
+        }
+
+    private:
+        ResourceGraphType* graph_;
+        std::unique_ptr<AlgorithmType> algorithm_;
+};
 
 // ─── Resource type → pybind11 method name ────────────────────────────────────
 
@@ -240,15 +344,25 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
     }
 }
 
-// ─── Bucket solve dispatcher ──────────────────────────────────────────────────
-// Selects LabelBuckets<ResourceType, ResourceType, CompositionType> based on
-// py_p.bucket_resource_type. Empty string → use CostResourceType (default). Non-numerical types are
-// skipped.
+// ─── Params → label container ─────────────────────────────────────────────────
+// Calls with_params(AlgorithmParams<LabelContainerType>) with the container py_p asks for:
+// LabelList, or for a PyBucketAlgorithmParams, LabelBuckets<ResourceType, CostResourceType,
+// CompositionType>, where ResourceType is named by py_p.bucket_resource_type (empty: the cost's
+// type; non-numerical types are skipped).
 
 template <typename ResourceGraphType, typename CompositionType, typename CostResourceType,
-          typename... ResourceTypes>
-SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double ub,
-                             const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
+          typename... ResourceTypes, typename Callback>
+void with_algorithm_params(ResourceGraphType& rg, const PyAlgorithmParams& params,
+                           Callback&& with_params) {
+    // One entry point for both kinds of params. With a bucket overload beside it, a call that left
+    // out an argument fell through to the plain one, which ran a LabelList search and ignored the
+    // bucket settings without a word.
+    const auto* bucket_params = dynamic_cast<const PyBucketAlgorithmParams*>(&params);
+    if (bucket_params == nullptr) {
+        with_params(params.template to_params<LabelList<CompositionType>>());
+        return;
+    }
+    const auto& py_p = *bucket_params;
     auto check_index = [&](const char* param, size_t idx, size_t count) {
         if (idx >= count) {
             throw py::value_error(std::string(param) + " " + std::to_string(idx) +
@@ -258,7 +372,6 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double 
         }
     };
 
-    SolveResult result;
     auto run_func = [&]<typename ResourceType>() {
         const auto& factory = rg.get_resource_factory();
         check_index("bucket_resource_index",
@@ -269,13 +382,7 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double 
                     factory.template get_num_resource_type<CostResourceType>());
         using BucketLC = LabelBuckets<ResourceType, CostResourceType, CompositionType>;
         BucketLC lc(py_p.bucket_width, py_p.bucket_resource_index, py_p.sort_resource_index);
-        auto p = py_p.template to_params<BucketLC>(std::move(lc));
-        result = dispatch_algorithm<ResourceGraphType, CostResourceType, BucketLC>(alg,
-                                                                                   rg,
-                                                                                   ub,
-                                                                                   std::move(p),
-                                                                                   pre,
-                                                                                   ci);
+        with_params(py_p.template to_params<BucketLC>(std::move(lc)));
     };
 
     // Run with default template value CostResourceType
@@ -287,7 +394,6 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double 
                                              "bucket_resource_type",
                                              run_func);
     }
-    return result;
 }
 
 // ─── CostResourceType auto-selection ────────────────────────────────────────────────────
@@ -499,23 +605,25 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
                const PyAlgorithmParams& py_p,
                bool pre,
                size_t ci) -> SolveResult {
-                // One overload for both kinds of params. With a bucket overload beside it, a call
-                // that left out algorithm or upper_bound fell through to this one, which ran a
-                // LabelList search and ignored the bucket settings without a word.
-                if (const auto* bucket_p = dynamic_cast<const PyBucketAlgorithmParams*>(&py_p)) {
-                    return ActiveCall::run_interruptible([&] {
-                        return run_bucket_solve<ResourceGraphType,
-                                                CompositionType,
-                                                CostResourceType,
-                                                ResourceTypes...>(alg, rg, ub, *bucket_p, pre, ci);
-                    });
-                }
-                using LabelContainerType = LabelList<CompositionType>;
-                auto p = py_p.template to_params<LabelContainerType>();
                 return ActiveCall::run_interruptible([&] {
-                    return dispatch_algorithm<ResourceGraphType,
-                                              CostResourceType,
-                                              LabelContainerType>(alg, rg, ub, p, pre, ci);
+                    SolveResult result;
+                    with_algorithm_params<ResourceGraphType,
+                                          CompositionType,
+                                          CostResourceType,
+                                          ResourceTypes...>(
+                        rg,
+                        py_p,
+                        [&]<typename LabelContainerType>(AlgorithmParams<LabelContainerType> p) {
+                            result = dispatch_algorithm<ResourceGraphType,
+                                                        CostResourceType,
+                                                        LabelContainerType>(alg,
+                                                                            rg,
+                                                                            ub,
+                                                                            std::move(p),
+                                                                            pre,
+                                                                            ci);
+                        });
+                    return result;
                 });
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
@@ -523,6 +631,38 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             py::arg_v("params", PyAlgorithmParams{}, "AlgorithmParams()"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
+        .def(
+            "_make_solver",
+            [](ResourceGraphType& rg,
+               SolverAlgorithm alg,
+               const PyAlgorithmParams& py_p) -> std::unique_ptr<PySolver> {
+                std::unique_ptr<PySolver> solver;
+                with_algorithm_params<ResourceGraphType,
+                                      CompositionType,
+                                      CostResourceType,
+                                      ResourceTypes...>(
+                    rg,
+                    py_p,
+                    [&]<typename LabelContainerType>(AlgorithmParams<LabelContainerType> p) {
+                        // A solver keeps its labels for its next solve; max_retained_labels bounds
+                        // them.
+                        p.release_after_solve = false;
+                        solver = std::make_unique<SolverFor<ResourceGraphType,
+                                                            CompositionType,
+                                                            CostResourceType,
+                                                            LabelContainerType>>(
+                            &rg,
+                            create_solver_algorithm<ResourceGraphType,
+                                                    CompositionType,
+                                                    CostResourceType,
+                                                    LabelContainerType>(alg, rg, std::move(p)));
+                    });
+                return solver;
+            },
+            py::arg("algorithm"),
+            py::arg("params"),
+            py::keep_alive<0, 1>(),
+            "Build the algorithm of a Solver (rcspp.graph.Solver), which keeps this graph alive.")
         .def(
             "check_model",
             [](const ResourceGraphType& rg, SearchDirection direction) {
