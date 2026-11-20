@@ -1026,6 +1026,21 @@ AlgorithmParams<Buckets> params(Buckets(/*bucket_width=*/200, /*bucket_resource_
 auto result = graph.solve<strategy::Simple, Buckets>(ub, params);
 ```
 
+### A container of your own
+
+A label container of your own derives from `LabelList`, or offers the same members. An algorithm
+kept across solves (`release_after_solve` false) asks two more things of it:
+
+- **`clear()`.** At a solve with as many nodes as the last, the search empties each node's container
+  instead of making a new one from the prototype (`copy()`), when the container type declares its
+  own `clear()`; one it only inherits does not count. That `clear()` must leave the container as
+  `copy()` would: no labels, and nothing kept from the last solve, such as statistics or a cache.
+- **List nodes.** `LabelList` keeps the node of every label it erases, for the next label it stores.
+  A derived container that inserts into `labels_` itself must also erase from it itself (override
+  `erase_label` and `remove_dominated_labels`, as `LabelBuckets` does), or go through the protected
+  `insert_label` and `remove_label`, which take and give back the kept nodes. Otherwise the nodes its
+  erasures keep are never taken back, and pile up from solve to solve.
+
 ## How the labelling algorithms are built
 
 Every exact labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and

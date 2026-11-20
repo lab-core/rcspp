@@ -112,6 +112,25 @@ New features are summarised, with a pointer to where they are documented.
   gives each solve of its inner algorithm the time its own solve has left; before, each inner solve
   could take all of `timeout_s`. An inner solve that runs out of it without a path ends the solve
   with status `Timeout`.
+- **An algorithm kept from solve to solve keeps the list nodes of its search.** The queues of the
+  schedules (`NodeQueues`, Pulling's and Pushing's, and Simple's `FifoSchedule`) and `LabelList`
+  keep the node of every label they take out, for the next label they queue or store
+  (`detail::SpareNodes`), instead of freeing it. `KeepAtNodes` empties its containers for a solve
+  with as many nodes as the last one instead of making new ones, when the container declares its
+  own `clear()`: the new `LabelList::clear()` keeps the list's nodes, and the new
+  `LabelBuckets::clear()` resets its buckets. The labelling algorithms record their end-node
+  solutions without copying the end-node labels into a list, and without calling
+  `labels_at_end_nodes()`: an override of it no longer filters them. With `release_after_solve`
+  false and `LabelList`, a solve that needs no more labels than one before it allocates nothing per
+  label (`LabelBuckets` still makes a list node for each label it stores): on the nurse pricing
+  problems of rcspp-benchmark (real duals), the number of heap allocations of the solves falls from
+  22.6 M to 10.0 M. A schedule's `clear()` may now keep the memory of its queues; when an algorithm
+  releases its labels (`release_after_solve`, `max_retained_labels`), its search takes a new
+  schedule, rather than clearing a schedule of your own, and destroys its containers, which frees
+  that memory with the labels. `LabelList::clear()` is virtual, and a derived container gets
+  `insert_label` and `remove_label`, which reuse the kept nodes; one that inserts into `labels_`
+  itself must erase from it itself, and its own `clear()` must leave it as `copy()` would (see "A
+  container of your own" in `docs/advanced/algorithms.md`).
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

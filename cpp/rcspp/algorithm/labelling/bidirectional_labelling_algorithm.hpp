@@ -252,13 +252,14 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         /// is skipped after an interrupt.
         void record_remaining_solutions() override {
             // 1. The forward labels at a sink.
-            for (const auto* label : forward_.labels_at_end_nodes(*this->graph_)) {
-                this->record_solution(*label);
-            }
+            forward_.for_each_label_at_end_nodes(
+                *this->graph_,
+                [this](const Label<ResourceType>* label) { this->record_solution(*label); });
             // 2. The backward labels at a source, recorded in forward order.
-            for (const auto* label : backward_.labels_at_end_nodes(*this->graph_)) {
-                this->record_backward_solution(*label);
-            }
+            backward_.for_each_label_at_end_nodes(*this->graph_,
+                                                  [this](const Label<ResourceType>* label) {
+                                                      this->record_backward_solution(*label);
+                                                  });
             // 3. The join.
             run_join();
         }

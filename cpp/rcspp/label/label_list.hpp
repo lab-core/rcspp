@@ -9,6 +9,7 @@
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/label/label.hpp"
+#include "rcspp/utils/spare_nodes.hpp"
 
 namespace rcspp {
 
@@ -19,6 +20,10 @@ namespace rcspp {
 ///
 /// Dominance is checked here, so a backward search must use a backward container; a forward one
 /// would discard the better labels.
+///
+/// The list keeps the node of every label it removes, for the labels it adds next
+/// (@c detail::SpareNodes); @ref clear empties it the same way. A list kept from solve to solve
+/// (@c parts::KeepAtNodes) then allocates a node only when it holds more labels than it ever did.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    The direction policy supplying the dominance order.
@@ -52,11 +57,16 @@ class LabelList {
 
         /// @brief Appends @p label at the end and returns its iterator.
         virtual LabelPosition add_label(Label<ResourceType>* label) {
-            return labels_.insert(labels_.end(), label);
+            return spare_.push_back(&labels_, label);
         }
 
         /// @brief Removes the label at position @p pos.
-        virtual void erase_label(const LabelPosition& pos) { labels_.erase(pos); }
+        virtual void erase_label(const LabelPosition& pos) { spare_.erase(&labels_, pos); }
+
+        /// @brief Removes every label, keeping the list's nodes for the labels to come: the list is
+        ///        then as @ref copy would make it. Virtual, as @ref add_label is: a derived
+        ///        container clears what it adds, also when cleared through a @c LabelList.
+        virtual void clear() { spare_.take_all(&labels_); }
 
         /// @brief Logs all stored labels at TRACE level.
         virtual void print_labels() const {
@@ -182,7 +192,7 @@ class LabelList {
                 if (&label != *non_dominated_label_it &&
                     dominates(label, *(*non_dominated_label_it))) {
                     (*non_dominated_label_it)->dominated = true;
-                    non_dominated_label_it = labels_.erase(non_dominated_label_it);
+                    non_dominated_label_it = spare_.erase(&labels_, non_dominated_label_it);
                     ++removed;
                 } else {
                     ++non_dominated_label_it;
@@ -206,7 +216,24 @@ class LabelList {
             return false;
         }
 
+        /// @brief Inserts @p label before @p pos, in a node the list kept if it has one: for a
+        ///        derived container that orders its labels itself.
+        LabelPosition insert_label(LabelPosition pos, Label<ResourceType>* label) {
+            return spare_.insert(&labels_, pos, label);
+        }
+
+        /// @brief Removes the label at @p pos and keeps its node for the next insertion.
+        /// @return The position after it.
+        LabelPosition remove_label(LabelPosition pos) { return spare_.erase(&labels_, pos); }
+
+        /// The labels. A derived container that inserts here itself must also erase here itself
+        /// (as @c LabelBuckets does), or use @ref insert_label and @ref remove_label: the nodes
+        /// that @ref erase_label and @ref remove_dominated_labels keep are taken back only by
+        /// @ref add_label and @ref insert_label, and would otherwise pile up.
         std::list<Label<ResourceType>*> labels_;
+
+    private:
+        detail::SpareNodes<Label<ResourceType>*> spare_;  ///< the nodes the list no longer uses
 };
 
 }  // namespace rcspp

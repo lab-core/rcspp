@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <list>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
@@ -161,10 +162,17 @@ struct Search {
             schedule.clear();
         }
 
-        /// @brief Forgets every stored and waiting label, releasing none (the pool owns them).
+        /// @brief Forgets every stored and waiting label, releasing none (the pool owns them), and
+        ///        frees the memory kept for them: the containers, and the schedule's queues (a new
+        ///        schedule replaces it, when it can be assigned one; @c clear() keeps that memory).
         void clear() {
             labels.clear();
-            schedule.clear();
+            if constexpr (std::is_default_constructible_v<schedule_type> &&
+                          std::is_move_assignable_v<schedule_type>) {
+                schedule = schedule_type{};
+            } else {
+                schedule.clear();
+            }
         }
 
         /// @brief Creates one start label per start node of @p Direction (sources forward, sinks
@@ -283,15 +291,28 @@ struct Search {
         /// @brief Takes a stored label out of its node's container, releasing nothing.
         void erase(const LabelIterator<ResourceType>& position) { labels.erase(position); }
 
+        /// @brief Calls @p visit on each label stored at the end nodes of @p Direction (sinks
+        ///        forward, sources backward), end node by end node, without copying them.
+        ///
+        /// @param visit Callable `(Label*)`; it must not store or erase a label.
+        template <typename VisitCallable>
+        void for_each_label_at_end_nodes(const Graph<ResourceType>& graph,
+                                         const VisitCallable& visit) const {
+            for (const size_t end_node_id : Direction::end_nodes(graph)) {
+                for (auto* label : labels.labels_at(graph.get_node(end_node_id)->pos())) {
+                    visit(label);
+                }
+            }
+        }
+
         /// @brief The labels stored at the end nodes of @p Direction (sinks forward, sources
         ///        backward), end node by end node.
         [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes(
             const Graph<ResourceType>& graph) const {
             std::list<Label<ResourceType>*> at_end_nodes;
-            for (const size_t end_node_id : Direction::end_nodes(graph)) {
-                const auto& stored = labels.labels_at(graph.get_node(end_node_id)->pos());
-                at_end_nodes.insert(at_end_nodes.end(), stored.begin(), stored.end());
-            }
+            for_each_label_at_end_nodes(graph, [&at_end_nodes](Label<ResourceType>* label) {
+                at_end_nodes.push_back(label);
+            });
             return at_end_nodes;
         }
 

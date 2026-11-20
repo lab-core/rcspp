@@ -150,6 +150,7 @@
 #include "rcspp/test_support/optimum_problem.hpp"
 #include "rcspp/utils/logger.hpp"
 #include "rcspp/utils/memory.hpp"
+#include "rcspp/utils/spare_nodes.hpp"
 #include "rcspp/utils/timer.hpp"
 #include "rcspp/utils/utils.hpp"
 #include "rcspp/validation/arc_pair_probe.hpp"
