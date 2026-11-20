@@ -91,6 +91,8 @@ if(USE_COLUMN_GENERATION_EXAMPLE)
   add_subdirectory(examples/column_generation)
   # The VRP example on it, with a master solver built.
   add_subdirectory(examples/cpp)
+  # The column generation benchmark's cpp-native layer, on it too.
+  add_subdirectory(benchmarks/column_generation/cpp_native)
 elseif(USE_COLUMN_GENERATION_EXAMPLE_GUROBI OR USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
   message(FATAL_ERROR "USE_COLUMN_GENERATION_EXAMPLE_GUROBI and "
                       "USE_COLUMN_GENERATION_EXAMPLE_HIGHS build master solvers of the column "
