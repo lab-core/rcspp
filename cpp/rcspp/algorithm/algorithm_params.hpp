@@ -223,9 +223,8 @@ struct AlgorithmBaseParams {
         ///   differ only there compare as if they were equal there, so labels are dropped that an
         ///   exact search keeps.
         /// - `KBest` keeps, after exact dominance, at most @ref max_admitted_labels_per_node labels
-        /// at each node,
-        ///   the cheapest: at a full node, a candidate takes the place of the costliest label when
-        ///   it costs less, and is dropped otherwise.
+        ///   at each node, the cheapest: at a full node, a candidate takes the place of the
+        ///   costliest label when it costs less, and is dropped otherwise.
         ///
         /// Either is a heuristic. Every path returned is feasible and correctly priced, since
         /// feasibility and the cost never read dominance, but the optimum may be missed, and the
