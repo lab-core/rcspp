@@ -200,6 +200,17 @@ runner, `highs` and `gurobi` masters; C101_25 equal to the recorded `cpp-binding
 `example.toml` run with the layer, `F-89`, found a false mixed flag, fixed in it). The user reviewed the five
 commits 2026-11-20: kept as they are, no change. **Next:** the PR (base #98); the measures of `D-251` on an idle
 machine (#98).
+Overnight 2026-11-20/21 (`D-264`, `overnight-runs.md`): the laptop runs all of `T-1.19`'s measures (L1-L5: the old C++
+example against the layer, small, mid, replay, the three legs' `cpp-legs.toml`, R201), the home server all of `T-1.18`'s
+(S1-S3, R201 included, `b6edcb20`, python-mip 2.0.0). Both done and read 2026-11-21: `T-1.18` passes `D-148` on all 9
+instances, R201 −32 % (`F-90`); `T-1.19` passes on all 9 idle, R201 1,253 against 5,721 s, pricing equal on one dual
+sequence, the layer's column adds slower (C201 15 against 1.25 µs a column, `F-91`); the three layers equal per
+master on all 8 of `cpp-legs.toml`, integer results too, `cpp-native` ≈ `cpp-bindings` (`F-92`). **Next:** the server
+moves to the C++ port's head for `layers-50-legs.toml`, `r202-50.toml`, `truncated-50.toml` (`overnight-runs.md`).
+The column generation alone (2026-11-21, `F-93`-`F-95`, `benchmark-results/colgen/cg-only/`): Python measured with
+timers and a replay: the layer's own work 3-7 times cheaper per column than the old example's, the step on the same
+duals −16 % to +9 % of its LP; the layers' default preprocessing costs 0.5-1.9 ms per search for nothing here (`Q-71`,
+for the user); the C++ layer's column adds slower than the old example's (+0-3.3 % on its path, `F-91`).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -286,6 +297,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `benchmark-solutions.md` | the runner's solutions: `--overwrite`, `solution.json`, the integer solve, the instance's resolved solution, per-iteration data | before step 5's fixup, the integer solve or per-iteration data |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 | `server-setup.md` | the home server (`T-1.24`): the machine, choices, every setup step from scratch, updating, log | setting up or updating a benchmark machine |
+| `overnight-runs.md` | the night of 2026-11-20/21: `T-1.19` on the laptop, `T-1.18` on the server, commands, next TOMLs | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
 ## Project conventions that apply here

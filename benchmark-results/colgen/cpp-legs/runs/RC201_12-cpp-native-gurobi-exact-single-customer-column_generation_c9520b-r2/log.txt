@@ -1,0 +1,1 @@
+RC201_12-cpp-native-gurobi-exact-single-customer-column_generation_c9520b: Optimal, objective 427.23557683598403; integer Optimal, objective 663.788907533601

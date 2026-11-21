@@ -1,0 +1,123 @@
+{
+  "record": {
+    "source": {
+      "commit": "e91db2963110807689e7134fefc37d5ce4cae045",
+      "uncommitted_changes": false,
+      "changes_digest": null,
+      "branch": "feature/column-generation-cpp-vrp-example"
+    },
+    "code": {
+      "rcspp": "C:\\Users\\marbe\\OneDrive\\Desktop\\programming\\git\\rcspp-dev\\build-python-highs\\python\\rcspp\\__init__.py",
+      "core": "C:\\Users\\marbe\\OneDrive\\Desktop\\programming\\git\\rcspp-dev\\build-python-highs\\python\\rcspp\\_core.cp314-win_amd64.pyd",
+      "core_file": {
+        "bytes": 9050624,
+        "modified": "2026-11-21T04:38:31.748885+00:00"
+      },
+      "build": "C:\\Users\\marbe\\OneDrive\\Desktop\\programming\\git\\rcspp-dev\\build-python-highs",
+      "generator": "Visual Studio 18 2026",
+      "build_type": "Release",
+      "compiler": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+      "compiler_id": "MSVC",
+      "compiler_version": "19.51.36260.0",
+      "options": {
+        "USE_COLUMN_GENERATION_EXAMPLE": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_GUROBI": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_HIGHS": "ON",
+        "USE_COVERAGE": "OFF",
+        "USE_DOTNET_STD_21": "ON",
+        "USE_PYTHON": "ON",
+        "USE_TESTS": "OFF",
+        "USE_VRP": "OFF"
+      }
+    },
+    "versions": {
+      "python": "3.14.0",
+      "rcspp": "0.0.2.dev1",
+      "numpy": "2.5.3",
+      "highspy": "1.15.1",
+      "highspy_highs": "1.15.1",
+      "highs": "1.15.1",
+      "gurobipy": "13.0.1",
+      "gurobi": "13.0.1"
+    },
+    "machine": {
+      "label": "leo-laptop",
+      "system": "Windows-11-10.0.26300-SP0",
+      "processor": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+      "physical_cores": 4,
+      "logical_cores": 8,
+      "memory_bytes": 12606803968
+    },
+    "benchmark": {
+      "processes": 1,
+      "solver_threads": null,
+      "integer_threads": null
+    }
+  },
+  "events": [
+    {
+      "time": "2026-11-21T04:47:13.703+00:00",
+      "event": "started",
+      "total": 168,
+      "finished": 0,
+      "to_run": 168,
+      "unfinished": 0,
+      "timeouts_to_run_again": 0,
+      "crashes_to_run_again": 0
+    },
+    {
+      "time": "2026-11-21T05:04:41.721+00:00",
+      "event": "finished",
+      "total": 168,
+      "finished": 168,
+      "timeouts": 0,
+      "failed_checks": 0,
+      "crashed": 0
+    }
+  ],
+  "processes": 1,
+  "runs": 56,
+  "rounds": 3,
+  "dropped": [
+    "cpp-legs.toml: matrix {'instance': 'C101_25', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_25', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_25', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_25', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'C101_25', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R101_25', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R101_25', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R101_25', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R101_25', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R101_25', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R201_25', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_25', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_25', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_25', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R201_25', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'RC201_12', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC201_12', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC201_12', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC201_12', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'RC201_12', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'C101_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_50', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_50', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C101_50', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'C101_50', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R201_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_50', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_50', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'R201_50', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'R201_50', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'RC101_50', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC101_50', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC101_50', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'RC101_50', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'RC101_50', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'C201', 'layer': 'package', 'master': 'highs', 'pricing': 'exact'}: layer package has no master highs (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C201', 'layer': 'package', 'master': 'gurobi', 'pricing': 'exact'}: layer package has no master gurobi (it has highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C201', 'layer': 'cpp-bindings', 'master': 'gurobi', 'pricing': 'exact'}: layer cpp-bindings has no master gurobi (it has highs, highspy, gurobipy)",
+    "cpp-legs.toml: matrix {'instance': 'C201', 'layer': 'cpp-native', 'master': 'highspy', 'pricing': 'exact'}: layer cpp-native has no master highspy (it has highs, gurobi)",
+    "cpp-legs.toml: matrix {'instance': 'C201', 'layer': 'cpp-native', 'master': 'gurobipy', 'pricing': 'exact'}: layer cpp-native has no master gurobipy (it has highs, gurobi)"
+  ]
+}

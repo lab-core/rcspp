@@ -1,0 +1,10 @@
+InstanceReader::read()
+file_path_=/home/leo/rcspp/instances/R201_25.txt
+nb_customers: 26
+construct_graph: 4 ms
+construct_graph: 2 ms
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+RESULT {"status": "Optimal", "lp": 449.65975310219807, "iterations": 15, "rest_s": 0.005533920077141374, "columns": 3239, "master_s": 0.05925121682230383, "pricing_s": 1.1406373120844364}

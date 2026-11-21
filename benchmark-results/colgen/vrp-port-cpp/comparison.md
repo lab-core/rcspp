@@ -80,3 +80,27 @@ in `add_columns`. With the old example's copy calling `update()` at the end of i
   the layer 2.3 µs more per column, 0.7 ms per iteration against 33 ms of pricing (2 %). Not traced.
 - The loop's own work: the layer's 0.006–0.013 ms per iteration against 0.015–0.26 ms (the old dual map's copy).
 - The replay prices the layer second on each iteration (warm caches); not alternated.
+
+## Idle runs (overnight 2026-11-20/21)
+
+The same binaries, the laptop on power and idle, `run.py` with `idle-*.jsonl`: small 5 rounds, mid and its replay 3
+rounds, R201 2 rounds. Each side repeats its iterations and columns exactly in every round.
+
+| instance | LP (both) | it. old / new | col. old / new | solve s old | solve s new | new − old | rule |
+|---|---|---|---|---|---|---|---|
+| C101_25 | 191.813620 | 22 / 29 | 645 / 903 | 0.036 | 0.043 | +0.007 | pass |
+| R101_25 | 618.329916 | 11 / 6 | 100 / 92 | 0.009 | 0.006 | −0.003 | pass |
+| R201_25 | 449.659753 | 22 / 12 | 6,373 / 3,007 | 0.493 | 0.298 | −0.195 | pass |
+| RC201_12 | 427.235577 | 22 / 17 | 2,077 / 1,061 | 0.080 | 0.051 | −0.029 | pass |
+| C101_50 | 363.246800 | 44 / 45 | 1,772 / 1,600 | 0.223 | 0.181 | −0.042 | pass |
+| R201_50 | 756.338612 | 45 / 26 | 38,470 / 12,275 | 15.43 | 4.76 | −10.68 | pass |
+| RC101_50 | 828.361933 | 21 / 25 | 577 / 731 | 0.078 | 0.083 | +0.006 | pass |
+| C201 | 591.556557 | 245 / 233 | 69,176 / 45,529 | 26.83 | 16.82 | −10.01 | pass |
+| R201 | 1084.990668 | 112 / 47 | 235,865 / 74,009 | 5,720.6 | 1,252.5 | −4,468 (−78 %) | pass |
+
+- Idle times are 30-40 % below the busy run's on both sides; the verdicts are unchanged.
+- The large gaps (R201_50, C201, R201) come from the old loop's path: more iterations and 2-3 times the columns.
+- Replay (one dual sequence): 0 differing iterations on all 8 instances; pricing per iteration 0.97-1.00 of the old.
+- Adding columns costs the layer more: 2-3 µs a column against 0.5-1.8 µs, and **15 µs against 1.25 µs on C201**
+  (the replay's shadow master, +3.6 ms an iteration; in the loop 4.9 ms against 0.3 ms an iteration), growing with the
+  master's size. Small next to C201's master (34 ms an iteration), but the one part where the layer is slower.

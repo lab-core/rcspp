@@ -1,0 +1,114 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+InstanceReader::read()
+file_path_=/home/leo/rcspp/instances/R201_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+*********************************************
+iter=0  min_rc=-inf
+*********************************************
+[MasterProblem] solver: GRB
+solution.cost=1246.1601802480777
+Solve: 1.001s
+best RCSPP reduced cost: -1080.624816
+*********************************************
+iter=1  min_rc=-1080.624816
+*********************************************
+solution.cost=734.6687545271063
+Solve: 0.025s
+best RCSPP reduced cost: -470.403353
+*********************************************
+iter=2  min_rc=-470.403353
+*********************************************
+solution.cost=552.980058952381
+Solve: 0.009s
+best RCSPP reduced cost: -181.177394
+*********************************************
+iter=3  min_rc=-181.177394
+*********************************************
+solution.cost=496.7292350192697
+Solve: 0.006s
+best RCSPP reduced cost: -46.817674
+*********************************************
+iter=4  min_rc=-46.817674
+*********************************************
+solution.cost=462.74846708001513
+Solve: 0.001s
+best RCSPP reduced cost: -18.816636
+*********************************************
+iter=5  min_rc=-18.816636
+*********************************************
+solution.cost=456.56314915814676
+Solve: 0.003s
+best RCSPP reduced cost: -33.763084
+*********************************************
+iter=6  min_rc=-33.763084
+*********************************************
+solution.cost=454.7019325771322
+Solve: 0.001s
+best RCSPP reduced cost: -13.649632
+*********************************************
+iter=7  min_rc=-13.649632
+*********************************************
+solution.cost=452.62923504580783
+Solve: 0.002s
+best RCSPP reduced cost: -7.877598
+*********************************************
+iter=8  min_rc=-7.877598
+*********************************************
+solution.cost=452.3262504956244
+Solve: 0.001s
+best RCSPP reduced cost: -3.908844
+*********************************************
+iter=9  min_rc=-3.908844
+*********************************************
+solution.cost=451.88279289838556
+Solve: 0.001s
+best RCSPP reduced cost: -3.800497
+*********************************************
+iter=10  min_rc=-3.800497
+*********************************************
+solution.cost=450.6681436989079
+Solve: 0.002s
+best RCSPP reduced cost: -3.700615
+*********************************************
+iter=11  min_rc=-3.700615
+*********************************************
+solution.cost=450.65584693357664
+Solve: 0.001s
+best RCSPP reduced cost: -2.988281
+*********************************************
+iter=12  min_rc=-2.988281
+*********************************************
+solution.cost=450.65584693357664
+Solve: 0.001s
+best RCSPP reduced cost: -2.988281
+*********************************************
+iter=13  min_rc=-2.988281
+*********************************************
+solution.cost=449.66370917650704
+Solve: 0.001s
+best RCSPP reduced cost: -0.059341
+*********************************************
+iter=14  min_rc=-0.059341
+*********************************************
+solution.cost=449.6597531021981
+Solve: 0.001s
+best RCSPP reduced cost: -0.011868
+*********************************************
+iter=15  min_rc=-0.011868
+*********************************************
+solution.cost=449.6597531021981
+Solve: 0.001s
+best RCSPP reduced cost: -0.000000
+
+iter=16  min_rc=-0.000000
+
+solution.cost=547.8109230004106
+RESULT {"status": "optimal", "lp": 449.6597531021981, "iterations": 16, "columns": 2991, "master_s": 0.1975821401574649, "pricing_s": 1.0652263164520264, "rest_s": 0.20660897134803236, "integer_s": 0.027302192989736795}

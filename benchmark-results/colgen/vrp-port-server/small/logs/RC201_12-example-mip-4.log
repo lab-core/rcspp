@@ -1,0 +1,126 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+InstanceReader::read()
+file_path_=/home/leo/rcspp/instances/RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+*********************************************
+iter=0  min_rc=-inf
+*********************************************
+[MasterProblem] solver: GRB
+solution.cost=1291.1949790667038
+Solve: 0.056s
+best RCSPP reduced cost: -1147.310538
+*********************************************
+iter=1  min_rc=-1147.310538
+*********************************************
+solution.cost=670.9676076796251
+Solve: 0.018s
+best RCSPP reduced cost: -411.941304
+*********************************************
+iter=2  min_rc=-411.941304
+*********************************************
+solution.cost=580.6486585671454
+Solve: 0.002s
+best RCSPP reduced cost: -174.901651
+*********************************************
+iter=3  min_rc=-174.901651
+*********************************************
+solution.cost=501.86791364181806
+Solve: 0.002s
+best RCSPP reduced cost: -103.818942
+*********************************************
+iter=4  min_rc=-103.818942
+*********************************************
+solution.cost=478.40536253792135
+Solve: 0.004s
+best RCSPP reduced cost: -44.157335
+*********************************************
+iter=5  min_rc=-44.157335
+*********************************************
+solution.cost=457.5135165202066
+Solve: 0.001s
+best RCSPP reduced cost: -58.649772
+*********************************************
+iter=6  min_rc=-58.649772
+*********************************************
+solution.cost=445.12701455662716
+Solve: 0.001s
+best RCSPP reduced cost: -25.042269
+*********************************************
+iter=7  min_rc=-25.042269
+*********************************************
+solution.cost=436.46614920561814
+Solve: 0.001s
+best RCSPP reduced cost: -16.741451
+*********************************************
+iter=8  min_rc=-16.741451
+*********************************************
+solution.cost=433.19083019695324
+Solve: 0.001s
+best RCSPP reduced cost: -7.173642
+*********************************************
+iter=9  min_rc=-7.173642
+*********************************************
+solution.cost=433.1908301969532
+Solve: 0.001s
+best RCSPP reduced cost: -5.427768
+*********************************************
+iter=10  min_rc=-5.427768
+*********************************************
+solution.cost=430.93606315427405
+Solve: 0.001s
+best RCSPP reduced cost: -4.562594
+*********************************************
+iter=11  min_rc=-4.562594
+*********************************************
+solution.cost=430.93606315427405
+Solve: 0.001s
+best RCSPP reduced cost: -2.334401
+*********************************************
+iter=12  min_rc=-2.334401
+*********************************************
+solution.cost=428.6016617362465
+Solve: 0.001s
+best RCSPP reduced cost: -1.912519
+*********************************************
+iter=13  min_rc=-1.912519
+*********************************************
+solution.cost=428.328444756194
+Solve: 0.001s
+best RCSPP reduced cost: -3.825038
+*********************************************
+iter=14  min_rc=-3.825038
+*********************************************
+solution.cost=427.782010796089
+Solve: 0.001s
+best RCSPP reduced cost: -1.912519
+*********************************************
+iter=15  min_rc=-1.912519
+*********************************************
+solution.cost=427.78201079608897
+Solve: 0.001s
+best RCSPP reduced cost: -1.912519
+*********************************************
+iter=16  min_rc=-1.912519
+*********************************************
+solution.cost=427.50879381603653
+Solve: 0.001s
+best RCSPP reduced cost: -1.912519
+*********************************************
+iter=17  min_rc=-1.912519
+*********************************************
+solution.cost=427.235576835984
+Solve: 0.001s
+best RCSPP reduced cost: -0.000000
+
+iter=18  min_rc=-0.000000
+
+solution.cost=624.0103518066396
+RESULT {"status": "optimal", "lp": 427.235576835984, "iterations": 18, "columns": 1076, "master_s": 0.1196115628699772, "pricing_s": 0.09915018081665039, "rest_s": 0.08600256632780656, "integer_s": 0.014558008988387883}

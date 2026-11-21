@@ -1,0 +1,32 @@
+layer = "cpp-native"
+
+[instance]
+type = "solomon"
+name = "R101_25"
+
+[master]
+type = "highs"
+
+[master.parameters]
+
+[pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[start]
+type = "single-customer"
+
+[graph]
+
+[column_generation]
+threads = 1
+
+[integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true

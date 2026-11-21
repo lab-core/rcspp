@@ -59,7 +59,34 @@ def read_instance(name):
 
 
 def emit(**fields):
-    print("RESULT " + json.dumps(fields), flush=True)
+    print("RESULT " + json.dumps(fields | ENGINE), flush=True)
+
+
+# Seconds in the parts both sides share, summed over the run: the search (ResourceGraph.solve), the arcs' reduced
+# costs (update_reduced_costs) and the LP solver's own column adds (python-mip's add_var, the master solvers'
+# add_columns). The column generation's own time is what is left outside them and the master's solve.
+ENGINE = {}
+
+
+def time_engine():
+    import rcspp.graph
+
+    def timed(owner, name, key):
+        original = getattr(owner, name)
+
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            try:
+                return original(*args, **kwargs)
+            finally:
+                ENGINE[key] = ENGINE.get(key, 0.0) + time.perf_counter() - start
+
+        setattr(owner, name, wrapper)
+
+    ENGINE.update(search_s=0.0, reduced_costs_s=0.0, solver_add_s=0.0)
+    timed(rcspp.graph.ResourceGraph, "solve", "search_s")
+    timed(rcspp.graph.ResourceGraph, "update_reduced_costs", "reduced_costs_s")
+    return timed
 
 
 def run_example(name):
@@ -67,6 +94,8 @@ def run_example(name):
     import vrp.cg.master_problem as master_module
     from vrp.vrp import VRP
 
+    timed = time_engine()
+    timed(master_module.MasterProblem, "_add_column", "solver_add_s")
     instance = read_instance(name)
     lp = {"value": math.nan, "iterations": 0, "master": 0.0, "integer": 0.0}
     original = master_module.MasterProblem.solve
@@ -197,6 +226,11 @@ def run_layer(name, loop, master_kind, pricing):
     cg = layer_module(loop)
     from vrp.vrp import VRP
 
+    timed = time_engine()
+    for solver in ("GurobipyMasterSolver", "HighspyMasterSolver", "HighsMasterSolver"):
+        if hasattr(cg, solver):
+            timed(getattr(cg, solver), "add_columns", "solver_add_s")
+
     class FiniteVRP(VRP):
         def _add_arc(self, graph, orig_id, dest_id, orig, dest):
             if not (orig.depot and dest.depot):  # the example's infinite empty route: not a column
@@ -239,6 +273,7 @@ def run_layer(name, loop, master_kind, pricing):
             params = cg.ColumnGenerationParams(initialization=initialization)
         else:
             params.initialization = initialization
+    ENGINE.update(search_s=0.0, reduced_costs_s=0.0, solver_add_s=0.0)  # the starting columns are not the loop's
     start = time.perf_counter()
     if loop in ("cpp", "purepython"):
         result = cg.ColumnGeneration(master, params).run()
