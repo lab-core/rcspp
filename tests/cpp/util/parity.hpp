@@ -149,9 +149,8 @@ class Observed : public AlgorithmType {
         /// @brief Records the labels left in the containers; only after a solve that kept them.
         void capture_labels() {
             record_labels(own_labels(), &observation_->labels);
-            if constexpr (requires { this->get_backward_labels_by_node_pos(); }) {
-                record_labels(this->get_backward_labels_by_node_pos(),
-                              &observation_->backward_labels);
+            if constexpr (has_backward_labels) {
+                record_labels(backward_labels_of(), &observation_->backward_labels);
             }
         }
 
@@ -164,8 +163,8 @@ class Observed : public AlgorithmType {
                     visit(false, pos, *label);
                 }
             }
-            if constexpr (requires { this->get_backward_labels_by_node_pos(); }) {
-                const auto& back = this->get_backward_labels_by_node_pos();
+            if constexpr (has_backward_labels) {
+                const auto& back = backward_labels_of();
                 for (size_t pos = 0; pos < back.size(); ++pos) {
                     for (const auto* label : back[pos].get_labels()) {
                         visit(true, pos, *label);
@@ -191,8 +190,26 @@ class Observed : public AlgorithmType {
         decltype(auto) own_labels() const {
             if constexpr (requires { this->search_.labels.containers(); }) {
                 return (this->search_.labels.containers());
+            } else if constexpr (requires { this->forward_labels(); }) {
+                return (this->forward_labels());
+            } else if constexpr (requires { this->get_forward_labels_by_node_pos(); }) {
+                return (this->get_forward_labels_by_node_pos());
             } else {
                 return (this->non_dominated_labels_by_node_pos_);
+            }
+        }
+
+        /// @brief Whether this is a bidirectional search: the library's, or a frozen copy.
+        static constexpr bool has_backward_labels = requires(const AlgorithmType& self) {
+            self.backward_labels();
+        } || requires(const AlgorithmType& self) { self.get_backward_labels_by_node_pos(); };
+
+        /// @brief A bidirectional search's backward containers.
+        decltype(auto) backward_labels_of() const {
+            if constexpr (requires { this->backward_labels(); }) {
+                return (this->backward_labels());
+            } else {
+                return (this->get_backward_labels_by_node_pos());
             }
         }
 

@@ -19,7 +19,7 @@ template <typename ParamsType>
 /// @brief The internal bidirectional search behind @p algorithm, for tests that read its
 ///        internals.
 ///
-/// @tparam BidirectionalType The internal type, a `rcspp::detail::BidirectionalDominanceAlgorithm`.
+/// @tparam BidirectionalType The internal type, a `rcspp::detail::BidirectionalLabellingAlgorithm`.
 /// @param algorithm An algorithm `create_algorithm` built with `direction = Bidirectional`.
 /// @return @p algorithm as @p BidirectionalType.
 /// @throws std::logic_error when @p algorithm is not a @p BidirectionalType.

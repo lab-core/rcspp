@@ -113,7 +113,7 @@ inline std::vector<Row> rows() {
          SearchDirection::Bidirectional,
          [](const parity::Case& c) {
              return solve_row<
-                 rcspp::detail::BidirectionalDominanceAlgorithm<Composed, List, RealResource>>(
+                 rcspp::detail::BidirectionalLabellingAlgorithm<Composed, List, RealResource>>(
                  c,
                  SearchDirection::Bidirectional);
          }},
