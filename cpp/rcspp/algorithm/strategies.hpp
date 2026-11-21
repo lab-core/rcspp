@@ -4,9 +4,12 @@
 #pragma once
 
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/improving_tabu_search.hpp"
+#include "rcspp/algorithm/labelling/parts/admission/admit_all.hpp"
+#include "rcspp/algorithm/labelling/parts/retention/keep_while_waiting.hpp"
+#include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/best_first_schedule.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/depth_first_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/pull_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/sweep_schedule.hpp"
@@ -38,7 +41,9 @@
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
 ///
-/// The heuristics (Greedy, the tabu searches, diversification) are not labelling searches: their
+/// Greedy is a dive, built from the depth-first parts; it searches forward only.
+///
+/// The other heuristics (the tabu searches, diversification) are not labelling searches: their
 /// descriptors name a class of their own,
 /// `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`, and
 /// search forward only.
@@ -76,10 +81,23 @@ struct Pulling {
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
 
-/// @brief A greedy depth-first dive (@ref GreedyAlgorithm), forward only.
+/// @brief A greedy dive: depth first, the cheapest child first. Every feasible label is kept,
+///        with no dominance test (@c parts::AdmitAll), but only while it waits to be taken:
+///        nothing stays at the nodes behind the dive (@c parts::KeepWhileWaiting). At a dead end
+///        the dive goes back to the last label still waiting. Each path to a sink is recorded
+///        when its label is taken. Forward only.
+///
+/// @c max_iterations counts the labels taken. With no limit (the default), Greedy tries every
+/// path, and so finds the optimum, with work that grows with the number of paths.
 struct Greedy {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = GreedyAlgorithm<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
 /// @brief Dives that make the arcs they use tabu (@ref TabuSearchAlgorithm), forward only.

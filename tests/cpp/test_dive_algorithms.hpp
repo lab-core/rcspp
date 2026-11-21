@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Tests for GreedyAlgorithm, strategy::Tabu, and BacktrackingDiveAlgorithm.
+// Tests for strategy::Greedy, strategy::Tabu, and BacktrackingDiveAlgorithm.
 // Each test builds a small ResourceGraph<RealResource> from a unique_ptr to
 // avoid the deleted copy/move constructors of ResourceGraph.
 
@@ -80,10 +80,10 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_two_path_graph() {
 }  // namespace
 
 // ============================================================================
-// GreedyAlgorithm tests
+// strategy::Greedy tests
 // ============================================================================
 
-/// @brief GreedyAlgorithm finds the single feasible path in a linear graph.
+/// @brief Greedy finds the single feasible path in a linear graph.
 ///
 /// The graph has only one path (0->1->2), so the algorithm must find it.
 TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
@@ -93,14 +93,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief GreedyAlgorithm on single-path graph reports Complete status.
+/// @brief Greedy on single-path graph reports Complete status.
 TEST(GreedyAlgorithmTest, SinglePathGraphStatusComplete) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief GreedyAlgorithm on single-path graph visits nodes in order.
+/// @brief Greedy on single-path graph visits nodes in order.
 TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
@@ -111,14 +111,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     EXPECT_EQ(result.solutions[0].path_node_ids[2], 2U);
 }
 
-/// @brief GreedyAlgorithm on a two-path graph returns at least one solution.
+/// @brief Greedy on a two-path graph returns at least one solution.
 TEST(GreedyAlgorithmTest, TwoPathGraphNonEmpty) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief GreedyAlgorithm picks the lower-cost first arc and finds the best path.
+/// @brief Greedy picks the lower-cost first arc and finds the best path.
 ///
 /// On the two-path graph, greedy sorts children by label cost and picks
 /// the arc with cost -2 (to node 1) before the arc with cost -1 (to node 2),
@@ -158,19 +158,53 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief GreedyAlgorithm with prune_by_incumbent covers that branch.
-TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
+/// @brief With prune_by_incumbent, Greedy drops a label that cannot lead to a path cheaper than
+///        the incumbent (its cost plus its completion bound reaches it), as every labelling search
+///        does; without it, it returns both paths under the upper bound.
+///
+/// Under the upper bound -1 both paths (-6 and -4) qualify. The source label costs 0, but its
+/// bound is -6, so it is kept. Greedy finds -6 first; the label at 2 (cost -1, bound -3) then
+/// reaches the incumbent and is dropped, so only the optimum is returned.
+TEST(GreedyAlgorithmTest, PruneByIncumbentDropsALabelThatCannotImprove) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
+    EXPECT_EQ(g->solve<strategy::Greedy>(params, -1.0).solutions.size(), 2U);
     params.prune_by_incumbent = true;
-    const auto result = g->solve<strategy::Greedy>(params, /*upper_bound=*/-1.0);
-    // upper_bound=-1 prunes all solutions (all paths have cost <= -4 < -1 is false)
-    // Actually solutions cost -6 and -4, so upper_bound=-1: -6 < -1 yes, so the
-    // solution is accepted. Both paths have cost < -1, so at least one solution found.
-    EXPECT_FALSE(result.solutions.empty());
+    const auto pruned = g->solve<strategy::Greedy>(params, -1.0);
+    ASSERT_EQ(pruned.solutions.size(), 1U);
+    EXPECT_NEAR(pruned.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(pruned.solutions.size(), g->solve<strategy::Simple>(params, -1.0).solutions.size());
 }
 
-/// @brief GreedyAlgorithm finds both solutions when max solutions is large.
+/// @brief Greedy counts its iterations in labels taken: with max_iterations 2 it takes the source
+///        and the cheaper child, and stops before it reaches the sink.
+TEST(GreedyAlgorithmTest, MaxIterationsCountsTheLabelsTaken) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 2;
+    const auto two = g->solve<strategy::Greedy>(params);
+    EXPECT_TRUE(two.solutions.empty());
+    EXPECT_EQ(two.status, AlgorithmStatus::Truncated);
+    params.max_iterations = 3;
+    const auto three = g->solve<strategy::Greedy>(params);
+    ASSERT_EQ(three.solutions.size(), 1U);
+    EXPECT_NEAR(three.solutions[0].cost, kBestPathCost, 1e-9);
+}
+
+/// @brief Greedy applies the per-node quota, as every labelling search does: with one label taken
+///        per node, the second path's label at the sink is stored aside for a next phase that
+///        max_phases 1 does not run.
+TEST(GreedyAlgorithmTest, AppliesThePerNodeQuota) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_extended_labels_per_node = 1;
+    const auto result = g->solve<strategy::Greedy>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
+/// @brief Greedy finds both solutions when max solutions is large.
 TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
