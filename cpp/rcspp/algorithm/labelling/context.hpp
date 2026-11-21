@@ -8,6 +8,7 @@
 #include <limits>
 #include <unordered_set>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
@@ -28,8 +29,13 @@ enum class Role : std::uint8_t {
     BidirectionalSide,
 };
 
-/// @brief What every part of a search reads of its solve. Built once per solve, by the
-///        algorithm; every pointer is the algorithm's member.
+/// @brief What every part of a search reads of its solve. Built at the start of each solve by
+///        @c Algorithm::make_context, one per search.
+///
+/// The pointers are valid for the solve. Each points to the graph or to a member of the
+/// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound). The
+/// take rule lowers
+/// @c *incumbent.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -52,7 +58,8 @@ struct SearchContext {
         const CompletionBound<ResourceType>* completion_bound = nullptr;  ///< the completion bound
         Role role = Role::Single;
         /// Whether the incumbent prune adds the completion bound to a label's cost: the bound is
-        /// valid (the cost is additive). Otherwise the prune compares the cost alone.
+        /// valid (@c Algorithm::refresh_completion_bound_validity). Otherwise the prune compares
+        /// the cost alone.
         bool prune_adds_completion_bound = false;
         /// A bidirectional side: counts the labels its cuts abandon. Null for a single-direction
         /// search, whose cuts store labels aside.

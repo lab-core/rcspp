@@ -18,8 +18,9 @@ namespace rcspp::parts {
 
 /// @brief Hands labels out first in, first out, up to the per-node quota (Simple's order).
 ///
-/// A label taken while dominated is released; one over its node's quota is cut
-/// (@ref StoredAsideLabels). Either way, @ref next goes on to the next label.
+/// A label that comes up while dominated is released, and one over its node's quota is stored
+/// aside for the next phase, until a later memory-pressure event releases it
+/// (@ref StoredAsideLabels). Neither is handed out: @ref next goes on to the next label.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -67,12 +68,16 @@ class FifoSchedule {
         }
 
         /// @brief Keeps the queue's @p limit × nodes best labels (non-dominated first, then
-        ///        cheapest); of the rest, worst first, a dominated label is released and a
-        ///        non-dominated one is cut.
+        ///        cheapest), and leaves the queue in that order: after a trim it is no longer
+        ///        first in, first out. Of the rest, a dominated label is released and a
+        ///        non-dominated one is stored aside for the next phase, until a later
+        ///        memory-pressure event releases it (@ref StoredAsideLabels); worst first, so the
+        ///        next phase queues them worst first.
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             const size_t max_total = limit * context.graph->get_number_of_nodes();
             auto excess = detail::split_off_excess(&queue_, max_total);
-            // Worst first, as they come off the back of the queue.
+            // Worst first, as they come off the back of the queue: the base's Simple did the
+            // same. The order only decides the order the next phase queues them in.
             for (auto it = excess.rbegin(); it != excess.rend(); ++it) {
                 if (it->label->dominated) {
                     context.pool->release_with_ref_count(it->label);

@@ -23,18 +23,30 @@ struct IgnoreErase {
         void operator()(const LabelIterator<ResourceType>& /*position*/) const {}
 };
 
-/// @brief What every schedule provides: the order labels are taken in, the per-node quota, and
-///        how it trims itself.
+/// @brief What every schedule provides: the order labels are taken in, the per-node quota
+///        (@ref PerNodeQuota), and how it trims itself under memory pressure.
 ///
-/// @c initialize starts a solve; @c push hands it a newly kept label; @c size counts the labels
-/// waiting; @c prepare_next_phase gives back what a cut stored aside; @c trim keeps about
-/// @c limit labels per node, under memory pressure; @c release_stored_aside releases what a cut
-/// stored aside, erasing each through the callable; @c clear forgets every label (the pool owns
-/// them).
+/// - @c initialize(context) starts a solve, after @c clear. It sizes what the schedule keeps per
+///   node.
+/// - @c push(stored) hands it a newly kept label: a start label, or one the search has just
+///   extended (@c Search::extend_along).
+/// - @c size() counts the labels waiting to be handed out. Labels stored aside are not
+///   counted. The solve's loop runs while it is above 0, and the status reads it.
+/// - @c prepare_next_phase(context) starts the next phase: it hands back what the cuts stored
+///   aside, and starts the quota counts again. It is called between phases
+///   (@c Algorithm::solve), and once more when the solve ends, before the status is read, so
+///   that labels held back count as waiting.
+/// - @c trim(context, limit) is called under memory pressure
+///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit × the
+///   number of nodes in all (@ref FifoSchedule).
+/// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
+///   It erases each label stored aside from its node, through @p erase, and releases it.
+/// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
+///   new solve (@c Search::reset).
 ///
 /// A schedule loses no label silently: every label pushed is handed out, released as dominated,
-/// or cut through @ref StoredAsideLabels, so that the solve's status sees the cut. A schedule
-/// releases through the pool and erases only through the callable it is handed.
+/// or stored aside through @ref StoredAsideLabels, so that the solve's status sees the cut. A
+/// schedule releases through the pool and erases only through the callable it is handed.
 ///
 /// @tparam ScheduleType The schedule.
 /// @tparam ResourceType The resource type carried by labels.
