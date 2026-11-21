@@ -41,11 +41,11 @@ class VRPSubproblemNg {
 
         /// @brief Solves the subproblem and returns the solutions.
         ///
-        /// @tparam AlgorithmType The algorithm template to run.
+        /// @tparam AlgorithmType The strategy to solve with.
         /// @param dual_by_id The duals, by customer id.
         /// @param params     Algorithm parameters.
         /// @return The solutions found.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id,
                                     AlgorithmBaseParams params = AlgorithmBaseParams()) {
             if (graph_.get_number_of_nodes() == 0) {
@@ -72,11 +72,11 @@ class VRPSubproblemNg {
 
         /// @brief Solves through an externally-owned algorithm and reports the work done.
         ///
-        /// @tparam AlgorithmType The algorithm template to run.
+        /// @tparam AlgorithmType The strategy to solve with.
         /// @param dual_by_id The duals, by customer id.
         /// @param params     Algorithm parameters.
         /// @return The measurement.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         RunMeasurement solve_and_measure(const std::map<size_t, double>& dual_by_id,
                                          AlgorithmBaseParams params = AlgorithmBaseParams()) {
             if (graph_.get_number_of_nodes() == 0) {

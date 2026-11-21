@@ -84,37 +84,29 @@ inline std::vector<Run> every_algorithm() {
     return {
         {"simple",
          true,
-         [](auto* g) {
-             return g->template solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
-         }},
+         [](auto* g) { return g->template solve<strategy::Simple>(AlgorithmBaseParams{}); }},
         {"pushing",
          true,
-         [](auto* g) {
-             return g->template solve<PushingDominanceAlgorithm>(AlgorithmBaseParams{});
-         }},
+         [](auto* g) { return g->template solve<strategy::Pushing>(AlgorithmBaseParams{}); }},
         {"pulling",
          true,
-         [](auto* g) {
-             return g->template solve<PullingDominanceAlgorithm>(AlgorithmBaseParams{});
-         }},
+         [](auto* g) { return g->template solve<strategy::Pulling>(AlgorithmBaseParams{}); }},
         {"astar",
          true,
-         [](auto* g) { return g->template solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{}); }},
+         [](auto* g) { return g->template solve<strategy::AStar>(AlgorithmBaseParams{}); }},
         {"bidirectional",
          true,
          [](auto* g) {
-             return g->template solve<SimpleDominanceAlgorithm>(
+             return g->template solve<strategy::Simple>(
                  test_util::bidirectional(AlgorithmBaseParams{}));
          }},
         {"greedy",
          false,
-         [](auto* g) { return g->template solve<GreedyAlgorithm>(AlgorithmBaseParams{}); }},
-        {"tabu",
-         false,
-         [bounded](auto* g) { return g->template solve<TabuSearchAlgorithm>(bounded); }},
+         [](auto* g) { return g->template solve<strategy::Greedy>(AlgorithmBaseParams{}); }},
+        {"tabu", false, [bounded](auto* g) { return g->template solve<strategy::Tabu>(bounded); }},
         {"improving tabu",
          false,
-         [bounded](auto* g) { return g->template solve<ImprovingTabuSearch>(bounded); }},
+         [bounded](auto* g) { return g->template solve<strategy::ImprovingTabu>(bounded); }},
     };
 }
 

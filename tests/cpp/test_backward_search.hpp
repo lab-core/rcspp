@@ -38,7 +38,7 @@ constexpr double kTolerance = 1e-9;
 
 /// @brief The cheapest forward solution, via the ordinary algorithm.
 inline double forward_optimum(ResourceGraph<RealResource>* graph) {
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     if (result.solutions.empty()) {
         return std::numeric_limits<double>::infinity();
     }

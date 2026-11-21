@@ -34,7 +34,7 @@ struct Timed {
 };
 
 /// @brief Runs @p subproblem once and times it.
-template <template <typename, typename> class AlgorithmType>
+template <typename AlgorithmType>
 Timed measure(VRPSubproblem* subproblem, const std::map<size_t, double>& duals,
               AlgorithmBaseParams params) {
     const auto started = std::chrono::steady_clock::now();
@@ -93,7 +93,7 @@ TEST(BidirectionalBenchmark, ForwardVersusBidirectionalOnVrptw) {
 
     VRPSubproblem forward_subproblem(instance);
     const auto forward =
-        bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem, duals, AlgorithmBaseParams{});
+        bb::measure<strategy::Simple>(&forward_subproblem, duals, AlgorithmBaseParams{});
 
     AlgorithmBaseParams bidirectional_params;
     bidirectional_params.critical_resource_index = 1;  // time
@@ -101,18 +101,18 @@ TEST(BidirectionalBenchmark, ForwardVersusBidirectionalOnVrptw) {
 
     VRPSubproblem bidirectional_subproblem(instance);
     const auto bidirectional =
-        bb::measure<SimpleDominanceAlgorithm>(&bidirectional_subproblem,
-                                              duals,
-                                              test_util::bidirectional(bidirectional_params));
+        bb::measure<strategy::Simple>(&bidirectional_subproblem,
+                                      duals,
+                                      test_util::bidirectional(bidirectional_params));
 
     AlgorithmBaseParams unbounded_params;
     unbounded_params.critical_resource_index = 1;
     unbounded_params.half_way_point = 0.0;  // no explicit H, no finite R: the bound stays off
     VRPSubproblem unbounded_subproblem(instance);
     const auto unbounded =
-        bb::measure<SimpleDominanceAlgorithm>(&unbounded_subproblem,
-                                              duals,
-                                              test_util::bidirectional(unbounded_params));
+        bb::measure<strategy::Simple>(&unbounded_subproblem,
+                                      duals,
+                                      test_util::bidirectional(unbounded_params));
 
     std::cout << "[ BENCHMARK ] " << instance_name << ", iteration-0 duals, H = " << horizon / 2.0
               << std::endl;
@@ -159,11 +159,10 @@ TEST(BidirectionalBenchmark, PricingIterationSweep) {
         const auto duals = InstanceReader::read_duals(root_dir + "/instances/duals/R101/iter_" +
                                                       std::to_string(iteration) + ".txt");
 
-        const auto forward =
-            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                  duals,
-                                                  bb::forward_params(bb::kTimeoutSeconds));
-        const auto bidirectional = bb::measure<SimpleDominanceAlgorithm>(
+        const auto forward = bb::measure<strategy::Simple>(&forward_subproblem,
+                                                           duals,
+                                                           bb::forward_params(bb::kTimeoutSeconds));
+        const auto bidirectional = bb::measure<strategy::Simple>(
             &bidirectional_subproblem,
             duals,
             test_util::bidirectional(bb::bidirectional_params(horizon, bb::kTimeoutSeconds)));
@@ -232,11 +231,10 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAcrossFamilies) {
         VRPSubproblem forward_subproblem(instance);
         VRPSubproblem bidirectional_subproblem(instance);
 
-        const auto forward =
-            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                  duals,
-                                                  bb::forward_params(bb::kTimeoutSeconds));
-        const auto bidirectional = bb::measure<SimpleDominanceAlgorithm>(
+        const auto forward = bb::measure<strategy::Simple>(&forward_subproblem,
+                                                           duals,
+                                                           bb::forward_params(bb::kTimeoutSeconds));
+        const auto bidirectional = bb::measure<strategy::Simple>(
             &bidirectional_subproblem,
             duals,
             test_util::bidirectional(bb::bidirectional_params(horizon, bb::kTimeoutSeconds)));
@@ -279,10 +277,9 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAt75Customers) {
         VRPSubproblem forward_subproblem(instance);
         VRPSubproblem bidirectional_subproblem(instance);
 
-        const auto forward = bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                                   duals,
-                                                                   bb::forward_params(kBudget));
-        const auto bidirectional = bb::measure<SimpleDominanceAlgorithm>(
+        const auto forward =
+            bb::measure<strategy::Simple>(&forward_subproblem, duals, bb::forward_params(kBudget));
+        const auto bidirectional = bb::measure<strategy::Simple>(
             &bidirectional_subproblem,
             duals,
             test_util::bidirectional(bb::bidirectional_params(horizon, kBudget)));
@@ -329,11 +326,10 @@ TEST(BidirectionalBenchmark, DISABLED_LargeInstancesUnderATimeBudget) {
         VRPSubproblem forward_subproblem(instance);
         VRPSubproblem bidirectional_subproblem(instance);
 
-        const auto forward =
-            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                  duals,
-                                                  bb::forward_params(bb::kBudgetSeconds));
-        const auto bidirectional = bb::measure<SimpleDominanceAlgorithm>(
+        const auto forward = bb::measure<strategy::Simple>(&forward_subproblem,
+                                                           duals,
+                                                           bb::forward_params(bb::kBudgetSeconds));
+        const auto bidirectional = bb::measure<strategy::Simple>(
             &bidirectional_subproblem,
             duals,
             test_util::bidirectional(bb::bidirectional_params(horizon, bb::kBudgetSeconds)));
