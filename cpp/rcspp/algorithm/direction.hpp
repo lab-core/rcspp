@@ -20,10 +20,11 @@ namespace rcspp {
 /// The loop is written once against @c Direction and instantiated for each direction.
 ///
 /// Every member is named from the search's point of view, not the graph's: a label at a node is
-/// extended along the node's @ref out_arcs and reaches the arc's @ref head. Going forward these
-/// are the graph's out-arcs and the arc's destination; going backward, the graph's in-arcs and
-/// the arc's origin. Likewise the start nodes are the sources forward and the sinks backward, and
-/// the end nodes the reverse.
+/// extended along the node's @ref out_arcs and reaches the arc's @ref head; @ref in_arcs and
+/// @ref tail are the reverse (the arcs that reach a node, and the node an arc leaves). Going
+/// forward these are the graph's out-arcs, destination, in-arcs and origin; going backward, the
+/// graph's in-arcs, origin, out-arcs and destination. Likewise the start nodes are the sources
+/// forward and the sinks backward, and the end nodes the reverse.
 struct ForwardDirection {
         /// @brief Direction tag for `if constexpr` where a policy member does not suffice.
         static constexpr bool backward = false;
@@ -39,6 +40,21 @@ struct ForwardDirection {
         template <typename ResourceType>
         static auto head(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
             return arc.destination;
+        }
+
+        /// @brief The arcs along which a label reaches @p node: incoming, going forward. A pull
+        ///        into @p node reads them.
+        template <typename ResourceType>
+        static auto in_arcs(const Graph<ResourceType>& graph,
+                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+            return graph.get_in_arcs(node);
+        }
+
+        /// @brief The node an extension along @p arc starts from: its origin, going forward. A
+        ///        pull along @p arc takes labels from it.
+        template <typename ResourceType>
+        static auto tail(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
+            return arc.origin;
         }
 
         /// @brief Extends @p label along @p arc into @p extended_label.
@@ -129,6 +145,21 @@ struct BackwardDirection {
         template <typename ResourceType>
         static auto head(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
             return arc.origin;
+        }
+
+        /// @brief The arcs along which a label reaches @p node: outgoing, going backward. A pull
+        ///        into @p node reads them.
+        template <typename ResourceType>
+        static auto in_arcs(const Graph<ResourceType>& graph,
+                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+            return graph.get_out_arcs(node);
+        }
+
+        /// @brief The node an extension along @p arc starts from: its destination, going
+        ///        backward. A pull along @p arc takes labels from it.
+        template <typename ResourceType>
+        static auto tail(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
+            return arc.destination;
         }
 
         /// @brief Extends @p label backward along @p arc into @p extended_label.
@@ -237,6 +268,10 @@ concept DirectionPolicy =
             Direction::template out_arcs<ResourceType>(graph, node)
         } -> std::same_as<std::span<Arc<ResourceType>*>>;
         { Direction::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
+        {
+            Direction::template in_arcs<ResourceType>(graph, node)
+        } -> std::same_as<std::span<Arc<ResourceType>*>>;
+        { Direction::template tail<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
         Direction::template extend<ResourceType>(label, arc, extended_label);
         { Direction::template feasible<ResourceType>(label) } -> std::same_as<bool>;
         { Direction::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
