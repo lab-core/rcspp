@@ -90,17 +90,18 @@ class BidirectionalDominanceAlgorithm
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
 
-            const size_t num_nodes = graph->get_number_of_nodes();
-            forward_extended_per_node_.assign(num_nodes, 0);
-            backward_extended_per_node_.assign(num_nodes, 0);
+            const size_t number_of_nodes = graph->get_number_of_nodes();
+            forward_extended_per_node_.assign(number_of_nodes, 0);
+            backward_extended_per_node_.assign(number_of_nodes, 0);
             forward_work_ = 0;
             backward_work_ = 0;
+            abandoned_labels_ = 0;
             forward_frontier_.clear();
             backward_frontier_.clear();
 
             backward_labels_by_node_pos_.clear();
-            backward_labels_by_node_pos_.reserve(num_nodes);
-            for (size_t i = 0; i < num_nodes; ++i) {
+            backward_labels_by_node_pos_.reserve(number_of_nodes);
+            for (size_t i = 0; i < number_of_nodes; ++i) {
                 backward_labels_by_node_pos_.emplace_back(
                     rebind_direction<LabelContainerType, BackwardDirection>::convert(
                         this->params_.labels));
@@ -134,6 +135,12 @@ class BidirectionalDominanceAlgorithm
         [[nodiscard]] size_t number_of_labels() const override {
             return forward_frontier_.size() + backward_frontier_.size();
         }
+
+        /// @brief Whether the quota or memory pressure abandoned a label this solve.
+        ///
+        /// A bidirectional search runs one phase, so what a cut takes off a frontier is never
+        /// extended: the frontiers can empty without every label having been processed.
+        [[nodiscard]] bool has_abandoned_labels() const override { return abandoned_labels_ > 0; }
 
         /// @brief Interleaves the two searches, taking from whichever has done less work so far.
         ///
@@ -218,9 +225,11 @@ class BidirectionalDominanceAlgorithm
                          this->params_.memory_pressure_max_labels_per_node);
             this->memory_pressure_triggered_ = true;
             const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
-            const size_t num_nodes = this->graph_->get_number_of_nodes();
-            forward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
-            backward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
+            const size_t number_of_nodes = this->graph_->get_number_of_nodes();
+            abandoned_labels_ +=
+                forward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
+            abandoned_labels_ +=
+                backward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
         }
 
         void release_label_memory() override {
@@ -279,6 +288,7 @@ class BidirectionalDominanceAlgorithm
                 // Known gap: an abandoned label never yields a boundary label, so the join sees
                 // fewer forward halves. Only reachable under truncated labeling or memory pressure,
                 // and such labels are never revisited.
+                ++abandoned_labels_;
                 return;
             }
             ++extended_count;
@@ -311,7 +321,7 @@ class BidirectionalDominanceAlgorithm
                 return;
             }
 
-            // The half-way bound: forward labels stop above H, backward labels below it. With the
+            // The half-way point: forward labels stop above H, backward labels below it. With the
             // bound off, the clock (and its index) is never read.
             if (half_way_.enabled()) {
                 const double critical =
@@ -483,7 +493,7 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief Turns the half-way bound off for this solve, and says why.
+        /// @brief Turns the half-way point off for this solve, and says why.
         ///
         /// Logs at WARN the first time @p reason occurs in this process, at DEBUG after that.
         ///
@@ -495,13 +505,13 @@ class BidirectionalDominanceAlgorithm
             half_way_off_reason_ = std::move(why);
             if (first_report_of(reason)) {
                 LOG_WARN(
-                    "BidirectionalDominanceAlgorithm: the half-way bound is off because ",
+                    "BidirectionalDominanceAlgorithm: the half-way point is off because ",
                     half_way_off_reason_,
                     ". The solve stays correct, but it runs a full forward search, a full "
                     "backward search and a join -- more work than a forward algorithm on the "
                     "same model. (Reported once per process; later solves log it at DEBUG.)\n");
             } else {
-                LOG_DEBUG("BidirectionalDominanceAlgorithm: the half-way bound is off because ",
+                LOG_DEBUG("BidirectionalDominanceAlgorithm: the half-way point is off because ",
                           half_way_off_reason_,
                           ".\n");
             }
@@ -600,9 +610,9 @@ class BidirectionalDominanceAlgorithm
         /// additive cost before any bidirectional solve. Unlike A*, this reads neither `arc.cost`
         /// (the original weight, not a bound under reduced costs) nor a cost slot index.
         void compute_completion_bounds(const Graph<ResourceType>& graph) {
-            const size_t num_nodes = graph.get_number_of_nodes();
-            h_to_sink_.assign(num_nodes, 0.0);
-            h_from_source_.assign(num_nodes, 0.0);
+            const size_t number_of_nodes = graph.get_number_of_nodes();
+            h_to_sink_.assign(number_of_nodes, 0.0);
+            h_from_source_.assign(number_of_nodes, 0.0);
 
             // Only the completion-bound prune reads these; skip the relaxations when it is off.
             // The vectors stay sized above because `completion_bound` uses `.at()`.
@@ -693,6 +703,10 @@ class BidirectionalDominanceAlgorithm
         /// @brief Arcs each search has extended this solve; @ref main_loop takes the smaller.
         size_t forward_work_ = 0;
         size_t backward_work_ = 0;
+
+        /// @brief Labels a quota or memory pressure took off a frontier this solve, never to be
+        ///        extended; see @ref has_abandoned_labels.
+        size_t abandoned_labels_ = 0;
 
         /// @brief Lower bounds, by node position, on the cost from each node to a sink (forward)
         ///        and from a source to each node (backward); see @ref completion_bound.

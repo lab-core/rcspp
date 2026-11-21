@@ -68,7 +68,7 @@ TEST(Equivalence, MatchesTheForwardSearchAcrossTheSweep) {
     EXPECT_GT(configs_that_join, 0U) << "no config's bounded run produced a joined path";
 }
 
-/// @brief The half-way bound never changes the answer.
+/// @brief The half-way point never changes the answer.
 ///
 /// Separate from the forward comparison so a failure points at the half-way policy, not the join.
 TEST(Equivalence, TheHalfWayBoundDoesNotChangeTheAnswer) {
