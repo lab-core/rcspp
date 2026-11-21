@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
-#include "rcspp/algorithm/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 namespace rcspp {
 
@@ -88,14 +88,14 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         // ------------------------------------------------------------------
 
         void main_loop() override {
-            if (this->params_.max_iterations >= MAX_INT) {
+            if (this->params_.max_iterations >= kNoLimit) {
                 LOG_ERROR(
                     "max_iterations must be set to a finite value for TabuSearchAlgorithm.\n");
                 return;
             }
 
             size_t i = 0;
-            while (!this->should_stop(i)) {
+            while (!this->should_end_loop(i)) {
                 ++i;
 
                 const detail::DiveEnd end = dive_to_sink();
@@ -107,16 +107,15 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                 if (end == detail::DiveEnd::Sink) {
                     auto* sink_label = this->path_.back().first;
                     bool added = false;
-                    if (sink_label->get_cost() < this->cost_upper_bound_) {
-                        if (sink_label->get_cost() + this->params_.tolerance <
-                            this->best_cost_upper_bound_) {
-                            this->best_cost_upper_bound_ = sink_label->get_cost();
+                    if (sink_label->get_cost() < this->upper_bound_) {
+                        if (sink_label->get_cost() + this->params_.tolerance < this->incumbent_) {
+                            this->incumbent_ = sink_label->get_cost();
                             LOG_DEBUG("Found a better solution with cost ",
                                       sink_label->get_cost(),
                                       "\n");
                         }
                         size_t before = this->solutions_.size();
-                        this->extract_solution(*sink_label);
+                        this->record_solution(*sink_label);
                         added = (this->solutions_.size() > before);
                     }
                     apply_tabu(*sink_label, added);
@@ -146,12 +145,12 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         detail::DiveEnd dive_to_sink() {
             // A single dive can enumerate exponentially many partial paths
             // between main_loop()'s per-iteration checks — and each extension
-            // allocates a label — so poll should_stop() and the memory limit
+            // allocates a label — so poll should_end_loop() and the memory limit
             // every 4096 steps.
             size_t steps = 0;
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
+                    (this->should_end_loop() || this->memory_limit_.is_exceeded())) {
                     return detail::DiveEnd::Stopped;
                 }
                 auto* current = this->path_.back().first;

@@ -70,9 +70,9 @@ inline void report_ng(const std::string& name, const TimedNg& timed) {
               << " extended_labels=" << timed.measurement.extended_labels
               << " pooled_labels=" << timed.measurement.pooled_labels
               << " status=" << to_string(timed.measurement.status)
-              << " bounded=" << timed.measurement.bounded_by_half_way
-              << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
-              << std::endl;
+              << " bounded=" << timed.measurement.half_way_used
+              << " number_of_joined_paths=" << timed.measurement.number_of_joined_paths
+              << " seconds=" << timed.seconds << std::endl;
 }
 
 }  // namespace bidirectional_benchmark_ng
@@ -80,8 +80,8 @@ inline void report_ng(const std::string& name, const TimedNg& timed) {
 /// @brief The ng model on R101, iteration-0 duals: forward against bidirectional.
 ///
 /// Enabled, unlike the other benchmarks here. Asserts that both find the known optimum, that the
-/// join runs its set test (`joined_paths > 0`), and that label counts stay under
-/// @ref kMaxForwardExtensions. `joined_paths` itself varies across toolchains.
+/// join runs its set test (`number_of_joined_paths > 0`), and that label counts stay under
+/// @ref kMaxForwardExtensions. `number_of_joined_paths` itself varies across toolchains.
 TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
     namespace bb = bidirectional_benchmark;
     namespace ng = bidirectional_benchmark_ng;
@@ -126,11 +126,11 @@ TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
     EXPECT_NEAR(bidirectional.measurement.cost, bb::kOptimal, bb::kTolerance)
         << "bidirectional does not find the known optimum of the ng model";
     EXPECT_TRUE(bidirectional.measurement.ref_counts_consistent);
-    EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way)
+    EXPECT_TRUE(bidirectional.measurement.half_way_used)
         << "a disabled bound would make this a measurement of two full searches plus a join";
 
     // The join's `JoinRule::Custom` set test must actually run on this model.
-    EXPECT_GT(bidirectional.measurement.joined_paths, 0U)
+    EXPECT_GT(bidirectional.measurement.number_of_joined_paths, 0U)
         << "no paths were joined, so the ng component's join test never ran and this model "
            "does not exercise it";
 

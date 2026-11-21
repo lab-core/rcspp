@@ -34,7 +34,7 @@ constexpr double kTolerance = 1e-9;
 struct Outcome {
         double cost = std::numeric_limits<double>::infinity();
         size_t solutions = 0;
-        size_t joined_paths = 0;
+        size_t number_of_joined_paths = 0;
         bool bounded = false;
 };
 
@@ -58,8 +58,8 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     outcome.cost = result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                             : result.solutions.front().cost;
     outcome.solutions = result.solutions.size();
-    outcome.joined_paths = result.bidirectional->number_of_joined_paths;
-    outcome.bounded = result.bidirectional->bounded_by_half_way;
+    outcome.number_of_joined_paths = result.bidirectional->number_of_joined_paths;
+    outcome.bounded = result.bidirectional->half_way_used;
     return outcome;
 }
 

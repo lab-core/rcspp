@@ -60,12 +60,12 @@ class HalfWayPolicy {
         ///                             `half_way_point` is 0, so there `H` is never derived.
         HalfWayPolicy(double half_way_point, double resource_upper_bound) {
             if (half_way_point > 0.0) {
-                h_ = half_way_point;
+                point_ = half_way_point;
             } else if (std::isfinite(resource_upper_bound) && resource_upper_bound > 0.0) {
-                h_ = resource_upper_bound / 2.0;
+                point_ = resource_upper_bound / 2.0;
             } else {
                 // No explicit H and no finite R.
-                h_ = 0.0;
+                point_ = 0.0;
                 enabled_ = false;
             }
         }
@@ -75,7 +75,7 @@ class HalfWayPolicy {
         /// @param critical_value The label's value on the critical resource.
         /// @return `true` when the label is beyond `H` and the bound is in force.
         [[nodiscard]] bool should_stop_forward(double critical_value) const {
-            return enabled_ && critical_value > h_;
+            return enabled_ && critical_value > point_;
         }
 
         /// @brief Whether a backward label is below the half-way point and should be discarded.
@@ -85,7 +85,7 @@ class HalfWayPolicy {
         /// @param critical_value The label's value on the critical resource.
         /// @return `true` when the label is short of `H` and the bound is in force.
         [[nodiscard]] bool should_stop_backward(double critical_value) const {
-            return enabled_ && critical_value < h_;
+            return enabled_ && critical_value < point_;
         }
 
         /// @brief Turns the bound off: both searches run to completion, correct but slower.
@@ -95,10 +95,10 @@ class HalfWayPolicy {
         [[nodiscard]] bool enabled() const { return enabled_; }
 
         /// @brief The half-way point `H`.
-        [[nodiscard]] double h() const { return h_; }
+        [[nodiscard]] double point() const { return point_; }
 
     private:
-        double h_ = 0.0;
+        double point_ = 0.0;
         bool enabled_ = true;
 };
 
