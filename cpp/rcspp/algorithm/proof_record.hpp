@@ -20,8 +20,10 @@ enum class ProofLoss : std::uint8_t {
     /// has soft ones (a child filter may drop children along them; a search that reads no soft
     /// arc loses the proof all the same)
     ArcsMasked,
-    RelaxedAdmission,  ///< the admission rule is not exact: it may drop a label dominance keeps
-    MemoryPressure,    ///< memory pressure trimmed the labels, and may have released some
+    /// the admission rule is not exact (@c Relaxed with a component left out, @c KBest with a
+    /// limit, or a rule of one's own): it may drop a label dominance keeps
+    RelaxedAdmission,
+    MemoryPressure,  ///< memory pressure trimmed the labels, and may have released some
     /// a heuristic changed the search between runs: a tabu search's driver, once it makes an arc
     /// tabu (DiversificationSearch records it too, but is never proven anyway)
     HeuristicDriver,

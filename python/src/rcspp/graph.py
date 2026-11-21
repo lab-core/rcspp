@@ -604,13 +604,41 @@ class ResourceGraph:
                 )
             algorithm = factory()
         chosen = params.direction if direction is None else _search_direction(direction)
-        # Set for this call only: the caller's params keep their own direction.
+        # Two fields are changed for this call only, and restored in `finally`: the direction, and
+        # dominance_ignored_components, which the caller gives as registration positions and C++
+        # reads as component indices (type slot, then registration order: see _component_index).
+        # The positions are translated before either field changes, so a position the graph does
+        # not have raises ValueError with the caller's params untouched.
         previous = params.direction
+        previous_ignored = params.dominance_ignored_components
+        ignored = {self._component_index(position) for position in previous_ignored}
         params.direction = chosen
+        params.dominance_ignored_components = ignored
         try:
             return self._graph.solve(algorithm, upper_bound, params, preprocess, cost_index)
         finally:
             params.direction = previous
+            params.dominance_ignored_components = previous_ignored
+
+    def _component_index(self, position: int) -> int:
+        """The C++ component index of the resource registered at *position*.
+
+        C++ numbers components by type slot, in the order of the graph class's types, then in
+        registration order within a type.
+
+        Raises:
+            ValueError: *position* names no registered resource.
+        """
+        registered = self._full_registration_order
+        if position >= len(registered):
+            raise ValueError(
+                f"dominance_ignored_components names resource {position}, but the graph has "
+                f"{len(registered)} registered resource(s) (valid: 0-{len(registered) - 1})."
+            )
+        resource_type = registered[position]
+        slot = self._graph_canonical.index(resource_type)
+        before = sum(1 for r in registered if self._graph_canonical.index(r) < slot)
+        return before + registered[:position].count(resource_type)
 
     def check_model(self, direction="bidirectional") -> list:
         """Run the model checks a search in *direction* needs, without solving.

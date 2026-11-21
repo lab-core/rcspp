@@ -14,6 +14,7 @@ import rcspp._core.resource
 from rcspp.graph import ResourceGraph
 
 __all__: list[str] = [
+    "AdmissionRule",
     "Algorithm",
     "AlgorithmParams",
     "AlgorithmStatus",
@@ -166,6 +167,38 @@ class SearchDirection:
     @property
     def value(self) -> int: ...
 
+class AdmissionRule:
+    """
+    The rule that decides whether a new label is kept at its node: Exact (dominance, the default), Relaxed (dominance over the resources not in dominance_ignored_components) or KBest (dominance, then at most max_admitted_labels_per_node labels at each node, the cheapest). Relaxed and KBest are heuristics: a solve with either is not proven, unless the rule is at its limit (Relaxed with no resource left out, KBest with max_admitted_labels_per_node at its default).
+
+    Members:
+
+      Exact
+
+      Relaxed
+
+      KBest
+    """
+
+    Exact: typing.ClassVar[AdmissionRule]
+    KBest: typing.ClassVar[AdmissionRule]
+    Relaxed: typing.ClassVar[AdmissionRule]
+    __members__: typing.ClassVar[dict[str, AdmissionRule]]
+    def __eq__(self, other: typing.Any) -> bool: ...
+    def __getstate__(self) -> int: ...
+    def __hash__(self) -> int: ...
+    def __index__(self) -> int: ...
+    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None: ...
+    def __int__(self) -> int: ...
+    def __ne__(self, other: typing.Any) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None: ...
+    def __str__(self) -> str: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def value(self) -> int: ...
+
 class AlgorithmStatus:
     """
     Members:
@@ -292,6 +325,14 @@ class AlgorithmParams:
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
     @property
+    def admission_rule(self) -> AdmissionRule:
+        """
+        Whether a new label is kept at its node: AdmissionRule.Exact (dominance, the default), Relaxed or KBest. Relaxed and KBest drop labels exact dominance keeps: every path returned is feasible and correctly priced, but the optimum may be missed, and result.proven is False (unless the rule is at its limit: nothing left out, no limit on k). Read by every labelling algorithm (simple, pushing, pulling, astar), in every direction; greedy and tabu keep every label and ignore it.
+        """
+
+    @admission_rule.setter
+    def admission_rule(self, arg0: AdmissionRule) -> None: ...
+    @property
     def critical_resource_index(self) -> int:
         """
         Which resource is the bidirectional clock, given as its index among the resources of the cost's type (e.g. 1 for the second 'real' resource). The clock must never decrease along an arc and must be a time window or a capacity, not a plain sum and never the cost. If it is not, the half-way point turns itself off: the answer stays correct, but the solve is slower. Used only by a bidirectional search (default 0).
@@ -307,6 +348,16 @@ class AlgorithmParams:
 
     @direction.setter
     def direction(self, arg0: SearchDirection) -> None: ...
+    @property
+    def dominance_ignored_components(self) -> set[int]:
+        """
+        Relaxed: the resources left out of dominance, by their position in the order they were registered (0 is the first, the cost's with the default cost_index). Two labels that differ only there compare as equal there. solve() raises ValueError for a position the graph does not have, whatever the rule. Leaving out the bidirectional clock turns the half-way point off. Messages from the search number resources the C++ way, by type and then by registration order within a type: 'component N' in result.bidirectional.half_way_off_reason and in the model checks' messages is in that numbering, not in this one.
+        """
+
+    @dominance_ignored_components.setter
+    def dominance_ignored_components(
+        self, arg0: collections.abc.Set[typing.SupportsInt | typing.SupportsIndex]
+    ) -> None: ...
     @property
     def half_way_point(self) -> float:
         """
@@ -339,6 +390,16 @@ class AlgorithmParams:
 
     @limit_to_total_ram.setter
     def limit_to_total_ram(self, arg0: bool) -> None: ...
+    @property
+    def max_admitted_labels_per_node(self) -> int:
+        """
+        KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 raises ValueError): at a full node, a new label takes the place of the costliest when it costs less, and is dropped otherwise. The default, 1073741823 (no limit), keeps every label dominance keeps.
+        """
+
+    @max_admitted_labels_per_node.setter
+    def max_admitted_labels_per_node(
+        self, arg0: typing.SupportsInt | typing.SupportsIndex
+    ) -> None: ...
     @property
     def max_extended_labels_per_node(self) -> int: ...
     @max_extended_labels_per_node.setter
