@@ -3,9 +3,13 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <fstream>
+#include <limits>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "rcspp/utils/logger.hpp"
 
@@ -243,6 +247,8 @@ struct MemoryLimitHelper {
         void resolve(double max_memory_gb, bool limit_to_available_ram, bool limit_to_total_ram,
                      double memory_limit_fraction, double pressure_fraction_in,
                      size_t check_interval_in = 0) {
+            forced_pressure_checks_.clear();
+            number_of_forced_checks_ = 0;
             pressure_fraction = pressure_fraction_in;
             check_interval = check_interval_in;
             if (max_memory_gb > 0.0) {
@@ -291,9 +297,10 @@ struct MemoryLimitHelper {
             }
         }
 
-        /// @brief Returns true when the process RSS has reached the effective limit.
+        /// @brief Returns true when the process RSS has reached the effective limit; always false
+        ///        while pressure is forced (@ref force_pressure_on_checks).
         [[nodiscard]] bool is_exceeded() const noexcept {
-            if (effective_limit == 0) {
+            if (effective_limit == 0 || !forced_pressure_checks_.empty()) {
                 return false;
             }
             return MemoryInfo::process_bytes() >= effective_limit;
@@ -321,11 +328,37 @@ struct MemoryLimitHelper {
                 iteration % check_interval != 0) {
                 return MemoryState::Ok;
             }
+            if (!forced_pressure_checks_.empty()) {
+                ++number_of_forced_checks_;
+                return std::ranges::find(forced_pressure_checks_, number_of_forced_checks_) !=
+                               forced_pressure_checks_.end()
+                           ? MemoryState::UnderPressure
+                           : MemoryState::Ok;
+            }
             const size_t bytes = MemoryInfo::process_bytes();
             if (bytes >= effective_limit) {
                 return MemoryState::Exceeded;
             }
             return bytes >= pressure_threshold() ? MemoryState::UnderPressure : MemoryState::Ok;
+        }
+
+        /// @brief Tests only: until the next @ref resolve, the limit is never exceeded and
+        ///        @ref check reports pressure on exactly the listed checks.
+        ///
+        /// A check is a call of @ref check on an iteration it reads the memory at, numbered from
+        /// 1. A non-empty list also sets @ref effective_limit, since @ref check reads nothing
+        /// without a limit. @ref resolve runs at the start of every solve, so a test sets this
+        /// after it (for example in an override of @c initialize_labels, as
+        /// tests/cpp/util/parity.hpp does).
+        ///
+        /// @param checks The 1-based numbers of the checks that report pressure; empty turns the
+        ///               forcing off.
+        void force_pressure_on_checks(std::vector<size_t> checks) {
+            forced_pressure_checks_ = std::move(checks);
+            number_of_forced_checks_ = 0;
+            if (!forced_pressure_checks_.empty()) {
+                effective_limit = std::numeric_limits<size_t>::max();
+            }
         }
 
         /// @brief Effective byte cap; 0 means unlimited.
@@ -342,6 +375,12 @@ struct MemoryLimitHelper {
         [[nodiscard]] size_t pressure_threshold() const noexcept {
             return static_cast<size_t>(static_cast<double>(effective_limit) * pressure_fraction);
         }
+
+        /// @brief The checks @ref force_pressure_on_checks asked for; empty when none is forced.
+        std::vector<size_t> forced_pressure_checks_;
+        /// @brief The checks @ref check has made while pressure is forced, pressure or not
+        ///        (@ref check is const).
+        mutable size_t number_of_forced_checks_ = 0;
 };
 
 }  // namespace rcspp
