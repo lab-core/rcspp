@@ -90,6 +90,9 @@ def code_record(build: Path) -> dict[str, Any]:
     core = Path(rcspp._core.__file__ or "")
     cache = read_cmake_cache(build)
     compiler = compiler_version(build)
+    # Multi-configuration generators (Visual Studio) leave the build type out of the cache: the
+    # module says which configuration it was built in.
+    build_type = cache.get("CMAKE_BUILD_TYPE") or getattr(rcspp._core, "build_config", "") or None
     return {
         "rcspp": rcspp.__file__,
         "core": rcspp._core.__file__,
@@ -99,7 +102,7 @@ def code_record(build: Path) -> dict[str, Any]:
         },
         "build": str(build),
         "generator": cache.get("CMAKE_GENERATOR"),
-        "build_type": cache.get("CMAKE_BUILD_TYPE"),
+        "build_type": build_type,
         # Multi-configuration generators (Visual Studio) leave it out of the cache.
         "compiler": cache.get("CMAKE_CXX_COMPILER") or compiler.get("CMAKE_CXX_COMPILER"),
         "compiler_id": compiler.get("CMAKE_CXX_COMPILER_ID"),
@@ -131,9 +134,27 @@ def tree_version(tree: Path = TREE) -> str | None:
         return None
 
 
+def linked_highs_version() -> str | None:
+    """The version of the HiGHS the C++ column generation example links, when a run
+    imported the example and it was built with HiGHS; else None."""
+    if "cpp_column_generation" not in sys.modules:
+        return None
+
+    import rcspp._core
+
+    bindings = getattr(rcspp._core, "cpp_column_generation", None)
+    highs_version = getattr(bindings, "highs_version", None)
+    return None if highs_version is None else str(highs_version())
+
+
 def version_record() -> dict[str, Any]:
     """Python's, rcspp's and numpy's versions, and the solvers' of the packages the run
-    imported."""
+    imported.
+
+    ``highs`` is the HiGHS that solves: the one the C++ column generation example links when
+    the run imported the example (its ``highs`` and ``highspy`` masters both solve with it),
+    else highspy's. highspy's own is ``highspy_highs``, which can differ.
+    """
     import numpy
 
     versions: dict[str, Any] = {
@@ -145,7 +166,13 @@ def version_record() -> dict[str, Any]:
     if "highspy" in sys.modules:
         highspy = sys.modules["highspy"]
         versions["highspy"] = package_version("highspy")
-        versions["highs"] = highspy.Highs().version()
+        versions["highspy_highs"] = highspy.Highs().version()
+        versions["highs"] = versions["highspy_highs"]
+
+    linked = linked_highs_version()
+
+    if linked is not None:
+        versions["highs"] = linked
 
     if "gurobipy" in sys.modules:
         gurobipy = sys.modules["gurobipy"]

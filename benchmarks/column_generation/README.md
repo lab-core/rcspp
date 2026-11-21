@@ -8,6 +8,7 @@ wheel does not have it.
 | -------------- | ---------------------------------------------------------------------------------------------- |
 | `package`      | `rcspp.column_generation`, the column generation package rcspp ships                           |
 | `cpp-bindings` | the C++ column generation example of `examples/column_generation`, through its Python bindings |
+| `cpp-native`   | the same C++ example in a C++ program, `cpp_native/`, without Python                           |
 
 | path                           | contents                                                           |
 | ------------------------------ | ------------------------------------------------------------------ |
@@ -16,6 +17,7 @@ wheel does not have it.
 | `compare.py`                   | the comparison of two runs                                         |
 | `example.toml`                 | an example benchmark file                                          |
 | `runners/`                     | the runners: one run of a layer each                               |
+| `cpp_native/`                  | the `cpp-native` layer's C++ program, built with the example       |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
 | `tests/`                       | the tests                                                          |
 | `results/`                     | where runs go unless told otherwise; ignored by git (`.gitignore`) |
@@ -30,13 +32,14 @@ pip install -r benchmarks/column_generation/requirements.txt
 ```
 
 `gurobipy` and a Gurobi licence are needed only for the Gurobi master solvers. `highspy` is pinned to the HiGHS
-version the column generation example builds, so that both layers solve with the same HiGHS.
+version the column generation example builds, so that every layer solves with the same HiGHS.
 
 ## Build rcspp
 
 The benchmark imports rcspp from a build of this tree: a `build*/` folder at its root, found alone, or one given with
 `--build` (relative to the tree's root, or absolute anywhere). Build the Python module there, with the column
-generation example for the `cpp-bindings` layer (`examples/column_generation/README.md` lists the options):
+generation example for the `cpp-bindings` and `cpp-native` layers (`examples/column_generation/README.md` lists the
+options):
 
 ```bash
 cmake -B build-python -DCMAKE_BUILD_TYPE=Release -DUSE_PYTHON=ON -DUSE_TESTS=OFF \
@@ -46,8 +49,12 @@ cmake --build build-python --config Release
 
 `-DCMAKE_CXX_CLANG_TIDY=` turns off clang-tidy, which the project's build otherwise runs on every file. Add
 `-DPython_EXECUTABLE=<python>` when CMake would otherwise find another Python than the environment's. The Gurobi
-master solvers need no build option: both layers reach Gurobi through gurobipy
-(`USE_COLUMN_GENERATION_EXAMPLE_GUROBI` builds the example's C++ Gurobi master, which the benchmark does not use).
+masters `gurobipy` need no build option: `package` and `cpp-bindings` reach Gurobi through gurobipy. The `cpp-native`
+layer's `gurobi` master is Gurobi's C++ API: add `-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` (Gurobi installed, with
+its C++ library); give gurobipy the same Gurobi version, so that the layers compare on one.
+
+The example on, the build also makes the `cpp-native` layer's program, `cpp-native-solver`, in `bin/` (in
+`bin/<configuration>/` with Visual Studio, the configuration `_core` was built in).
 
 The build copies `python/src/rcspp` next to `_core`; build again after changing the Python sources, and after
 changing the C++ ones: nothing checks that `_core` was built from the current C++.
@@ -70,7 +77,9 @@ run's options come from, examples, and every option's parameters.
 
 Each layer has a runner in `runners/`, a script that does one run and writes its folder. `package_runner.py` runs the
 `package` layer, `cpp_bindings_runner.py` the `cpp-bindings` layer; a runner's body is the column generation calls,
-the place to read how its layer is used. Both take the same flags and options; the run's layer is the runner's.
+the place to read how its layer is used. `cpp_native_runner.py` runs the `cpp-native` layer: it expands the run into
+the flags of the program `cpp-native-solver` (`cpp_native/cpp_native_solver.cpp`, whose body is that layer's
+calls), starts it and reads its result. All take the same flags and options; the run's layer is the runner's.
 
 ```bash
 cd benchmarks/column_generation
@@ -80,10 +89,14 @@ python runners/package_runner.py --file results/C101_25-package-highspy-exact-ar
 python runners/package_runner.py --instance C101_25 --check build # build, do not solve
 python runners/cpp_bindings_runner.py --instance C101_25 --master highs
 python runners/cpp_bindings_runner.py --file results/C101_25-package-highspy-exact-artificial/run.toml --layer cpp-bindings
+python runners/cpp_native_runner.py --instance C101_25 --master highs
 ```
 
 `cpp_bindings_runner.py` needs the build to have the column generation example, and its HiGHS part for the masters
-`highs` and `highspy`; it stops with a message otherwise.
+`highs` and `highspy`; it stops with a message otherwise. `cpp_native_runner.py` needs the build's `cpp-native-solver`,
+and names its master: the default master, `highspy`, is not one of its layer's. It reads Solomon instances only. Its
+run records the program's solvers' versions, its configuration and compiler (`code.program`), and the program's own
+peak memory and processor time.
 
 | flag            | what                                                                                          |
 | --------------- | --------------------------------------------------------------------------------------------- |
@@ -111,7 +124,7 @@ reads the LP solution, solves the integer master and writes the folder, in that 
 | --- | --- |
 | `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
 | `command.txt` | the command line that started the run |
-| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
+| `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build, its type and its compiler, the versions of Python, rcspp, numpy and the solvers (`highs`: the HiGHS that solves; `highspy_highs`: highspy's own), the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
 | `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
 | `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
@@ -276,8 +289,10 @@ The flags:
 - rounds on battery (said once, for the folder);
 - mixed: rounds with another source, build, versions or machine (resumed with `--allow-mixed`); a round killed
   before its runner wrote its record (at its timeout, or still running) is in no record;
-- a solver with several versions in the folder: the layers compare only on the same solver; the `cpp-bindings` layer's
-  `highs` master does not give its version, which is said;
+- a solver with several versions in the folder: the layers compare only on the same solver (`highs` is the HiGHS that
+  solves: the column generation example's on `cpp-bindings` and `cpp-native`, highspy's on `package`); a round whose
+  master's solver
+  version was not recorded;
 - per run: timeouts, failed checks, rounds not finished, rounds that differ, and, in a folder of run folders, rounds
   of one name with other options (the first round's are shown).
 
@@ -361,7 +376,8 @@ pytest benchmarks/column_generation/tests
 ```
 
 The tests find the build as the benchmark does; `RCSPP_BENCHMARK_BUILD=<folder>` chooses one among several. Without a
-build, the tests that need rcspp skip; without the column generation example in it, those of `cpp-bindings` skip. One
+build, the tests that need rcspp skip; without the column generation example in it, those of `cpp-bindings` and
+`cpp-native` skip. One
 test checks that every layer the build has gives the same objective on C101_25, and the same iterations and columns
 where the LP solver is the same HiGHS build: the example's two masters. The package's highspy wheel and the example's
 HiGHS can return duals a rounding error apart, and on a degenerate LP that is enough to change the path (the same

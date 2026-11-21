@@ -35,6 +35,7 @@ from .blocks import (
 LAYERS: dict[str, tuple[str, ...]] = {
     "package": ("highspy", "gurobipy"),
     "cpp-bindings": ("highs", "highspy", "gurobipy"),
+    "cpp-native": ("highs", "gurobi"),
 }
 
 #: Every option of a run, in the order a run file lists them.

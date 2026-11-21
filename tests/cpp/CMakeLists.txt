@@ -19,13 +19,8 @@ file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_connectivity.cpp")
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
 
+# The Solomon reader the VRP tests use is in vrp_subproblem/, with them.
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
-# The vrp_subproblem test reuses a few VRP data classes from the VRP example.
-list(APPEND SOURCE_FILES
-    ${CMAKE_SOURCE_DIR}/examples/cpp/vrp/instance_reader.cpp
-    ${CMAKE_SOURCE_DIR}/examples/cpp/vrp/instance.cpp
-    ${CMAKE_SOURCE_DIR}/examples/cpp/vrp/customer.cpp
-)
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 if(MSVC)
@@ -42,7 +37,6 @@ if(MINGW)
 endif()
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
-    ${CMAKE_SOURCE_DIR}/examples/cpp  # for "vrp/..." headers used by vrp_subproblem test
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(${PROJECT_NAME} GTest::gtest_main)

@@ -9,8 +9,8 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
-#include "vrp/instance.hpp"
-#include "vrp/instance_reader.hpp"
+#include "vrp_subproblem/instance.hpp"
+#include "vrp_subproblem/instance_reader.hpp"
 
 // The benchmarks' shared constants and instance-level helpers. Under util/ because a test_*.hpp
 // may be included by only one translation unit, and more than one benchmark uses them.
