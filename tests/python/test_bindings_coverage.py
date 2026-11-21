@@ -8,6 +8,7 @@ remove_if/global_remove_if, remove_arcs_if/restore_arcs_if, AlgorithmParams help
 check_interrupted, and related API.
 """
 
+import math
 import os
 import sys
 
@@ -218,6 +219,18 @@ def test_k_best_admission_keeps_the_cheapest_labels():
     params.max_admitted_labels_per_node = 0
     with pytest.raises(ValueError, match="max_admitted_labels_per_node"):
         rg.solve(params=params, preprocess=False)
+
+
+def test_prune_by_threshold_returns_the_same_paths():
+    """The threshold prune is off by default; on, it returns the paths returned without
+    it, under an upper bound the path beats and one it does not."""
+    rg = _make_graph()
+    assert not AlgorithmParams().prune_by_threshold
+    pruned = AlgorithmParams()
+    pruned.prune_by_threshold = True
+    for upper_bound in (math.inf, 0.0, -100.0):
+        expected = [s.cost for s in rg.solve(upper_bound=upper_bound)]
+        assert [s.cost for s in rg.solve(upper_bound=upper_bound, params=pruned)] == expected
 
 
 def test_solve_result_bool():

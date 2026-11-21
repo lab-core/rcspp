@@ -12,6 +12,8 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -461,6 +463,38 @@ TEST(SimpleDominanceAlgorithmTest, IncumbentPruneOnASumKeepsTheProof) {
             ->solve<strategy::Simple>(params, kFloorUpperBound, /*preprocess=*/false);
     EXPECT_DOUBLE_EQ(cheapest_cost(result), 2.0);
     EXPECT_TRUE(result.proven);
+}
+
+/// @brief The threshold prune needs a valid completion bound: under a floor it refuses to start,
+///        and says which arcs add less than their shares.
+TEST(LabellingStrategiesTest, ThresholdPruneRefusesAFloor) {
+    AlgorithmBaseParams params;
+    params.prune_by_threshold = true;
+    try {
+        (void)make_floor_graph(0.0)->solve<strategy::Simple>(params,
+                                                             kFloorUpperBound,
+                                                             /*preprocess=*/false);
+        FAIL() << "the threshold prune started under a floor";
+    } catch (const std::invalid_argument& error) {
+        const std::string message = error.what();
+        EXPECT_NE(message.find("arc 1 -> 2 adds 0.000000 to the cost from its start value, but "
+                               "-8.000000 after arc 0 -> 1"),
+                  std::string::npos)
+            << message;
+    }
+    EXPECT_THROW((void)make_floor_graph(0.0)->solve<strategy::Greedy>(params,
+                                                                      kFloorUpperBound,
+                                                                      /*preprocess=*/false),
+                 std::invalid_argument);
+    EXPECT_THROW((void)make_priced_bottleneck_line()->solve<strategy::Simple>(params),
+                 std::invalid_argument);
+
+    // A plain sum: the prune runs, and returns the path.
+    EXPECT_DOUBLE_EQ(
+        cheapest_cost(
+            make_floor_graph(std::nullopt)
+                ->solve<strategy::Simple>(params, kFloorUpperBound, /*preprocess=*/false)),
+        2.0);
 }
 
 /// @brief The share test itself (@c detail::find_share_shortfall): it names the arcs where the
