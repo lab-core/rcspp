@@ -211,6 +211,20 @@ The column generation alone (2026-11-21, `F-93`-`F-95`, `benchmark-results/colge
 timers and a replay: the layer's own work 3-7 times cheaper per column than the old example's, the step on the same
 duals −16 % to +9 % of its LP; the layers' default preprocessing costs 0.5-1.9 ms per search for nothing here (`Q-71`,
 for the user); the C++ layer's column adds slower than the old example's (+0-3.3 % on its path, `F-91`).
+Then (`F-96`-`F-98`): the layers' comparison unchanged by `Q-71`; `T-1.20`'s dry run: truncating R201_50's search
+after 1 or 5 columns keeps each search at 70-80 ms, so the matrix is redesigned around cheap searches (`D-265`,
+accepted); preprocessing never paid off with ng-8 or ng-16 either, ng routes work; kept on by default (`D-266`).
+Then (`F-99`, `F-100`): the server's spread 1-3 % against the desktop's 2-13 % (`D-267`, proposed: the server the timing
+reference); `T-1.20`'s pilot: cheap iterations are exact pricing on the 1-types (2-5 ms at 50 customers, the pure
+layer +21 to +33 % an iteration, all totals under `D-139`'s floor), tabu first is not cheaper (`D-268`, proposed:
+the matrix and a per-iteration verdict); candidate issues `I-14`, `I-15`. `D-267`, `D-268` accepted 2026-11-21:
+the server is the timing reference (`T-1.24` done). S4-S5 done on the server (results still there). **Next:**
+`T-1.20`'s matrix on the server, read 2026-11-22 (`F-101`-`F-103`, `home-server/comparison-t120.md`): the three
+layers equal (one Gurobi path apart on `cpp-native`); the pure layer passes `D-139` on every cell against
+`cpp-bindings`, +1.1 to +2.6 ms an iteration over highspy, +0.2 to +1.6 over gurobipy; R202_50's artificial start
+spends 55 min in its first search; candidate issue `I-16` (the search from Python 5-6 % slower with tabu).
+The highspy path's optimisation is optional task `T-1.27` (the user, 2026-11-22). **Next:** the PRs of `T-1.18`,
+`T-1.19`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks

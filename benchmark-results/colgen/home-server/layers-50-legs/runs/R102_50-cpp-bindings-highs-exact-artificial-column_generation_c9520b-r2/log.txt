@@ -1,0 +1,1 @@
+R102_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b: Optimal, objective 911.4425816655937; integer Optimal, objective 911.4425816655988

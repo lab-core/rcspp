@@ -1,0 +1,1 @@
+C101_50-package-highspy-pricing_e1c445-single-customer-column_generation_85d80e: Optimal, objective 363.246800411591; integer Optimal, objective 363.2468004115904

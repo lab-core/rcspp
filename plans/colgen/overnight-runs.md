@@ -141,20 +141,42 @@ Progress: `cat ~/vrp-port-server/long/status.txt`. Each `run_matrix.py` resumes 
 interruption, run `run-all.sh` again. Morning, from the laptop (into `benchmark-results/colgen/`):
 `scp -r leo@<server>:~/vrp-port-server/{small,mid,long} vrp-port-server/`.
 
-## Next steps (when a chain has ended)
+## 2026-11-21: the laptop's dry run and probe, the server's second run
 
-| machine | step | file |
-|---|---|---|
-| server | `layers-50`'s summary with current code and `compare.py` per pair (laptop, minutes) | — |
-| server | after S3 only: move to `feature/column-generation-cpp-vrp-example` (`e91db2963`), `git lfs pull`, submodule, rebuild `build-python` (its Gurobi option is on: `cpp-native`'s `gurobi`), the benchmark's tests | `server-setup.md` § Updating |
-| server | `layers-50` with `cpp-native`: 14 instances × 7 pairs × 3 rounds (98 runs, about 3.5 h), R202_50 apart | `layers-50-legs.toml` |
-| server | R202_50 on `cpp-native`, `column_generation.timeout_s = 3300` (`D-240`): how far it gets (about 2 h) | `r202-50.toml` |
-| either | `T-1.20` dry run: R201_50, exact against an exact stage stopped after 1 or 5 columns then a full one, 7 pairs, 1 round (21 runs) | `truncated-50.toml` |
+| # | run | machine | file | status |
+|---|---|---|---|---|
+| L6 | `T-1.20` dry run: R201_50, exact against an exact stage stopped after 1 or 5 columns then a full one, 7 pairs, 1 round, each run stopped at 10 min (`timeout_s = 600`) | laptop | `truncated-50.toml` (now in `benchmark-results/colgen/truncated-50/`) | done: `F-97` |
+| L7 | `Q-71` probe: the search with and without preprocessing, plain, ng-8 and elementary routes | laptop, after L6 | `cg-only/search_probe.py --relaxation` | done with ng-8 and ng-16: `F-98` (elementary too slow) |
+| S4 | the three layers on the 50-customer instances: 14 instances (R202_50 apart) × 7 pairs × 3 rounds, 98 runs, about 3.5 h | server | `layers-50-legs.toml` | done, results still on the server |
+| S5 | R202_50 on `cpp-native`, both masters, stopped at 55 min (`D-240`): how far it gets, about 2 h | server, after S4 | `r202-50.toml` | done, results still on the server |
 
-The three files (checked with `--check options` on the laptop: 98, 2, 21 runs), to write next to `benchmark.py`:
+The laptop's runs share it with VS Code and this chat: L6's iterations hold, its times are indicative; L7's ratios
+hold (every variant in one process on the same duals). Gurobi's 2 WLS sessions: the laptop and the server.
 
-```toml
-# layers-50-legs.toml: the three layers on the 50-customer instances (R202_50 apart), each master, exact, 3 rounds.
+### Server, step 1: move to the C++ port's head and rebuild (in `tmux`, 30-60 min)
+
+```bash
+tmux new -s build
+cd ~/rcspp && source .venv/bin/activate
+git status --short                     # only untracked files (layers-50.toml)
+git fetch origin
+git checkout -b feature/column-generation-cpp-vrp-example origin/feature/column-generation-cpp-vrp-example
+git log --oneline -1                   # e91db2963 or later
+git lfs pull && git submodule update --init --recursive
+uv pip install -r benchmarks/column_generation/requirements.txt
+cmake --build build-python --parallel 2 2>&1 | tail -3
+ls build-python/bin/cpp-native-solver  # the cpp-native layer's program (the Gurobi option is on: its gurobi master)
+RCSPP_BENCHMARK_BUILD=build-python pytest -rs -q benchmarks/column_generation/tests | tail -5
+```
+
+Expected: every test passes (421 on the laptop), skips only for a missing piece. Paste the tail if anything fails.
+
+### Server, step 2: the two files, checked
+
+```bash
+cd ~/rcspp/benchmarks/column_generation
+cat > layers-50-legs.toml <<'EOF'
+# The three layers on the 50-customer instances (R202_50 apart), each master, exact pricing, 3 rounds.
 [benchmark]
 repeats = 3
 timeout = 3600
@@ -168,10 +190,9 @@ instance = ["C101_50", "C102_50", "C103_50", "C201_50", "C202_50",
 layer = ["package", "cpp-bindings", "cpp-native"]
 master = ["highspy", "gurobipy", "highs", "gurobi"]
 pricing = ["exact"]
-```
-
-```toml
-# r202-50.toml: R202_50, which never finished in an hour; the run stops itself at 55 min and records how far it got.
+EOF
+cat > r202-50.toml <<'EOF'
+# R202_50, which never finished in an hour: the run stops itself at 55 min and records how far it got.
 [benchmark]
 repeats = 1
 timeout = 3600
@@ -183,29 +204,128 @@ instance = ["R202_50"]
 layer = ["cpp-native"]
 master = ["highs", "gurobi"]
 pricing = ["exact"]
+EOF
+source ~/rcspp/.venv/bin/activate
+python benchmark.py layers-50-legs.toml --machine home-server --check options | grep -v dropped | head -2   # 98 runs
+python benchmark.py r202-50.toml --machine home-server --check options | grep -v dropped | head -2         # 2 runs
 ```
 
-```toml
-# truncated-50.toml: many cheap iterations, an exact search stopped after k columns, then a full one for the proof.
+### Server, step 3: the chain
+
+```bash
+cat > ~/run-legs.sh <<'EOF'
+#!/usr/bin/env bash
+cd ~/rcspp/benchmarks/column_generation && source ~/rcspp/.venv/bin/activate
+python benchmark.py layers-50-legs.toml --processes 1 --machine home-server
+python benchmark.py r202-50.toml --processes 1 --machine home-server
+echo "done $(date -u)"
+EOF
+chmod +x ~/run-legs.sh
+tmux new -s legs "~/run-legs.sh 2>&1 | tee ~/run-legs.log; exec bash"
+# Ctrl-b d to leave; tmux attach -t legs to look; the same script again resumes a stopped benchmark
+```
+
+Results back, from the laptop, into `benchmark-results/colgen/home-server/`:
+`scp -r leo@<server>:~/rcspp/benchmarks/column_generation/results/{layers-50-legs,r202-50} .`
+
+Also pending: `layers-50`'s summary with current code and `compare.py` per pair (laptop, minutes).
+
+## 2026-11-21: `T-1.20`'s matrix on the server (`D-268`)
+
+| # | run | file | estimate |
+|---|---|---|---|
+| S6 | exact pricing on the 1-types: C101_25, C102_25, R101_25; C101-C103, R101-R103, R105, R107, RC101, RC102 at 50; C101, R101, RC101 at 100 (the files that exist: the benchmark cannot cut an instance) × 7 pairs × 3 rounds (336 runs) | `t120-exact.toml` | about 1 h |
+| S7 | tabu then exact on R201_50, RC201_50 × 7 pairs × 3 rounds (42 runs) | `t120-tabu-50.toml` | under 1 h |
+| S8 | tabu then exact on R201 × 7 pairs × 3 rounds (21 runs), each stopped at 55 min | `t120-tabu-r201.toml` | 2-19 h: last, stop it with `touch results/t120-tabu-r201/STOP` if needed |
+
+The server stays on the C++ port's head of S4 (`e91db2963`); S4-S5's folders stay where they are. The verdict
+(`D-268`): per cell, the pure layer's extra time an iteration against the C++ layers', beside `D-139`'s rule.
+
+```bash
+cd ~/rcspp/benchmarks/column_generation && source ~/rcspp/.venv/bin/activate
+git log --oneline -1                   # e91db2963 (or later on the same branch)
+cat > t120-exact.toml <<'EOF'
+# Many cheap iterations: exact pricing on the 1-types (every file of C1, R1, RC1 at 25 and 50 customers, and C101,
+# R101, RC101 at 100), the three layers, each master, 3 rounds; each run stopped at 10 min.
 [benchmark]
-repeats = 1
-timeout = 3600
+repeats = 3
+timeout = 900
+
 [defaults]
 start = "single-customer"
-column_generation = { threads = 1 }
-[pricing.first-1]
-stages = [{ algorithm = "simple", max_solutions = 1 }, { algorithm = "simple" }]
-[pricing.first-5]
-stages = [{ algorithm = "simple", max_solutions = 5 }, { algorithm = "simple" }]
+column_generation = { threads = 1, timeout_s = 600 }
+
 [matrix]
-instance = ["R201_50"]
+instance = ["C101_25", "C102_25", "R101_25",
+            "C101_50", "C102_50", "C103_50", "R101_50", "R102_50", "R103_50", "R105_50", "R107_50",
+            "RC101_50", "RC102_50",
+            "C101", "R101", "RC101"]
 layer = ["package", "cpp-bindings", "cpp-native"]
 master = ["highspy", "gurobipy", "highs", "gurobi"]
-pricing = ["exact", "first-1", "first-5"]
+pricing = ["exact"]
+EOF
+cat > t120-tabu-50.toml <<'EOF'
+# Many cheap iterations: a capped tabu first stage then exact, on the R2 types at 50 customers, where it is the
+# faster setup; the three layers, each master, 3 rounds; each run stopped at 10 min.
+[benchmark]
+repeats = 3
+timeout = 900
+
+[defaults]
+start = "single-customer"
+column_generation = { threads = 1, timeout_s = 600 }
+
+[pricing.tabu-first]
+stages = [{ algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" }]
+
+[matrix]
+instance = ["R201_50", "RC201_50"]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+pricing = ["tabu-first"]
+EOF
+cat > t120-tabu-r201.toml <<'EOF'
+# Many cheap iterations: the capped tabu first stage then exact on R201 (100 customers), the three layers, each
+# master, 3 rounds; each run stops itself at 55 min and records how far it got. Last: stop it with a STOP file.
+[benchmark]
+repeats = 3
+timeout = 3600
+
+[defaults]
+start = "single-customer"
+column_generation = { threads = 1, timeout_s = 3300 }
+
+[pricing.tabu-first]
+stages = [{ algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" }]
+
+[matrix]
+instance = ["R201"]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+pricing = ["tabu-first"]
+EOF
+for f in t120-exact t120-tabu-50 t120-tabu-r201; do
+  python benchmark.py $f.toml --machine home-server --check options | grep -v dropped | head -1
+done                                   # 112, 14 and 7 runs, 3 rounds
+cat > ~/run-t120.sh <<'EOF'
+#!/usr/bin/env bash
+cd ~/rcspp/benchmarks/column_generation && source ~/rcspp/.venv/bin/activate
+for f in t120-exact t120-tabu-50 t120-tabu-r201; do
+  python benchmark.py $f.toml --processes 1 --machine home-server
+done
+echo "done $(date -u)"
+EOF
+chmod +x ~/run-t120.sh
+tmux new -s t120 "~/run-t120.sh 2>&1 | tee ~/run-t120.log; exec bash"
 ```
 
-Run each as `server-setup.md` § 8's general form (`tmux`, `--processes 1`, `--machine home-server`); on the laptop
-with `--build build-python-highs --machine leo-laptop`.
+Progress: `cat results/t120-exact/status.txt` (and the others). Results back later, from the laptop, into
+`benchmark-results/colgen/home-server/`:
+
+```bash
+scp -r 'leo@<server>:~/rcspp/benchmarks/column_generation/results/{layers-50-legs,r202-50,t120-exact,t120-tabu-50}' .
+scp -r 'leo@<server>:~/rcspp/benchmarks/column_generation/results/t120-tabu-r201' .
+```
 
 ## Log
 
@@ -213,3 +333,7 @@ with `--build build-python-highs --machine leo-laptop`.
 |---|---|
 | 2026-11-20 | planned; `cpp-legs.toml` written in `../rcspp-dev/benchmarks/column_generation/` (untracked), checked |
 | 2026-11-21 | both chains finished (server 07:47 UTC, laptop's benchmark 05:04 UTC, R201 03:57); read: `F-90`, `F-91`, `F-92`; `cpp-legs` copied to `benchmark-results/colgen/cpp-legs/` |
+| 2026-11-21 | L6 and L7 done on the laptop (`F-97`, `F-98`); the server's S4-S5 written up and started by the user |
+| 2026-11-21 | S4-S5 done (the user); S6-S8 written (`T-1.20`'s matrix), checked on the laptop: 112, 14, 7 runs |
+| 2026-11-22 | S6-S8 done (S6 18 min, S7 5 min, S8 2 h); the five folders back (archives, extracted into `benchmark-results/colgen/home-server/`); read: `F-101`-`F-103` |
+| 2026-11-22 | the laptop's three TOMLs (`cpp-legs`, `truncated-50`, `pilot-cheap`) kept next to their results in `benchmark-results/colgen/<name>/`, removed from `../rcspp-dev` (untracked there, not part of the C++ port's PR) |

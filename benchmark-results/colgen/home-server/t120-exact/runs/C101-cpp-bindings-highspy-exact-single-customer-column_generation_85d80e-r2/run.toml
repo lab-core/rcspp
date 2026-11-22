@@ -1,0 +1,33 @@
+layer = "cpp-bindings"
+
+[instance]
+type = "solomon"
+name = "C101"
+
+[master]
+type = "highspy"
+
+[master.parameters]
+
+[pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[start]
+type = "single-customer"
+
+[graph]
+
+[column_generation]
+timeout_s = 600.0
+threads = 1
+
+[integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true

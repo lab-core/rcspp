@@ -1,0 +1,1174 @@
+[benchmark]
+processes = 1
+repeats = 1
+timeout = 900.0
+machine = "leo-laptop"
+logs = true
+
+[[runs]]
+name = "C101_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true

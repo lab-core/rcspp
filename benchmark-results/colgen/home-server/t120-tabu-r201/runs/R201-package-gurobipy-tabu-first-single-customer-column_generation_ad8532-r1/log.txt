@@ -1,0 +1,5 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+R201-package-gurobipy-pricing_e1c445-single-customer-column_generation_ad8532: Optimal, objective 1084.9906683011793; integer Optimal, objective 1859.1110976379416

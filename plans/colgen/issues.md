@@ -18,6 +18,9 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-11 | `fix(build): cmake --install installs no rcspp headers` | bug | created: #79 (2026-10-30); no open PR fixes it, fixed in `T-1.12` (`D-107`) | `F-33` |
 | I-12 | `docs: add rcspp.column_generation to the Python API reference` | documentation | created: #94 (2026-11-13); after the stack merges | `F-60` (2), `F-61` (3) |
 | I-13 | `fix(algorithm): tabu search with default parameters logs an error and returns no path` | bug | created: #95 (2026-11-13) | `F-60` (1) |
+| I-14 | `perf(column-generation): column adds slow down as the master grows` | enhancement | candidate, no file yet (the user, 2026-11-21: maybe later); measure first with per-iteration data (`D-239`) | `F-91`, `F-94` |
+| I-15 | `perf(column-generation): the gurobipy master solver's column adds cost 20-80 % more per iteration than python-mip's` | enhancement | candidate, no file yet (the user, 2026-11-21: maybe later); per `D-163`, only if `T-1.20` fails | `F-94`, `F-47` |
+| I-16 | `perf(python): the search called from Python runs 5-6 % slower than from C++ with tabu` | enhancement | candidate, no file yet; cause to find first (interrupt checks, the module's build flags) | `F-102` |
 
 ## Files
 

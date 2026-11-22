@@ -1,0 +1,776 @@
+[benchmark]
+processes = 1
+repeats = 1
+timeout = 900.0
+machine = "leo-laptop"
+logs = true
+
+[[runs]]
+name = "R201_50-package-highspy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-highspy-first-1-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-highspy-first-5-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-gurobipy-exact-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-gurobipy-first-1-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-gurobipy-first-5-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highspy-exact-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highspy-first-1-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highspy-first-5-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-gurobipy-exact-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-gurobipy-first-1-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-gurobipy-first-5-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highs-first-1-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highs-first-5-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-first-1-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-first-5-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-gurobi-exact-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-gurobi-first-1-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 1 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-gurobi-first-5-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple", max_solutions = 5 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true

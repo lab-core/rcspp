@@ -1,0 +1,1 @@
+R201-cpp-native-highs-pricing_e1c445-single-customer-column_generation_ad8532: Optimal, objective 1084.9906683011795; integer Optimal, objective 1849.5672204401847

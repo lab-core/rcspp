@@ -1,0 +1,14 @@
+# The three layers on the C++ example's small and mid tiers: each master, exact pricing, the example's start.
+[benchmark]
+repeats = 3
+timeout = 1800
+
+[defaults]
+start = "single-customer"
+column_generation = { threads = 1 }
+
+[matrix]
+instance = ["C101_25", "R101_25", "R201_25", "RC201_12", "C101_50", "R201_50", "RC101_50", "C201"]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+pricing = ["exact"]

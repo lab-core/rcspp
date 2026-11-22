@@ -1,0 +1,1 @@
+RC101-cpp-bindings-highs-exact-single-customer-column_generation_85d80e: Optimal, objective 1572.7390389866143; integer Optimal, objective 1820.0399774947894

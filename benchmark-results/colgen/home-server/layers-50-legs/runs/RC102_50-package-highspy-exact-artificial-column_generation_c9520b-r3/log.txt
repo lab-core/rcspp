@@ -1,0 +1,1 @@
+RC102_50-package-highspy-exact-artificial-column_generation_c9520b: Optimal, objective 708.4830292023795; integer Optimal, objective 1102.2030920478803

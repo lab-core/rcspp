@@ -1,0 +1,1 @@
+R101_50-cpp-native-highs-exact-artificial-column_generation_c9520b: Optimal, objective 1046.7010643496815; integer Optimal, objective 1046.7010643496817

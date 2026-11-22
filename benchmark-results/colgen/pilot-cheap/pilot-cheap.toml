@@ -1,0 +1,18 @@
+# T-1.20's pilot: cheap searches (C1, R1, RC1 at 50 and 100 customers) and the R2, C2 types at 50, exact pricing
+# and a capped tabu first stage; the two extreme layers over HiGHS; 1 round, each run stopped at 10 min.
+[benchmark]
+repeats = 1
+timeout = 900
+
+[defaults]
+start = "single-customer"
+column_generation = { threads = 1, timeout_s = 600 }
+
+[pricing.tabu-first]
+stages = [{ algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" }]
+
+[matrix]
+instance = ["C101_50", "R101_50", "RC101_50", "C101", "R101", "RC101", "R201_50", "C201_50"]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+pricing = ["exact", "tabu-first"]

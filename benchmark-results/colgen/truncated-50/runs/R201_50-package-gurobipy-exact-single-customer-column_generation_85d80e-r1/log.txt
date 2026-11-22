@@ -1,0 +1,4 @@
+Set parameter Username
+Set parameter LicenseID to value 2770246
+Academic license - for non-commercial use only - expires 2027-01-26
+R201_50-package-gurobipy-exact-single-customer-column_generation_85d80e: Optimal, objective 756.3386122369025; integer Optimal, objective 1079.4515283007772

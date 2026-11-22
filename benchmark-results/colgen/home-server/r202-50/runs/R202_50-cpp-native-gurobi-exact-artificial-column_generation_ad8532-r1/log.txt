@@ -1,0 +1,1 @@
+R202_50-cpp-native-gurobi-exact-artificial-column_generation_ad8532: TimeLimit, objective 41725292.09005013; integer Optimal, objective 29208129.017454334

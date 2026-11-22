@@ -1,0 +1,80 @@
+[benchmark]
+processes = 1
+repeats = 1
+timeout = 3600.0
+machine = "home-server"
+logs = true
+
+[[runs]]
+name = "R202_50-cpp-native-highs-exact-artificial-column_generation_ad8532"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R202_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 3300.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R202_50-cpp-native-gurobi-exact-artificial-column_generation_ad8532"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R202_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 3300.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true

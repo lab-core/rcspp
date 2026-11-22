@@ -1,0 +1,70 @@
+C101_25 (ng-8): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()        1.813 ms/solve  x1.00  improving paths 440
+  bound -1e-8 only        2.472 ms/solve  x1.36  improving paths 440
+  params only             1.833 ms/solve  x1.01  improving paths 440
+  direction only          1.828 ms/solve  x1.01  improving paths 440
+  layer: all three        2.508 ms/solve  x1.38  improving paths 440
+  layer, no preprocess    1.940 ms/solve  x1.07  improving paths 440
+R201_25 (ng-8): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()       25.583 ms/solve  x1.00  improving paths 1420
+  bound -1e-8 only       26.438 ms/solve  x1.03  improving paths 1420
+  params only            25.274 ms/solve  x0.99  improving paths 1420
+  direction only         25.387 ms/solve  x0.99  improving paths 1420
+  layer: all three       25.877 ms/solve  x1.01  improving paths 1420
+  layer, no preprocess   25.133 ms/solve  x0.98  improving paths 1420
+C101_50 (ng-8): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()        6.848 ms/solve  x1.00  improving paths 847
+  bound -1e-8 only        9.548 ms/solve  x1.39  improving paths 847
+  params only             6.433 ms/solve  x0.94  improving paths 847
+  direction only          6.404 ms/solve  x0.94  improving paths 847
+  layer: all three        9.153 ms/solve  x1.34  improving paths 847
+  layer, no preprocess    6.364 ms/solve  x0.93  improving paths 847
+RC101_50 (ng-8): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()        8.026 ms/solve  x1.00  improving paths 470
+  bound -1e-8 only        9.810 ms/solve  x1.22  improving paths 470
+  params only             8.015 ms/solve  x1.00  improving paths 470
+  direction only          7.946 ms/solve  x0.99  improving paths 470
+  layer: all three        9.539 ms/solve  x1.19  improving paths 470
+  layer, no preprocess    8.069 ms/solve  x1.01  improving paths 470
+R201_50 (ng-8): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()      713.635 ms/solve  x1.00  improving paths 7406
+  bound -1e-8 only      710.819 ms/solve  x1.00  improving paths 7406
+  params only           732.749 ms/solve  x1.03  improving paths 7406
+  direction only        698.212 ms/solve  x0.98  improving paths 7406
+  layer: all three      732.448 ms/solve  x1.03  improving paths 7406
+  layer, no preprocess  693.166 ms/solve  x0.97  improving paths 7406
+C101_25 (ng-16): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()        7.087 ms/solve  x1.00  improving paths 440
+  bound -1e-8 only        7.712 ms/solve  x1.09  improving paths 440
+  params only             6.940 ms/solve  x0.98  improving paths 440
+  direction only          7.171 ms/solve  x1.01  improving paths 440
+  layer: all three        7.869 ms/solve  x1.11  improving paths 440
+  layer, no preprocess    6.997 ms/solve  x0.99  improving paths 440
+R201_25 (ng-16): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()      702.160 ms/solve  x1.00  improving paths 1334
+  bound -1e-8 only      705.552 ms/solve  x1.00  improving paths 1334
+  params only           703.457 ms/solve  x1.00  improving paths 1334
+  direction only        711.304 ms/solve  x1.01  improving paths 1334
+  layer: all three      716.697 ms/solve  x1.02  improving paths 1334
+  layer, no preprocess  721.469 ms/solve  x1.03  improving paths 1334
+C101_50 (ng-16): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()       14.763 ms/solve  x1.00  improving paths 847
+  bound -1e-8 only       17.635 ms/solve  x1.19  improving paths 847
+  params only            14.877 ms/solve  x1.01  improving paths 847
+  direction only         14.908 ms/solve  x1.01  improving paths 847
+  layer: all three       17.652 ms/solve  x1.20  improving paths 847
+  layer, no preprocess   14.770 ms/solve  x1.00  improving paths 847
+RC101_50 (ng-16): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()       21.884 ms/solve  x1.00  improving paths 470
+  bound -1e-8 only       23.317 ms/solve  x1.07  improving paths 470
+  params only            21.636 ms/solve  x0.99  improving paths 470
+  direction only         21.776 ms/solve  x1.00  improving paths 470
+  layer: all three       23.445 ms/solve  x1.07  improving paths 470
+  layer, no preprocess   21.880 ms/solve  x1.00  improving paths 470
+R201_50 (ng-16): 8 dual vectors, direction SearchDirection.Forward
+  example: solve()     2353.020 ms/solve  x1.00  improving paths 6739
+  bound -1e-8 only     2353.506 ms/solve  x1.00  improving paths 6739
+  params only          2359.811 ms/solve  x1.00  improving paths 6739
+  direction only       2410.436 ms/solve  x1.02  improving paths 6739
+  layer: all three     2362.122 ms/solve  x1.00  improving paths 6739
+  layer, no preprocess 2399.382 ms/solve  x1.02  improving paths 6739

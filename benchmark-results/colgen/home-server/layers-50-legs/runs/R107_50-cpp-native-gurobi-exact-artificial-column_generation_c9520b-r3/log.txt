@@ -1,0 +1,1 @@
+R107_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b: Optimal, objective 700.2935503728993; integer Optimal, objective 852.129513905591

@@ -1,0 +1,1 @@
+R201_50-cpp-native-gurobi-pricing_f4ecb6-single-customer-column_generation_85d80e: Optimal, objective 756.3386122369022; integer Optimal, objective 1754.4457948726708

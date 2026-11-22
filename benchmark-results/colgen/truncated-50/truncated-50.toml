@@ -1,0 +1,20 @@
+# Many cheap iterations: an exact search stopped after k columns, then a full one for the proof; R201_50, 1 round.
+[benchmark]
+repeats = 1
+timeout = 900
+
+[defaults]
+start = "single-customer"
+column_generation = { threads = 1, timeout_s = 600 }
+
+[pricing.first-1]
+stages = [{ algorithm = "simple", max_solutions = 1 }, { algorithm = "simple" }]
+
+[pricing.first-5]
+stages = [{ algorithm = "simple", max_solutions = 5 }, { algorithm = "simple" }]
+
+[matrix]
+instance = ["R201_50"]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+pricing = ["exact", "first-1", "first-5"]
