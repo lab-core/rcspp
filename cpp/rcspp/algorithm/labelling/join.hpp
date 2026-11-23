@@ -103,7 +103,8 @@ class Cheapest {
                 heap_.pop_back();
             }
             kept_.insert(arc_ids);
-            heap_.push_back({cost, std::move(arc_ids), end_node_id});
+            heap_.push_back(
+                {.cost = cost, .arc_ids = std::move(arc_ids), .end_node_id = end_node_id});
             std::ranges::push_heap(heap_, std::less{}, &Path::cost);
         }
 
