@@ -3,10 +3,9 @@
 """Resource-constrained shortest-path graph abstraction.
 
 Provides the Python-side :class:`ResourceGraph` factory and the
-:class:`BucketAlgorithmParams` helper.  The heavy lifting is done by a
-generated C++ extension (``rcspp._core.graph``); this module handles lazy
-construction, resource registration, buffered node/arc insertion, and
-NetworkX integration.
+:class:`BucketAlgorithmParams` helper.  The heavy lifting is done by a generated C++
+extension (``rcspp._core.graph``); this module handles lazy construction, resource
+registration, buffered node/arc insertion, and NetworkX integration.
 """
 
 import math
@@ -101,18 +100,18 @@ class ResourceGraph:
     operation, picking the right template from the resources added via
     :meth:`add_real_resource` / :meth:`add_int_resource` / etc.
 
-    Nodes and arcs added via :meth:`add_node` / :meth:`add_arc` are buffered in
-    Python and sent to C++ in one batch when the graph is first used (solve,
-    get_node, get_arc, …) or when :meth:`update` is called explicitly.  This
-    eliminates per-call Python→C++ overhead and allows the C++ hash-maps to be
-    pre-allocated with a single ``reserve`` call.
+    Nodes and arcs added via :meth:`add_node` / :meth:`add_arc` are buffered in Python
+    and sent to C++ in one batch when the graph is first used (solve, get_node, get_arc,
+    …) or when :meth:`update` is called explicitly.  This eliminates per-call Python→C++
+    overhead and allows the C++ hash-maps to be pre-allocated with a single ``reserve``
+    call.
     """
 
     def __init__(self):
         """Initialise an empty ResourceGraph.
 
-        Register the resources first, then add nodes and arcs, or import a NetworkX graph
-        with :meth:`from_networkx`.
+        Register the resources first, then add nodes and arcs, or import a NetworkX
+        graph with :meth:`from_networkx`.
         """
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._refs: list = []  # keep Python wrappers alive against GC
@@ -199,8 +198,8 @@ class ResourceGraph:
     def _flush(self):
         """Flush buffered nodes and arcs to C++, creating the graph if needed.
 
-        Calls ``reserve`` once with the total expected counts so the C++ hash-maps
-        are allocated in a single shot instead of rehashing on every insert.
+        Calls ``reserve`` once with the total expected counts so the C++ hash-maps are
+        allocated in a single shot instead of rehashing on every insert.
         """
         self._ensure_graph()
         if not self._node_buffer and not self._arc_buffer and not self._rows_buffer:
@@ -319,14 +318,14 @@ class ResourceGraph:
         """Buffer an arc for insertion.
 
         The arc is not sent to C++ immediately; call :meth:`update` or any read
-        operation to flush the buffer.  Arc resource normalization happens at flush
-        time so resources must be registered before :meth:`update` is called.
+        operation to flush the buffer.  Arc resource normalization happens at flush time
+        so resources must be registered before :meth:`update` is called.
 
         An arc into a source or out of a sink is refused when the buffer is flushed,
         with a ``ValueError``: a path starts at a source and ends at a sink, so no path
         could use it. The flush then adds none of the buffered arcs: they are dropped,
-        with the rows buffered for them, and the next ``add_arc`` returns the id C++ would
-        assign, so ids keep matching after the error.
+        with the rows buffered for them, and the next ``add_arc`` returns the id C++
+        would assign, so ids keep matching after the error.
         """
         rows = self._normalize_rows(rows)
         arc_id = self._next_arc_id
@@ -375,10 +374,10 @@ class ResourceGraph:
     def update(self):
         """Flush all buffered nodes and arcs to the C++ graph.
 
-        Call this explicitly after bulk insertions if you need the graph to be
-        up-to-date before inspecting it (e.g. ``get_node``, ``get_arc``, …).
-        All read operations flush the buffer automatically, so this call is
-        optional but can be useful for explicit control.
+        Call this explicitly after bulk insertions if you need the C++ graph to hold
+        every node and arc before inspecting it (e.g. ``get_node``, ``get_arc``, …). All
+        read operations flush the buffer automatically, so this call is optional but can
+        be useful for explicit control.
         """
         self._flush()
 

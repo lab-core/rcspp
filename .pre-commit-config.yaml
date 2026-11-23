@@ -137,7 +137,10 @@ repos:
   # C++ all in one
   # -------------------------
   - repo: https://github.com/pocc/pre-commit-hooks
-    rev: v1.5.0
+    # Kept at v1.3.5: v1.5.0 runs clang-tidy "without flags" (it drops -fix and the -I below)
+    # and then fails for want of a compilation database. Dependabot leaves it alone (see
+    # .github/dependabot.yml); try a newer release by hand.
+    rev: v1.3.5
     hooks:
       # -------------------------
       # Clang Format

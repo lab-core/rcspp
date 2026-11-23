@@ -262,7 +262,8 @@ def test_undeclared_resource_raises_at_setup():
 
 
 def test_capacity_extension_function_is_bound_for_signed_types_only():
-    """Signed only: extending a capacity backwards subtracts, and unsigned would wrap."""
+    """Signed only: extending a capacity backwards subtracts, and unsigned would
+    wrap."""
     assert hasattr(_resource, "CapacityExtensionFunction_real")
     assert hasattr(_resource, "CapacityExtensionFunction_int")
     assert not hasattr(_resource, "CapacityExtensionFunction_uint")
