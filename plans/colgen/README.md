@@ -239,7 +239,19 @@ next-steps pages rewritten 2026-11-23 (12 pages, built): "Found on the way" and 
 slide 2), then what Python lacks, a task map, the questions. Next tasks (`D-276`): `T-1.21`, `T-2.5`, `T-1.9`; `T-1.8`
 after #60 or the stack merges; the rest waits. Issues created 2026-11-23: #100-#106 (`I-04`, `I-10`,
 `I-14`-`I-18`). No questions sent before the meeting; the slides ask direction, instances, presets
-(`D-277`). **Next:** the meeting of 2026-11-25; then `T-1.21`, `T-2.5`, `T-1.9`.
+(`D-277`).
+`T-1.21` done 2026-11-23 (`features-and-options.md`, `D-278`-`D-289`): every feature and option with its places and a
+decision; the colleague's open PRs wait for a pass after their merges (`T-1.34`); the VRP examples left out; follow-ups
+`T-1.31` (benchmark options: ng and elementary, buckets, `preprocess`, the tabu check), `T-1.34` (a reminder for the
+user: the table again after the stack's rebase); core work filed for the colleagues as #109 (main's docs) and #110 (a
+typed refusal; C++-only resource functions, low priority) (`D-290`); `T-1.29`'s list and `T-2.5`'s candidates
+updated. The kernel stack (#62-#75) merged on `main` 2026-11-23 (`ef4532d7`): #74 removes `algorithm="bidirectional"`,
+which the package, the C++ example and the benchmark use; the column generation stack has to be rebased onto it.
+Slides updated 2026-11-23 (`status/slides.tex`, built, no overflow): slide 2 (the inventory done, the kernel stack
+merged), slide 8 "What is missing, and where" (examples for Python and for the benchmark, #109, #110), slide 9 (the
+inventory box became `T-1.31`, next). `D-291`: `T-1.31` joins `T-2.5` and `T-1.9` as next; the rebase onto the new
+`main` is not a task. `meeting-2026-11-25.md` §2 has four claims corrected in `features-and-options.md`.
+**Next:** the meeting of 2026-11-25; then `T-1.31`, `T-2.5`, `T-1.9`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -328,6 +340,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `server-setup.md` | the home server (`T-1.24`): the machine, choices, every setup step from scratch, updating, log | setting up or updating a benchmark machine |
 | `overnight-runs.md` | the night of 2026-11-20/21: `T-1.19` on the laptop, `T-1.18` on the server, commands, next TOMLs | before starting or reading those runs |
 | `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
+| `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
 ## Project conventions that apply here

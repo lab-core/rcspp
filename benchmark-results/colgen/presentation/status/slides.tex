@@ -81,15 +81,14 @@
     Python VRP example on the package & \done & same LP, never slower; in review \\
     C++ VRP example on the C++ example layer & \done & same LP, never slower; the \texttt{cpp-native} runner \\
     many cheap iterations & \done & 399 runs on the quiet machine: the three layers equal \\
-    ng-routes & \todo & checked that they work; the comparison is next \\
-    the engine's newer features & \todo & after ng-routes \\
+    every feature and option, ng-routes included & \done & what Python and the benchmark lack (slide 8) \\
     \bottomrule
   \end{tabular}
 
-  \vspace{0.6em}
-  \begin{itemize}\small
+  \begin{itemize}\footnotesize
     \item Every number in this talk comes from the benchmark or from scripts kept next to its results.
     \item A home server now runs the long measurements (next slide).
+    \item Your kernel stack (\#62--\#75) is on \texttt{main}: the column generation stack moves onto it.
   \end{itemize}
 \end{frame}
 
@@ -252,43 +251,35 @@
 \end{frame}
 
 %--------------------------------------------------------------
-\begin{frame}{What the Python side lacks}
-  Against the C++ example layer: \textbf{nothing}; the package even takes your own search as a stage.
+\begin{frame}{What is missing, and where}
+  Against the C++ example layer, the package lacks \textbf{nothing}; it even takes your own search as a stage.
 
-  \vspace{0.4em}
+  \vspace{0.3em}
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
-      \textbf{Engine features in C++ only}
+      \textbf{In Python} (engine features in C++ only)
       \begin{itemize}\footnotesize
-        \item \texttt{DiversificationSearch}, \texttt{ImprovingTabuSearch}
-        \item an algorithm built by the user and passed in
-        \item unsigned and \texttt{size\_t} resources, bitsets (the C++ VRP example uses one)
-        \item per-node capacity and min-max bounds, the reachable-node check, functions written in Python
-        \item a bidirectional clock of another type than the cost; other label containers
-        \item what the open PRs add, until bound
+        \item \textbf{Diversification, improving tabu}: not among Python's algorithm names; after \#81--\#87
+        \item \textbf{A capacity per customer}: Python takes one value for all
+        \item \textbf{Precedence} (pickup before delivery): not bound
+        \item \textbf{A refused model}: a \texttt{RuntimeError} with text, not the list of problems
       \end{itemize}
+      \scriptsize Issues \#110, and \#109 for the docs (they say ng-routes are C++ only: not so).
     \end{column}
     \begin{column}{0.46\textwidth}
-      \textbf{In the benchmark and examples}
+      \textbf{In the benchmark} (Python has them)
       \begin{itemize}\footnotesize
-        \item no ng size yet: the ng runs so far were by hand
+        \item \textbf{ng-routes}: \texttt{graph.ng\_size = 8} is refused; ng runs were by hand
+        \item \textbf{Label buckets}: \texttt{bucket\_width} in a stage is refused
+        \item \textbf{Preprocessing}: always on
+        \item \textbf{Tabu without \texttt{max\_iterations}}: fails only at run time
       \end{itemize}
-
-      \textbf{Common column generation features}
-      \begin{itemize}\footnotesize
-        \item a Lagrangian bound, a stop on a gap
-        \item a column pool, removing unused columns
-        \item stabilization of the duals
-        \item growing pricing budgets, an order for several pricers
-        \item parallel pricers; per-iteration data
-      \end{itemize}
-
-      \textbf{Known performance issues}
-      \begin{itemize}\footnotesize
-        \item the highspy master, column adds through gurobipy, the search called from Python: filed as issues
-      \end{itemize}
+      \scriptsize One task, before the test of everything together.
     \end{column}
   \end{columns}
+
+  \vspace{0.4em}
+  \footnotesize Everywhere: the common column generation features (next slide). Performance issues: filed.
 \end{frame}
 
 %--------------------------------------------------------------
@@ -297,7 +288,7 @@
   \begin{tikzpicture}[
       task/.style={box, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt},
       wait/.style={later, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt}]
-    \node[task] (inventory) at (0, 0) {\textbf{every feature and option}, ng-routes and your PRs' included};
+    \node[task] (inventory) at (0, 0) {\textbf{benchmark options}: ng-routes, buckets, preprocessing};
     \node[task] (periteration) at (0, -1.15) {\textbf{per-iteration data}: duals, bound, time split};
     \node[task] (types) at (0, -2.3) {\textbf{several vehicle types}: one graph each};
     \node[wait] (alltest) at (4.4, 0) {test of everything together (ng-routes included); presets, with you};

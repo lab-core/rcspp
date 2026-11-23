@@ -23,6 +23,8 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-16 | `perf(python): the search called from Python runs 5-6 % slower than from C++ with tabu` | enhancement | created: #102 (2026-11-23) | `F-102` |
 | I-17 | `perf(column-generation): the highspy master costs 1-2.6 ms more per iteration than the C++ example's HiGHS master` | enhancement | created: #100 (2026-11-23) | `F-101`, `F-47` |
 | I-18 | `docs(python): ResourceGraph.solve's docstring omits the tabu search` | documentation | created: #106 (2026-11-23) | the roadmap pass's engine sweep |
+| I-19 | `docs: pages that disagree with the code, and features with no docs` | documentation | created: #109 (2026-11-23; checked on `main` @ `ef4532d7`) | `T-1.21` (`features-and-options.md` K) |
+| I-20 | `feat(python): a typed exception for a refused model; the resource functions Python cannot reach` | enhancement | created: #110 (2026-11-23; checked on `main` @ `ef4532d7`) | `T-1.21` (H.6; F.2-F.5, low priority) |
 
 ## Files
 
@@ -49,6 +51,8 @@ the heading into the title field and the rest into the body. Checked on `main` @
 | I-16 | `issues/I-16-search-from-python-slower.md` |
 | I-17 | `issues/I-17-highspy-master-overhead.md` |
 | I-18 | `issues/I-18-solve-docstring-tabu.md` |
+| I-19 | `issues/I-19-docs-disagree-with-code.md` |
+| I-20 | `issues/I-20-python-model-refused-and-functions.md` |
 
 Batch of 2026-11-23, created at once: #100-#106. Also: #99 removes
 `benchmark_common.hpp`, so its description can say "Closes #54".
