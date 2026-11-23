@@ -263,7 +263,7 @@ class Graph {
             for (const auto& [k, _] : nodes_by_id_) {
                 ids.push_back(k);
             }
-            std::sort(ids.begin(), ids.end());
+            std::ranges::sort(ids);
             return ids;
         }
 
@@ -293,7 +293,7 @@ class Graph {
             for (const auto& [k, _] : removed_arcs_by_id_) {
                 ids.push_back(k);
             }
-            std::sort(ids.begin(), ids.end());
+            std::ranges::sort(ids);
             return ids;
         }
 

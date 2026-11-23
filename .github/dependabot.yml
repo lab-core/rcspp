@@ -1,0 +1,38 @@
+# Dependabot proposes upgrades of the tools CI pins, one pull request per group, once a month.
+# A pull request that upgrades a linter runs pre-commit on every file (see pre-commit.yml), so it
+# shows what the new version flags; fix that on the same pull request before merging it.
+version: 2
+updates:
+  # clang-format, clang-tidy and cpplint, pinned in .github/lint/requirements.txt. clang-format and
+  # clang-tidy come from the same LLVM release, so they move together.
+  - package-ecosystem: pip
+    directory: /.github/lint
+    schedule:
+      interval: monthly
+    groups:
+      linters:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # The hooks' revisions in .pre-commit-config.yaml.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      hooks:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # The actions the workflows use (actions/checkout, actions/setup-python, ...).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

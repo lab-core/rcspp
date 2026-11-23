@@ -45,8 +45,9 @@ class ComponentCostFunction
         ///
         /// @param resource_composition Any node's resource.
         /// @return See @c Resource::is_cost_additive.
-        [[nodiscard]] auto is_additive(const Resource<ResourceTypeComposition<ResourceTypes...>>&
-                                           resource_composition) const -> bool override {
+        [[nodiscard]] auto is_additive(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition) const
+            -> bool override {
             return resource_composition.template get_component<ResourceTypeIndex>(resource_index_)
                 .is_cost_additive();
         }

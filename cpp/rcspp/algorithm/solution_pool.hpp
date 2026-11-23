@@ -77,12 +77,12 @@ struct AtomicColumnActivity {
 
         /// Return a non-atomic snapshot suitable for the public ColumnActivity API.
         [[nodiscard]] ColumnActivity snapshot() const {
-            return {age.load(std::memory_order_relaxed),
-                    use_count.load(std::memory_order_relaxed),
-                    priced_count.load(std::memory_order_relaxed),
-                    created_at,
-                    last_was_negative.load(std::memory_order_relaxed),
-                    last_reduced_cost.load(std::memory_order_relaxed)};
+            return {.age = age.load(std::memory_order_relaxed),
+                    .use_count = use_count.load(std::memory_order_relaxed),
+                    .priced_count = priced_count.load(std::memory_order_relaxed),
+                    .created_at = created_at,
+                    .last_was_negative = last_was_negative.load(std::memory_order_relaxed),
+                    .last_reduced_cost = last_reduced_cost.load(std::memory_order_relaxed)};
         }
 };
 

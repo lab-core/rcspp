@@ -20,7 +20,9 @@ permissions:
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    # A named image, not ubuntu-latest: when "latest" moves on, cppcheck and the system headers
+    # clang-tidy reads change with it. Moving to a newer image is a change of its own.
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -44,21 +46,45 @@ jobs:
       # -------------------------
       # Install dependencies
       # -------------------------
+      # clang-format, clang-tidy and cpplint come from .github/lint/requirements.txt, at the
+      # versions pinned there, not from the image, whose versions change when it is updated.
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang clang-tidy clang-format cppcheck
+          sudo apt-get install -y clang cppcheck
           python -m pip install --upgrade pip
-          pip install cpplint
+          pip install -r .github/lint/requirements.txt
+          clang-format --version
+          clang-tidy --version
+          cpplint --version
 
       # -------------------------
       # use pre-commit action to run the hooks
       # -------------------------
       # A pull request checks the files it changes; a push to main checks every file, so a hook
-      # upgrade that flags untouched code still shows up there.
+      # upgrade that flags untouched code still shows up there. A pull request that changes the
+      # linters or their configuration (a Dependabot upgrade, say) checks every file too, so it
+      # shows what the new versions flag before it is merged.
+      - name: Choose the files to check
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          linters='^(\.pre-commit-config\.yaml|\.clang-format|\.clang-tidy|\.clang-tidy-naming|\.github/lint/requirements\.txt|\.github/workflows/pre-commit\.yml)$'
+          if [ "$EVENT" != pull_request ]; then
+            echo "args=--all-files" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE" "$HEAD" | grep -qE "$linters"; then
+            echo "The linters or their configuration change: checking every file."
+            echo "args=--all-files" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=--from-ref $BASE --to-ref $HEAD" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: pre-commit/action@v3.0.1
         with:
-          extra_args: ${{ github.event_name == 'pull_request' && format('--from-ref {0} --to-ref {1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '--all-files' }}
+          extra_args: ${{ steps.scope.outputs.args }}
 
       # -------------------------
       # Naming conventions

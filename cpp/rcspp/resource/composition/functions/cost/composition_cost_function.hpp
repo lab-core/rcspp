@@ -37,8 +37,9 @@ class CompositionCostFunction
         ///
         /// @param resource_composition Any node's resource.
         /// @return See @c Resource::is_cost_additive.
-        [[nodiscard]] auto is_additive(const Resource<ResourceTypeComposition<ResourceTypes...>>&
-                                           resource_composition) const -> bool override {
+        [[nodiscard]] auto is_additive(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition) const
+            -> bool override {
             bool additive = true;
             resource_composition.for_each_component(
                 [&](const auto& res_comp) { additive = additive && res_comp.is_cost_additive(); });
