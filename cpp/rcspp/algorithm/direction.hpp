@@ -30,8 +30,8 @@ struct ForwardDirection {
 
         /// @brief The arcs to walk from @p node: outgoing, going forward.
         template <typename ResourceType>
-        static auto out_arcs(const Graph<ResourceType>& graph,
-                             const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto out_arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
+            -> std::span<Arc<ResourceType>*> {
             return graph.get_out_arcs(node);
         }
 
@@ -56,15 +56,15 @@ struct ForwardDirection {
 
         /// @brief Whether @p lhs dominates @p rhs in this direction.
         template <typename ResourceType>
-        static auto dominates(const Label<ResourceType>& lhs,
-                              const Label<ResourceType>& rhs) -> bool {
+        static auto dominates(const Label<ResourceType>& lhs, const Label<ResourceType>& rhs)
+            -> bool {
             return lhs <= rhs;
         }
 
         /// @brief Whether resource @p lhs dominates @p rhs in this direction.
         template <typename ResourceType>
-        static auto dominates(const Resource<ResourceType>& lhs,
-                              const Resource<ResourceType>& rhs) -> bool {
+        static auto dominates(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs)
+            -> bool {
             return lhs <= rhs;
         }
 
@@ -120,8 +120,8 @@ struct BackwardDirection {
 
         /// @brief The arcs to walk from @p node: incoming, going backward.
         template <typename ResourceType>
-        static auto out_arcs(const Graph<ResourceType>& graph,
-                             const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto out_arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
+            -> std::span<Arc<ResourceType>*> {
             return graph.get_in_arcs(node);
         }
 
@@ -148,15 +148,15 @@ struct BackwardDirection {
         ///
         /// For threshold resources a later deadline is better, so the order reverses.
         template <typename ResourceType>
-        static auto dominates(const Label<ResourceType>& lhs,
-                              const Label<ResourceType>& rhs) -> bool {
+        static auto dominates(const Label<ResourceType>& lhs, const Label<ResourceType>& rhs)
+            -> bool {
             return lhs.back_dominates(rhs);
         }
 
         /// @brief Whether resource @p lhs dominates @p rhs going backward.
         template <typename ResourceType>
-        static auto dominates(const Resource<ResourceType>& lhs,
-                              const Resource<ResourceType>& rhs) -> bool {
+        static auto dominates(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs)
+            -> bool {
             return lhs.back_dominates(rhs);
         }
 
@@ -189,8 +189,8 @@ struct BackwardDirection {
         ///
         /// @return The arc, or @c nullptr when no live arc with an extender enters @p node.
         template <typename ResourceType>
-        static auto start_arc(const Graph<ResourceType>& graph,
-                              const Node<ResourceType>* node) -> const Arc<ResourceType>* {
+        static auto start_arc(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
+            -> const Arc<ResourceType>* {
             for (const auto* arc : graph.get_in_arcs(node)) {
                 if (arc->extender != nullptr) {
                     return arc;
