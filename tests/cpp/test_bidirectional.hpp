@@ -304,8 +304,8 @@ TEST(Bidirectional, AnAccumulationStartsAtTheEmptySuffixWhateverItsBound) {
                 return resource.leq(5.0);
             }
             [[nodiscard]] JoinRule join_rule() const override { return JoinRule::Custom; }
-            auto can_be_joined(const RealResource& resource,
-                               const RealResource& back_resource) -> bool override {
+            auto can_be_joined(const RealResource& resource, const RealResource& back_resource)
+                -> bool override {
                 return resource.get_value() + back_resource.get_value() <= 5.0;
             }
     };

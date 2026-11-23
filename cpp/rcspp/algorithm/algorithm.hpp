@@ -752,7 +752,7 @@ class Algorithm {
             path_node_ids.push_back(end_node_id);
             column.rows.reserve(row_map.size());
             for (auto& [idx, coef] : row_map) {
-                column.rows.push_back({idx, coef});
+                column.rows.push_back({.index = idx, .coefficient = coef});
             }
             std::sort(column.rows.begin(), column.rows.end(), [](const Row& a, const Row& b) {
                 return a.index < b.index;
