@@ -202,7 +202,7 @@ template <typename Composed>
         const auto* sink = graph.get_node(sink_id);
         std::vector<size_t> arcs;
         // A backward label at a sink starts where an arc entering it says, as the search starts it
-        // (BackwardDirection::apply_start).
+        // (BackwardDirection::set_start).
         rcspp::Resource<Composed> start(*sink->resource);
         for (const auto* arc : graph.get_in_arcs(sink)) {
             if (arc->extender != nullptr) {

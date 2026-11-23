@@ -99,9 +99,7 @@ inline std::vector<Run> every_algorithm() {
          }},
         {"astar",
          true,
-         [](auto* g) {
-             return g->template solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
-         }},
+         [](auto* g) { return g->template solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{}); }},
         {"bidirectional",
          true,
          [](auto* g) {
