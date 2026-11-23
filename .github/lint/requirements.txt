@@ -1,0 +1,6 @@
+# The C++ linters the pre-commit workflow installs, pinned so a new release never changes what CI
+# asks of the code by surprise. Dependabot proposes each upgrade as a pull request; the workflow
+# then checks every file with the new versions, so that pull request shows what they flag.
+clang-format==21.1.6
+clang-tidy==21.1.6
+cpplint==2.0.2
