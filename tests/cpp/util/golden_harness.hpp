@@ -273,7 +273,7 @@ Outcome finish(AlgorithmPointer& a, ResourceGraph<RealResource>* g, const Varian
 
 /// @brief A bidirectional search by @p Strategy, clocked on time with `H` inside the paths'
 ///        durations, so the join has pairs to test.
-template <template <typename, typename> class Strategy>
+template <typename Strategy>
 Outcome bidirectional_outcome(AlgorithmParams<ForwardList> p, const Variant& v,
                               ResourceGraph<RealResource>* g) {
     p.critical_resource_index = 1;
@@ -293,19 +293,19 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
     auto p = params_for<AlgorithmParams<ForwardList>>(v);
     switch (k) {
         case Kind::Simple: {
-            auto a = g->create_algorithm<SimpleDominanceAlgorithm>(p);
+            auto a = g->create_algorithm<strategy::Simple>(p);
             return finish(a, g, v);
         }
         case Kind::Pushing: {
-            auto a = g->create_algorithm<PushingDominanceAlgorithm>(p);
+            auto a = g->create_algorithm<strategy::Pushing>(p);
             return finish(a, g, v);
         }
         case Kind::Pulling: {
-            auto a = g->create_algorithm<PullingDominanceAlgorithm>(p);
+            auto a = g->create_algorithm<strategy::Pulling>(p);
             return finish(a, g, v);
         }
         case Kind::AStar: {
-            auto a = g->create_algorithm<AStarDominanceAlgorithm>(p);
+            auto a = g->create_algorithm<strategy::AStar>(p);
             return finish(a, g, v);
         }
         case Kind::Backward: {
@@ -313,7 +313,7 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
             return finish(a, g, v);
         }
         case Kind::Bidirectional:
-            return bidirectional_outcome<SimpleDominanceAlgorithm>(p, v, g);
+            return bidirectional_outcome<strategy::Simple>(p, v, g);
     }
     return {};
 }

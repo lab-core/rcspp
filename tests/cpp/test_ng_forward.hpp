@@ -92,7 +92,7 @@ inline void add_arc(Graph* graph, size_t origin, size_t destination, double cost
 
 /// @brief The best cost a forward solve finds, or infinity.
 inline double forward_optimum(Graph* graph) {
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(
+    const auto result = graph->solve<strategy::Simple>(
         std::numeric_limits<double>::infinity(),
         AlgorithmParams<
             LabelList<ResourceTypeComposition<RealResource, RealResource, SizeTBitsetResource>>>{},

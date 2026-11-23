@@ -51,7 +51,7 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     params.half_way_point = built.clock_upper_bound * h_factor;
 
     auto algorithm =
-        built.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        built.graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = built.graph->solve(algorithm.get());
 
     Outcome outcome;
@@ -66,7 +66,7 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
 /// @brief The forward reference, for instances too large to enumerate.
 inline double forward_optimum(const test_util::InstanceConfig& config) {
     auto built = test_util::build_instance(config);
-    const auto result = built.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = built.graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     return result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                     : result.solutions.front().cost;
 }

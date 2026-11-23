@@ -13,8 +13,9 @@
 /// @brief Pairs of arcs to run a model's extension on, two steps in a row, and the comparison
 ///        of what the steps give.
 ///
-/// Whether an extension adds a fixed amount per arc cannot be read off a declaration: the checks
-/// run the extension on pairs of the model's own arcs (@c JoinCheck, and the test of the
+/// Whether an extension adds a fixed amount per arc, and whether a backward search costs a path
+/// as the forward search does, cannot be read off a declaration: the checks run the extension on
+/// pairs of the model's own arcs (@c JoinCheck, @c BackwardExtensionCheck, and the test of the
 /// completion bound, @c detail::find_share_shortfall).
 namespace rcspp::arc_pair_probe {
 

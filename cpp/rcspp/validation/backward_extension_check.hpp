@@ -19,6 +19,7 @@
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/arc_pair_probe.hpp"
 #include "rcspp/validation/model_check.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
@@ -47,7 +48,8 @@ namespace rcspp {
 ///    never decrease (@ref scan_negative_loads);
 ///  - a composition dominance, extension or feasibility function that cannot be read backward;
 ///  - a cost that is not additive: a backward label reaching a source is a complete path, so its
-///    cost must be what the forward search would compute.
+///    cost must be what the forward search would compute; and, for a cost declared additive, one
+///    whose total differs when the extension runs backward (@ref check_reversal).
 ///
 /// @tparam ResourceType The resource type used in the graph.
 template <typename ResourceType>
@@ -136,12 +138,95 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                     "costs, which is exact only when every component the cost reads has a "
                     "zero cost (TrivialCostFunction) or a value cost (ValueCostFunction) under an "
                     "accumulating extension; a threshold's backward value is a bound, not a cost");
+            } else {
+                // Declared additive is not enough: check it by running the extension both ways.
+                check_reversal(graph, problems);
             }
         }
 
     private:
         /// @brief Whether a backward label reaching a source is a path the search returns.
         bool backward_labels_end_paths_;
+
+        /// @brief Records a model whose backward search does not cost a path as the forward search
+        ///        does, once.
+        ///
+        /// A backward label reaching a source is returned as a path at its own cost, and the join
+        /// and the prunes read a backward label's cost as its suffix's. So for each pair of arcs
+        /// `a`, `b` (@c arc_pair_probe::for_each_arc_pair), the backward start extended back
+        /// along `b` then `a` must cost what the forward start extended along `a` then `b` costs
+        /// (@c arc_pair_probe::is_close). An addition passes; a maximum (a bottleneck) passes too,
+        /// as it reads the same in either order; a floor or a ceiling on an addition does not,
+        /// though it may declare @c DirectionalResourceKind::Accumulate. Read on the composed
+        /// cost, the quantity the search compares. The model's own arcs are a sample, not a proof.
+        ///
+        /// A composition that cannot extend backward is reported elsewhere; this check then skips.
+        ///
+        /// @param graph    The graph.
+        /// @param problems Receives one line when the costs differ.
+        static void check_reversal(const Graph<ResourceType>& graph,
+                                   std::vector<std::string>* problems) {
+            const auto* node = threshold_probe::node_with_resource(graph);
+            if (node == nullptr) {
+                return;
+            }
+            Resource<ResourceType> start(*node->resource);
+            Resource<ResourceType> first(*node->resource);
+            Resource<ResourceType> second(*node->resource);
+            Resource<ResourceType> back_start(*node->resource);
+            Resource<ResourceType> back_first(*node->resource);
+            Resource<ResourceType> back_second(*node->resource);
+            const auto removed = threshold_probe::index_removed_arcs(graph);
+            try {
+                arc_pair_probe::for_each_arc_pair(
+                    graph,
+                    removed,
+                    [&](const Arc<ResourceType>& first_arc, const Arc<ResourceType>& second_arc) {
+                        if (first_arc.origin->resource == nullptr ||
+                            first_arc.destination->resource == nullptr ||
+                            second_arc.origin->resource == nullptr ||
+                            second_arc.destination->resource == nullptr) {
+                            return true;
+                        }
+                        // Forward: from the start value along the first arc, then the second.
+                        start.reset(*first_arc.origin->resource);
+                        first.reset(*first_arc.destination->resource);
+                        first_arc.extender->extend(start, &first);
+                        second.reset(*second_arc.destination->resource);
+                        second_arc.extender->extend(first, &second);
+                        // Backward: from the backward start, back along the second, then the
+                        // first, as a backward label starting at the second arc's destination.
+                        back_start.reset(*second_arc.destination->resource);
+                        second_arc.extender->start_back(&back_start);
+                        back_first.reset(*second_arc.origin->resource);
+                        second_arc.extender->extend_back(back_start, &back_first);
+                        back_second.reset(*first_arc.origin->resource);
+                        first_arc.extender->extend_back(back_first, &back_second);
+
+                        const double forward_cost = second.get_cost();
+                        const double backward_cost = back_second.get_cost();
+                        if (arc_pair_probe::is_close(backward_cost, forward_cost)) {
+                            return true;
+                        }
+                        problems->push_back(
+                            "the model's cost is not the same read backward: along " +
+                            std::to_string(first_arc.origin->id) + " -> " +
+                            std::to_string(first_arc.destination->id) + ", then " +
+                            std::to_string(second_arc.origin->id) + " -> " +
+                            std::to_string(second_arc.destination->id) +
+                            ", the forward search costs the path " + std::to_string(forward_cost) +
+                            " and the backward search " + std::to_string(backward_cost) +
+                            ". A backward search builds a path from its end, so every priced "
+                            "extension must give the same total whichever end it starts from; a "
+                            "floor or a ceiling on an addition (AdditionExtensionFunction's "
+                            "min_value) does not. Search forward, or price only extensions that "
+                            "add");
+                        return false;
+                    });
+            } catch (const NoBackwardExtension& /*error*/) {
+                // Reported by the probe of the composition extension function.
+            }
+        }
 
         using ClampProbe = threshold_probe::ClampProbe<ResourceType>;
         using NodeClamps = threshold_probe::NodeClamps;
@@ -298,8 +383,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                 bool reached = back >= start;
                 if constexpr (std::is_floating_point_v<Scalar>) {
                     constexpr Scalar kSteps = 4;
-                    reached = back >= start - kSteps * std::numeric_limits<Scalar>::epsilon() *
-                                                  std::max(Scalar{1}, std::abs(start));
+                    reached = back >= start - (kSteps * std::numeric_limits<Scalar>::epsilon() *
+                                               std::max(Scalar{1}, std::abs(start)));
                 }
                 return reached && origin.admits_back_value(deadline.get_value());
             } else {

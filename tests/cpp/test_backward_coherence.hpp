@@ -84,8 +84,8 @@ inline void expect_refused_bidirectionally(ResourceGraph<ResourceTypes...>* grap
                                            const std::string& component,
                                            const std::string& reason) {
     AlgorithmParams<LabelList<ResourceTypeComposition<ResourceTypes...>>> params;
-    auto algorithm = graph->template create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(params));
+    auto algorithm =
+        graph->template create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     try {
         graph->solve(algorithm.get());
         FAIL() << "a bidirectional solve must refuse this model before it starts";
@@ -141,7 +141,7 @@ TEST(BackwardCoherence, AKindlessCustomExtensionIsAValidForwardOnlyModel) {
         return graph;
     };
 
-    const auto result = build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = build()->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_DOUBLE_EQ(result.solutions.front().cost, 6.0);  // 2 * (1 + 2): the custom rule ran
     EXPECT_EQ(result.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1}));
@@ -169,7 +169,7 @@ TEST(BackwardCoherence, AnAccumulationAgainstDueDatesIsAValidForwardOnlyModel) {
         return graph;
     };
 
-    bc::expect_on_time_route(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    bc::expect_on_time_route(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     bc::expect_refused_bidirectionally(build().get(), "component 1", "CapacityExtensionFunction");
 }
 
@@ -196,7 +196,7 @@ TEST(BackwardCoherence, AnUnsignedTimeWindowIsAValidForwardOnlyModel) {
         return graph;
     };
 
-    bc::expect_on_time_route(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    bc::expect_on_time_route(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     bc::expect_refused_bidirectionally(build().get(),
                                        "component 1",
                                        "declares no directional_resource_kind()");
