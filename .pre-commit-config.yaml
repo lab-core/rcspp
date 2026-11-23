@@ -21,7 +21,7 @@ repos:
   # Python Formatter: Black
   # -------------------------
   - repo: https://github.com/psf/black
-    rev: 26.1.0
+    rev: 26.10.1
     hooks:
       - id: black
         name: Black Python Formatter
@@ -32,7 +32,7 @@ repos:
   # Python Import Sorter: isort
   # -------------------------
   - repo: https://github.com/PyCQA/isort
-    rev: 7.0.0
+    rev: 9.0.2
     hooks:
       - id: isort
         name: Python Import Sorter
@@ -42,7 +42,7 @@ repos:
   # Python Linter: flake8
   # -------------------------
   - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
+    rev: 7.5.0
     hooks:
       - id: flake8
         name: Python Linter
@@ -54,7 +54,7 @@ repos:
   # Bandit
   # -------------------------
   - repo: https://github.com/pycqa/bandit
-    rev: 1.9.3
+    rev: 1.9.4
     hooks:
       - id: bandit
         files: ^(python|tests)/.*\.py$
@@ -71,7 +71,7 @@ repos:
   #      files: ^(python|tests)/.*\.py$
 
   - repo: https://github.com/PyCQA/docformatter
-    rev: v1.7.7  # Use latest release, check https://github.com/PyCQA/docformatter/releases for updates
+    rev: v1.7.8  # Use latest release, check https://github.com/PyCQA/docformatter/releases for updates
     hooks:
     - id: docformatter
       args: ["--in-place", "--black"]
@@ -90,7 +90,7 @@ repos:
   # Markdownlint
   # -------------------------
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.50.0
     hooks:
       - id: markdownlint
         files: .*\.md$
@@ -127,7 +127,7 @@ repos:
         stages: [commit-msg]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.3.0
+    rev: v4.5.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
@@ -137,7 +137,7 @@ repos:
   # C++ all in one
   # -------------------------
   - repo: https://github.com/pocc/pre-commit-hooks
-    rev: v1.3.5
+    rev: v1.5.0
     hooks:
       # -------------------------
       # Clang Format
