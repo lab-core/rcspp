@@ -74,8 +74,8 @@ struct AlgorithmBaseParams {
         /// than its share of the cost, whatever the label it extends, which the solve tests at the
         /// start by running the extension on the model's arcs (a floor, a ceiling or a maximum in
         /// a priced extension fails it). Otherwise the label's cost alone is compared, which may
-        /// drop the cheapest path when an arc lowers the cost. (Pushing, Pulling and A*, not yet on
-        /// the labelling kernel, still compare the cost alone.)
+        /// drop the cheapest path when an arc lowers the cost. (Pushing and Pulling, not yet on the
+        /// labelling kernel, still compare the cost alone.)
         bool prune_by_incumbent = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each

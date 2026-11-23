@@ -208,13 +208,14 @@ TEST(Parity, TracesAgreeOnUnreachableArcs) {
     }
 }
 
+/// @brief The frozen A* against the kernel's best-first search, which A* is built from.
 TEST(Parity, AStarForward) {
     parity::sweep<parity::Traced<ref::AStarDominanceAlgorithm<Composed, List>>,
-                  parity::Traced<rcspp::AStarDominanceAlgorithm<Composed, List>>>(
+                  parity::TracedLabellingAlgorithm<parity::CompletionOrder, List>>(
         SearchDirection::Forward,
         List{});
     parity::sweep<parity::Traced<ref::AStarDominanceAlgorithm<Composed, Buckets>>,
-                  parity::Traced<rcspp::AStarDominanceAlgorithm<Composed, Buckets>>>(
+                  parity::TracedLabellingAlgorithm<parity::CompletionOrder, Buckets>>(
         SearchDirection::Forward,
         Buckets(10, 1, 0),
         /*buckets=*/true);

@@ -38,7 +38,7 @@ struct IgnoreErase {
 ///   that labels held back count as waiting.
 /// - @c trim(context, limit) is called under memory pressure
 ///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit × the
-///   number of nodes in all (@ref FifoSchedule).
+///   number of nodes in all (@ref FifoSchedule, @ref BestFirstSchedule).
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
 ///   It erases each label stored aside from its node, through @p erase, and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
