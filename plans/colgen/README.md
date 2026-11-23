@@ -229,6 +229,17 @@ Presentation for the colleagues (meeting moved to 2026-11-25), in progress since
 `benchmark-results/colgen/presentation/status/` (follows last week's benchmark slides; fact slides 2-7 to finish,
 the next-steps slides to redo after a pass over the `T-` tasks, in its own chat: what exists, what the Python side
 lacks, what an all-features test covers; ng-route comparison waits for the colleagues' go).
+Roadmap pass done 2026-11-23 (`D-269`-`D-275`, `meeting-2026-11-25.md`): phase 0 retired; done tasks listed one line
+each; a task is done when its code and local review are (`D-271`: `T-1.10`, `T-1.18`, `T-1.19`, `T-1.20` done); `T-1.21`
+is now the inventory of every feature and option (ng inside, `D-272`); `T-1.23` the analysis tool (`Q-70`), `T-1.27`
+issue `I-17`, `T-1.28` dropped, new `T-1.29` (all-features test), `T-1.30` (profiling), `T-2.5` moved to phase 1
+(`D-273`-`D-275`); phase 2 on the package, components where methods differ (`D-274`); phases 3-5 are design constraints,
+not plans (`D-275`). The three lists for the slides and the colleagues' questions: `meeting-2026-11-25.md`. The slides'
+next-steps pages rewritten 2026-11-23 (12 pages, built): "Found on the way" and "What exists" removed (one sentence on
+slide 2), then what Python lacks, a task map, the questions. Next tasks (`D-276`): `T-1.21`, `T-2.5`, `T-1.9`; `T-1.8`
+after #60 or the stack merges; the rest waits. Issues created 2026-11-23: #100-#106 (`I-04`, `I-10`,
+`I-14`-`I-18`). No questions sent before the meeting; the slides ask direction, instances, presets
+(`D-277`). **Next:** the meeting of 2026-11-25; then `T-1.21`, `T-2.5`, `T-1.9`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -316,6 +327,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 | `server-setup.md` | the home server (`T-1.24`): the machine, choices, every setup step from scratch, updating, log | setting up or updating a benchmark machine |
 | `overnight-runs.md` | the night of 2026-11-20/21: `T-1.19` on the laptop, `T-1.18` on the server, commands, next TOMLs | before starting or reading those runs |
+| `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
 ## Project conventions that apply here

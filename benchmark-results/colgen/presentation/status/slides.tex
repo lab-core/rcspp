@@ -67,7 +67,8 @@
 
 %--------------------------------------------------------------
 \begin{frame}{Since last week}
-  Last week: the benchmark's design, and the list of tasks it would serve.
+  The package ships, the C++ layer is an example beside it. Last week: the benchmark's design, and the list of
+  tasks it would serve.
 
   \vspace{0.4em}
   \small
@@ -251,97 +252,81 @@
 \end{frame}
 
 %--------------------------------------------------------------
-\begin{frame}{Found on the way}
-  \begin{itemize}\small
-    \item \textbf{Preprocessing in the pricer}: on by default, it costs 0.5--3 ms a search and never paid off on
-      these instances, ng-routes included. It stays on, and can be turned off.
-    \item \textbf{ng-routes work} through the layers (checked with 8 and 16 neighbours).
-    \item \textbf{An artificial start can stall}: on R202\_50 the first exact search on the big-M duals takes a
-      whole hour. A start with one route per customer, or a heuristic stage first, avoids it.
-    \item \textbf{The search called from Python} is 5--6\,\% slower than from a C++ program with tabu stages;
-      cause not measured.
-    \item \textbf{Adding columns} through gurobipy costs 20--80\,\% more than through python-mip, and the C++
-      layer's column adds slow down as the master grows.
-    \item \textbf{Truncating the search} (stopping after 1 or 5 columns) does not make iterations cheap on R2
-      instances: 70--80 ms a search either way.
-  \end{itemize}
-
-  \vspace{0.3em}
-  \small\textcolor{GLGray}{The last three could become issues.}
-\end{frame}
-
-%--------------------------------------------------------------
-\begin{frame}{Next: finishing the first phase}
-  Each a benchmark option, measured the same way.
+\begin{frame}{What the Python side lacks}
+  Against the C++ example layer: \textbf{nothing}; the package even takes your own search as a stage.
 
   \vspace{0.4em}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.6\textwidth}@{}}
-    \toprule
-    task & what it gives \\
-    \midrule
-    ng-routes & an ng size option; LP values against the ng comparison program \\
-    the engine's newer features & the bidirectional search and its options as stage parameters \\
-    the engine benchmarks' features & bucket containers, Boost's search in the C++ runner \\
-    pricing on one dual sequence & every algorithm on the same duals: time per search, columns found \\
-    presets & the pricing setups the benchmark ships, chosen together \\
-    plots & series, box plots, performance profiles, convergence curves \\
-    the highspy path (optional) & the pure layer's extra 1--2.5 ms per iteration over highspy \\
-    \bottomrule
-  \end{tabular}
-\end{frame}
-
-%--------------------------------------------------------------
-\begin{frame}{Next: larger directions}
   \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \textbf{Performance}
-      \begin{itemize}\small
-        \item pricing budgets that grow, several pricers
-        \item a column pool, column management
-        \item a Lagrangian bound, an early stop on a gap
-        \item stabilization of the duals
-        \item parallel pricers
-      \end{itemize}
-
-      \vspace{0.3em}
-      \textbf{Modelling}
-      \begin{itemize}\small
-        \item several vehicle types: one graph and one convexity row each, nothing new in the library
+    \begin{column}{0.5\textwidth}
+      \textbf{Engine features in C++ only}
+      \begin{itemize}\footnotesize
+        \item \texttt{DiversificationSearch}, \texttt{ImprovingTabuSearch}
+        \item an algorithm built by the user and passed in
+        \item unsigned and \texttt{size\_t} resources, bitsets (the C++ VRP example uses one)
+        \item per-node capacity and min-max bounds, the reachable-node check, functions written in Python
+        \item a bidirectional clock of another type than the cost; other label containers
+        \item what the open PRs add, until bound
       \end{itemize}
     \end{column}
-    \begin{column}{0.48\textwidth}
-      \textbf{Branch-and-price}
-      \begin{itemize}\small
-        \item our own tree with arc branching, designed
-        \item or hosted in SCIP: our pricer as a SCIP pricer
+    \begin{column}{0.46\textwidth}
+      \textbf{In the benchmark and examples}
+      \begin{itemize}\footnotesize
+        \item no ng size yet: the ng runs so far were by hand
       \end{itemize}
 
-      \vspace{0.3em}
-      \textbf{Other solvers}
-      \begin{itemize}\small
-        \item SoPlex as a master
-        \item other column generation codes as runners
+      \textbf{Common column generation features}
+      \begin{itemize}\footnotesize
+        \item a Lagrangian bound, a stop on a gap
+        \item a column pool, removing unused columns
+        \item stabilization of the duals
+        \item growing pricing budgets, an order for several pricers
+        \item parallel pricers; per-iteration data
       \end{itemize}
 
-      \vspace{0.3em}
-      \textbf{Benchmarks}
-      \begin{itemize}\small
-        \item regression runs, Compute Canada
+      \textbf{Known performance issues}
+      \begin{itemize}\footnotesize
+        \item the highspy master, column adds through gurobipy, the search called from Python: filed as issues
       \end{itemize}
     \end{column}
   \end{columns}
 \end{frame}
 
 %--------------------------------------------------------------
-\begin{frame}{Where would you go next?}
-  \begin{itemize}
-    \item \textbf{Which direction first}: performance, several vehicle types, or branch-and-price (ours or SCIP's)?
-    \item \textbf{Which instances} match your own work? Their size decides whether 1--2 ms per iteration matters.
-    \item \textbf{Which pricing setups} should the benchmark ship as presets?
-    \item \textbf{Reviews and merge order}: who reads which pull request? The package first, or the engine's open
-      pull requests first?
-    \item \textbf{Issues}: open the three findings as issues?
+\begin{frame}{Next tasks}
+  \centering
+  \begin{tikzpicture}[
+      task/.style={box, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt},
+      wait/.style={later, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt}]
+    \node[task] (inventory) at (0, 0) {\textbf{every feature and option}, ng-routes and your PRs' included};
+    \node[task] (periteration) at (0, -1.15) {\textbf{per-iteration data}: duals, bound, time split};
+    \node[task] (types) at (0, -2.3) {\textbf{several vehicle types}: one graph each};
+    \node[wait] (alltest) at (4.4, 0) {test of everything together (ng-routes included); presets, with you};
+    \node[wait] (replay) at (4.4, -1.15) {pricing replayed on one dual sequence};
+    \node[wait] (analysis) at (8.8, -1.15) {analysis tool: comparisons, plots, replays};
+    \node[wait] (order) at (4.4, -2.3) {order of several pricers; parallel pricers};
+    \node[wait] (cluster) at (8.8, 0) {the benchmark in CI, regression runs, Compute Canada};
+    \draw[flow] (inventory) -- (alltest);
+    \draw[flow] (periteration) -- (replay);
+    \draw[flow] (replay) -- (analysis);
+    \draw[flow] (types) -- (order);
+    \node[wait] (profiling) at (0, -3.6) {profiling pass on the package};
+    \node[wait] (docs) at (4.4, -3.6) {docs and theory pages, after the merges};
+    \node[wait] (bound) at (8.8, -3.6) {Lagrangian bound, then stabilization; column pool and removal; budgets};
+  \end{tikzpicture}
+
+  \vspace{0.4em}
+  \footnotesize
+  \textcolor{GLBlue}{\textbf{Solid}}: next. \textcolor{GLGray}{Dashed}: waits. Where methods differ (pool, stabilization,
+  budgets, pricer order), they come as components you pass in, like masters and pricers. Branch-and-price (ours or in
+  SCIP) and SoPlex: kept possible, not planned.
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{Questions for you}
+  \begin{itemize}\small
+    \item \textbf{Direction}: which matters first: performance, several vehicle types, branch-and-price?
+    \item \textbf{Instances}: which match your work? Their size decides whether 1--2 ms an iteration matters.
+    \item \textbf{Presets}: which pricing setups should the benchmark ship?
   \end{itemize}
 \end{frame}
 

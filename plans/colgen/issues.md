@@ -8,19 +8,21 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-01 | `docs(solution): Solution.cost and Column.cost descriptions are swapped` | bug, documentation | #52 | `F-01`, `T-0.2` |
 | I-02 | `refactor(graph): make Row::coefficient a double and reject non-finite coefficients` | enhancement | #53 | `F-12`, `T-0.4` |
 | I-03 | `fix(benchmark): BKS table uses 1-decimal distances, so C101 reports a false FAIL` | bug | #54 | `F-11`, `T-0.5` |
-| I-04 | `feat(logger): no ANSI colors when the output is not a terminal` | enhancement, good first issue | draft | `T-0.1b` |
-| I-05 | `feat(benchmark): machine-readable results (CSV or JSON lines)` | enhancement | draft | `T-0.1b`, `T-2.5`, `Q-07` |
+| I-04 | `feat(logger): no ANSI colors when the output is not a terminal` | enhancement, good first issue | created: #105 (2026-11-23) | `T-0.1b` |
+| I-05 | `feat(benchmark): machine-readable results (CSV or JSON lines)` | enhancement | closed 2026-11-23: the new benchmark writes JSON and CSV; #99 removes the old C++ benchmark | `T-0.1b`, `T-2.5`, `Q-07` |
 | I-06 | `question(vrp): default route relaxation of the VRP example` | question | #55 | `F-05`, `Q-09` |
-| I-07 | `fix(ci): benchmark workflow can't build without Gurobi on ubuntu-latest` | bug | draft, inferred (never run); deferred (`D-52`) | `P-20` |
-| I-08 | `feat: column generation layer (tracking issue)` | enhancement | after colleague review (`Q-12`) | this plan |
-| I-09 | `docs(cpp): the "Choosing an algorithm" example of the C++ quickstart does not compile` | documentation | draft (found 2026-10-28 checking the docs for the Python plan) | — |
-| I-10 | `fix(python): on Windows, the second Ctrl-C kills Python instead of raising KeyboardInterrupt` | bug | draft (found 2026-10-28 measuring `D-87`) | `F-31` |
+| I-07 | `fix(ci): benchmark workflow can't build without Gurobi on ubuntu-latest` | bug | closed 2026-11-23: #99 removes `benchmark.yml` | `P-20` |
+| I-08 | `feat: column generation layer (tracking issue)` | enhancement | closed 2026-11-23: the PR stack tracks the work | this plan |
+| I-09 | `docs(cpp): the "Choosing an algorithm" example of the C++ quickstart does not compile` | documentation | closed 2026-11-23: fixed on `main` (`LabelList<Resources>`) | — |
+| I-10 | `fix(python): on Windows, the second Ctrl-C kills Python instead of raising KeyboardInterrupt` | bug | created: #104 (2026-11-23) | `F-31` |
 | I-11 | `fix(build): cmake --install installs no rcspp headers` | bug | created: #79 (2026-10-30); no open PR fixes it, fixed in `T-1.12` (`D-107`) | `F-33` |
 | I-12 | `docs: add rcspp.column_generation to the Python API reference` | documentation | created: #94 (2026-11-13); after the stack merges | `F-60` (2), `F-61` (3) |
 | I-13 | `fix(algorithm): tabu search with default parameters logs an error and returns no path` | bug | created: #95 (2026-11-13) | `F-60` (1) |
-| I-14 | `perf(column-generation): column adds slow down as the master grows` | enhancement | candidate, no file yet (the user, 2026-11-21: maybe later); measure first with per-iteration data (`D-239`) | `F-91`, `F-94` |
-| I-15 | `perf(column-generation): the gurobipy master solver's column adds cost 20-80 % more per iteration than python-mip's` | enhancement | candidate, no file yet (the user, 2026-11-21: maybe later); per `D-163`, only if `T-1.20` fails | `F-94`, `F-47` |
-| I-16 | `perf(python): the search called from Python runs 5-6 % slower than from C++ with tabu` | enhancement | candidate, no file yet; cause to find first (interrupt checks, the module's build flags) | `F-102` |
+| I-14 | `perf(examples): the C++ column generation example's column adds slow down as the master grows` | enhancement | created: #103 (2026-11-23) | `F-91`, `F-94` |
+| I-15 | `perf(column-generation): column adds through gurobipy cost 20-80 % more per iteration than through python-mip` | enhancement | created: #101 (2026-11-23) | `F-94`, `F-47` |
+| I-16 | `perf(python): the search called from Python runs 5-6 % slower than from C++ with tabu` | enhancement | created: #102 (2026-11-23) | `F-102` |
+| I-17 | `perf(column-generation): the highspy master costs 1-2.6 ms more per iteration than the C++ example's HiGHS master` | enhancement | created: #100 (2026-11-23) | `F-101`, `F-47` |
+| I-18 | `docs(python): ResourceGraph.solve's docstring omits the tabu search` | documentation | created: #106 (2026-11-23) | the roadmap pass's engine sweep |
 
 ## Files
 
@@ -37,10 +39,19 @@ the heading into the title field and the rest into the body. Checked on `main` @
 | I-05 | `issues/I-05-benchmark-machine-readable.md` |
 | I-06 | `issues/I-06-vrp-default-relaxation.md` |
 | I-07 | `issues/I-07-benchmark-workflow-gurobi.md` |
-| I-08 | not drafted: after colleague review (`Q-12`) |
+| I-08 | not drafted: closed 2026-11-23 |
 | I-09 | `issues/I-09-quickstart-choosing-an-algorithm.md` |
 | I-10 | `issues/I-10-windows-second-ctrl-c.md` |
 | I-11 | `issues/I-11-install-no-headers.md` |
+| I-13 | `issues/I-13-tabu-default-max-iterations.md` |
+| I-14 | `issues/I-14-cpp-example-column-adds.md` |
+| I-15 | `issues/I-15-gurobipy-column-adds.md` |
+| I-16 | `issues/I-16-search-from-python-slower.md` |
+| I-17 | `issues/I-17-highspy-master-overhead.md` |
+| I-18 | `issues/I-18-solve-docstring-tabu.md` |
+
+Batch of 2026-11-23, created at once: #100-#106. Also: #99 removes
+`benchmark_common.hpp`, so its description can say "Closes #54".
 
 ## Existing issues closed
 
