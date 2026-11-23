@@ -36,7 +36,7 @@ namespace bidirectional_validation_test {
 using Composed = ResourceTypeComposition<RealResource>;
 /// The bidirectional search `create_algorithm` builds for these graphs.
 using Bidir =
-    rcspp::detail::BidirectionalDominanceAlgorithm<Composed, LabelList<Composed>, RealResource>;
+    rcspp::detail::BidirectionalLabellingAlgorithm<Composed, LabelList<Composed>, RealResource>;
 
 constexpr double kTolerance = 1e-9;
 
@@ -334,10 +334,10 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
 
 /// @brief Which early stops still run the join.
 TEST(BidirectionalValidation, OnlyAnInterruptSkipsTheJoin) {
-    static_assert(detail::join_runs_after(detail::EarlyStop::None));
-    static_assert(detail::join_runs_after(detail::EarlyStop::Timeout));
-    static_assert(detail::join_runs_after(detail::EarlyStop::MemoryLimit));
-    static_assert(!detail::join_runs_after(detail::EarlyStop::Interrupted));
+    static_assert(detail::should_join_after(detail::EarlyStop::None));
+    static_assert(detail::should_join_after(detail::EarlyStop::Timeout));
+    static_assert(detail::should_join_after(detail::EarlyStop::MemoryLimit));
+    static_assert(!detail::should_join_after(detail::EarlyStop::Interrupted));
     SUCCEED();
 }
 

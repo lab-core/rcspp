@@ -204,7 +204,7 @@ TEST(TakeRule, ALabelPastTheHalfWayPointIsKeptStored) {
     const detail::HalfWay<trt::Composed> half_way(  // H = 5, read on the cost
         5.0,
         0,
-        &critical_value<RealResource, trt::Composed>);
+        &detail::critical_value<RealResource, trt::Composed>);
     f.context.half_way = &half_way;
     EXPECT_TRUE(
         trt::is(trt::Forward::fixed(f.label(1, 6.0), search, f.context), trt::Verdict::Keep));

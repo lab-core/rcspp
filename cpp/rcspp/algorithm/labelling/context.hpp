@@ -30,7 +30,7 @@ enum class Role : std::uint8_t {
 };
 
 /// @brief What every part of a search reads of its solve. Built at the start of each solve by
-///        @c Algorithm::make_context, one per search.
+///        @c Algorithm::make_context, one per search (two for a bidirectional search).
 ///
 /// The pointers are valid for the solve. Each points to the graph or to a member of the
 /// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound). The

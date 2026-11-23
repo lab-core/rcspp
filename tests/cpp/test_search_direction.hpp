@@ -29,7 +29,7 @@ using List = LabelList<Composed>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
 /// The internal bidirectional search on these graphs, with a clock of type @p Clock.
 template <typename Clock>
-using Bidir = detail::BidirectionalDominanceAlgorithm<Composed, List, Clock>;
+using Bidir = detail::BidirectionalLabellingAlgorithm<Composed, List, Clock>;
 
 /// @brief A user's container derived from LabelList that declares no with_direction of its own.
 class InheritsListOnly : public LabelList<Composed> {
@@ -297,6 +297,31 @@ TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
     EXPECT_NE(output.find("max_phases > 1 has no effect on a bidirectional search"),
               std::string::npos)
         << output;
+}
+
+/// @brief More phases change nothing on a bidirectional search, even when @c max_iterations ends
+///        the first with labels waiting: no second phase restarts the count or runs the join
+///        again.
+TEST(BidirectionalSelection, MorePhasesChangeNothing) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    auto one_phase = sdt::params(SearchDirection::Bidirectional);
+    one_phase.max_iterations = 2;
+    auto three_phases = one_phase;
+    three_phases.max_phases = 3;
+
+    testing::internal::CaptureStdout();  // the max_phases warning
+    auto with_one = g->create_algorithm<SimpleDominanceAlgorithm>(one_phase);
+    auto with_three = g->create_algorithm<SimpleDominanceAlgorithm>(three_phases);
+    (void)testing::internal::GetCapturedStdout();
+    const auto one = g->solve(with_one.get());
+    const auto three = g->solve(with_three.get());
+
+    ASSERT_EQ(one.status, AlgorithmStatus::Truncated) << "the test needs labels left waiting";
+    EXPECT_EQ(three.status, one.status);
+    EXPECT_EQ(with_three->get_number_of_extended_labels(),
+              with_one->get_number_of_extended_labels());
+    EXPECT_EQ(three.solutions.size(), one.solutions.size());
 }
 
 /// @brief The backward half keeps its labels in the caller's container, turned backward: buckets

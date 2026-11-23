@@ -18,12 +18,12 @@
 #include <vector>
 
 #include "rcspp/algorithm/direction.hpp"
-#include "rcspp/algorithm/half_way_policy.hpp"
-#include "rcspp/algorithm/label_join.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 #include "reference/dominance_algorithm.hpp"
+#include "reference/half_way_policy.hpp"
 #include "reference/label_frontier.hpp"
+#include "reference/label_join.hpp"
 
 namespace rcspp::reference::detail {
 using namespace ::rcspp::detail;  // NOLINT(google-build-using-namespace)
@@ -480,7 +480,7 @@ class BidirectionalDominanceAlgorithm
                                           "below H");
                     return;
                 }
-                const std::vector<double> probes{0.0, half_way_.point()};
+                const std::vector<double> probes{0.0, half_way_.h()};
                 if (!critical_resource_is_monotone<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index,
