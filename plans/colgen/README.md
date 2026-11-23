@@ -225,6 +225,10 @@ layers equal (one Gurobi path apart on `cpp-native`); the pure layer passes `D-1
 spends 55 min in its first search; candidate issue `I-16` (the search from Python 5-6 % slower with tabu).
 The highspy path's optimisation is optional task `T-1.27` (the user, 2026-11-22). **Next:** the PRs of `T-1.18`,
 `T-1.19`.
+Presentation for the colleagues (meeting moved to 2026-11-25), in progress since 2026-11-23:
+`benchmark-results/colgen/presentation/status/` (follows last week's benchmark slides; fact slides 2-7 to finish,
+the next-steps slides to redo after a pass over the `T-` tasks, in its own chat: what exists, what the Python side
+lacks, what an all-features test covers; ng-route comparison waits for the colleagues' go).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
