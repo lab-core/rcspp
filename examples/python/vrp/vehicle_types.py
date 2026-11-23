@@ -55,14 +55,8 @@ class VehicleType:
 
 # MARK: Reading a vehicle type
 
-# The settings of a vehicle type on the command line, and their fields.
-SETTINGS = {
-    "capacity": "capacity",
-    "fixed": "fixed_cost",
-    "per-distance": "cost_per_distance",
-    "max-distance": "max_distance",
-    "max": "max_vehicles",
-}
+# The settings of a vehicle type on the command line.
+SETTINGS = ("capacity", "fixed", "per-distance", "max-distance", "max")
 
 # Fleets ready to use, as command-line vehicle types. The capacities are shares of the
 # instance's, so a fleet fits every Solomon class (capacity 200 in C1, 1000 in R2). "single" is
@@ -102,8 +96,8 @@ def parse_vehicle_type(text: str, instance_capacity: float) -> VehicleType:
     if "=" in name:
         raise ValueError(f"vehicle type {text!r}: its name comes first")
 
-    values: dict[str, float | int] = {"capacity": instance_capacity}
-    seen: set[str] = set()
+    # The settings as text, each at most once.
+    values: dict[str, str] = {}
 
     for setting in settings:
         key, _, value = setting.partition("=")
@@ -114,22 +108,52 @@ def parse_vehicle_type(text: str, instance_capacity: float) -> VehicleType:
                 f"{', '.join(SETTINGS)}"
             )
 
-        if key in seen:
+        if key in values:
             raise ValueError(f"vehicle type {name!r}: {key} given twice")
 
-        seen.add(key)
+        values[key] = value
 
-        try:
-            if key == "capacity" and value.endswith("%"):
-                values[key] = instance_capacity * float(value[:-1]) / 100.0
-            elif key == "max":
-                values[key] = int(value)
-            else:
-                values[key] = float(value)
-        except ValueError:
-            raise ValueError(f"vehicle type {name!r}: {key}={value!r} is not a number") from None
+    # Then each one as a number, or its default.
+    capacity = instance_capacity
 
-    return VehicleType(name, **{SETTINGS[key]: value for key, value in values.items()})
+    if "capacity" in values:
+        text = values["capacity"]
+
+        if text.endswith("%"):
+            capacity = instance_capacity * read_number(name, "capacity", text[:-1]) / 100.0
+        else:
+            capacity = read_number(name, "capacity", text)
+
+    max_vehicles = None
+
+    if "max" in values:
+        number = read_number(name, "max", values["max"])
+
+        if not number.is_integer():
+            raise ValueError(f"vehicle type {name!r}: max={values['max']!r} is not a whole number")
+
+        max_vehicles = int(number)
+
+    return VehicleType(
+        name,
+        capacity,
+        read_number(name, "fixed", values.get("fixed", "0")),
+        read_number(name, "per-distance", values.get("per-distance", "1")),
+        read_number(name, "max-distance", values.get("max-distance", "inf")),
+        max_vehicles,
+    )
+
+
+def read_number(name: str, key: str, text: str) -> float:
+    """The number in ``text``, the value of setting ``key`` of vehicle type ``name``.
+
+    Raises:
+        ValueError: When it is not a number.
+    """
+    try:
+        return float(text)
+    except ValueError:
+        raise ValueError(f"vehicle type {name!r}: {key}={text!r} is not a number") from None
 
 
 def describe(vehicle_type: VehicleType) -> str:

@@ -271,7 +271,8 @@ def test_a_vehicle_type_by_name_only_has_the_defaults() -> None:
         ("van speed=3", "unknown setting 'speed'"),
         ("van fixed=10 fixed=20", "fixed given twice"),
         ("van fixed=ten", "fixed='ten' is not a number"),
-        ("van max=2.5", "max='2.5' is not a number"),
+        ("van max=2.5", "max='2.5' is not a whole number"),
+        ("van max=many", "max='many' is not a number"),
         ("van capacity=half%", "is not a number"),
     ],
 )
