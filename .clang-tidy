@@ -8,8 +8,14 @@ Checks: >
   -modernize-use-trailing-return-type,
   -modernize-raw-string-literal
 
-# Only check headers and sources under cpp/, python/bindings/ and tests/
-HeaderFilterRegex: '(cpp|python|tests|examples)/.*'
+# Only check headers and sources under cpp/, python/bindings/, tests/ and examples/. Either
+# separator, so that Windows (cpp\rcspp/...) checks the same headers as Linux.
+HeaderFilterRegex: '(cpp|python|tests|examples)[/\\].*'
+
+# The core library's headers are checked when they change, as files of their own. Included from
+# another file, they are left out: the hook runs with -fix in parallel processes, and processes
+# fixing the same header write over each other.
+ExcludeHeaderFilterRegex: '^cpp[/\\]rcspp[/\\]'
 
 # Use the formatting style defined in .clang-format
 FormatStyle: file
