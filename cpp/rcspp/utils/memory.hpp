@@ -77,7 +77,7 @@ struct MemoryInfo {
         ///
         /// @return Current process RSS in bytes, or 0 if it cannot be determined.
         static size_t process_bytes() noexcept {
-#if defined(__linux__)
+#ifdef __linux__
             std::ifstream status("/proc/self/status");
             std::string line;
             while (std::getline(status, line)) {
@@ -127,7 +127,7 @@ struct MemoryInfo {
         ///
         /// @return Available system RAM in bytes, or 0 if it cannot be determined.
         static size_t available_system_bytes() noexcept {
-#if defined(__linux__)
+#ifdef __linux__
             std::ifstream meminfo("/proc/meminfo");
             std::string line;
             while (std::getline(meminfo, line)) {
@@ -161,7 +161,8 @@ struct MemoryInfo {
 #elif defined(_WIN32)
             MEMORYSTATUSEX status{};
             status.dwLength = sizeof(status);
-            return GlobalMemoryStatusEx(&status) ? static_cast<size_t>(status.ullAvailPhys) : 0;
+            return (GlobalMemoryStatusEx(&status) != 0) ? static_cast<size_t>(status.ullAvailPhys)
+                                                        : 0;
 #else
             return 0;
 #endif
@@ -181,7 +182,7 @@ struct MemoryInfo {
         ///
         /// @return Total installed physical RAM in bytes, or 0 if it cannot be determined.
         static size_t total_system_bytes() noexcept {
-#if defined(__linux__)
+#ifdef __linux__
             std::ifstream meminfo("/proc/meminfo");
             std::string line;
             while (std::getline(meminfo, line)) {
@@ -203,7 +204,8 @@ struct MemoryInfo {
 #elif defined(_WIN32)
             MEMORYSTATUSEX status{};
             status.dwLength = sizeof(status);
-            return GlobalMemoryStatusEx(&status) ? static_cast<size_t>(status.ullTotalPhys) : 0;
+            return (GlobalMemoryStatusEx(&status) != 0) ? static_cast<size_t>(status.ullTotalPhys)
+                                                        : 0;
 #else
             return 0;
 #endif
