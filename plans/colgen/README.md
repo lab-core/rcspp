@@ -252,6 +252,9 @@ merged), slide 8 "What is missing, and where" (examples for Python and for the b
 inventory box became `T-1.31`, next). `D-291`: `T-1.31` joins `T-2.5` and `T-1.9` as next; the rebase onto the new
 `main` is not a task. `meeting-2026-11-25.md` §2 has four claims corrected in `features-and-options.md`.
 **Next:** the meeting of 2026-11-25; then `T-1.31`, `T-2.5`, `T-1.9`.
+`T-1.9` coded 2026-11-23 (`D-292`, `D-293`, `F-104`, `F-105`): `examples/python/solve_vehicle_types.py` and its tests,
+in PR #114 on #99 (`e5ee77dc`, changelog `32604ac8`); left: the local review. Bounding the cost resource instead of
+a distance resource fails (pricing writes reduced costs into it: LP 35 for 40), explained to the colleague.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
