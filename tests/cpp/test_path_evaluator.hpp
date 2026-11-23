@@ -51,8 +51,8 @@ class BlocksNodeTwo : public Clonable<BlocksNodeTwo, FeasibilityFunction<RealRes
     public:
         auto is_feasible(const RealResource& /*resource*/) -> bool override { return true; }
 
-        auto is_reachable(const Resource<RealResource>& /*resource*/,
-                          size_t destination_node_id) -> bool override {
+        auto is_reachable(const Resource<RealResource>& /*resource*/, size_t destination_node_id)
+            -> bool override {
             return destination_node_id != 2;
         }
 };
