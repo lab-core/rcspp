@@ -35,6 +35,14 @@ python examples/python/solve_vrp.py instances/C101_25.txt --master highspy
 python examples/python/solve_vrp.py instances/C101_5.txt --subproblem-only
 ```
 
+[`solve_vehicle_types.py`](python/solve_vehicle_types.py) solves it with a fleet of several vehicle types, each
+with its capacity, fixed cost, cost per distance and limits: one pricer per type, and the plan says which vehicles
+to use:
+
+```bash
+python examples/python/solve_vehicle_types.py C101_25 --master highspy --fleet truck-and-van
+```
+
 The options, the output and how to extend the model: [`python/vrp/README.md`](python/vrp/README.md).
 
 ## C++ column generation (`examples/column_generation/`)
