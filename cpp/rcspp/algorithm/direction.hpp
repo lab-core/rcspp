@@ -45,8 +45,8 @@ struct ForwardDirection {
         /// @brief The arcs along which a label reaches @p node: incoming, going forward. A pull
         ///        into @p node reads them.
         template <typename ResourceType>
-        static auto in_arcs(const Graph<ResourceType>& graph,
-                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto in_arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
+            -> std::span<Arc<ResourceType>*> {
             return graph.get_in_arcs(node);
         }
 
@@ -150,8 +150,8 @@ struct BackwardDirection {
         /// @brief The arcs along which a label reaches @p node: outgoing, going backward. A pull
         ///        into @p node reads them.
         template <typename ResourceType>
-        static auto in_arcs(const Graph<ResourceType>& graph,
-                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto in_arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
+            -> std::span<Arc<ResourceType>*> {
             return graph.get_out_arcs(node);
         }
 
