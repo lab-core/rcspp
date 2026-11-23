@@ -383,8 +383,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                 bool reached = back >= start;
                 if constexpr (std::is_floating_point_v<Scalar>) {
                     constexpr Scalar kSteps = 4;
-                    reached = back >= start - kSteps * std::numeric_limits<Scalar>::epsilon() *
-                                                  std::max(Scalar{1}, std::abs(start));
+                    reached = back >= start - (kSteps * std::numeric_limits<Scalar>::epsilon() *
+                                               std::max(Scalar{1}, std::abs(start)));
                 }
                 return reached && origin.admits_back_value(deadline.get_value());
             } else {
