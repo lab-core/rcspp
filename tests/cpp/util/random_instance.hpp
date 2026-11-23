@@ -97,13 +97,13 @@ struct GeneratedInstance {
         std::unique_ptr<rcspp::ResourceGraph<rcspp::RealResource>> graph;
 
         /// @brief Component index of the clock: the time window, else the capacity, else the cost
-        /// (not a real clock, so the half-way bound must switch itself off).
+        /// (not a real clock, so the half-way point must switch itself off).
         size_t clock_index = 0;
 
         /// @brief `R`, the clock's finite maximum; `H` is derived from it as `R / 2`.
         double clock_upper_bound = 0.0;
 
-        /// @brief Whether the clock is a resource the half-way bound can legitimately read.
+        /// @brief Whether the clock is a resource the half-way point can legitimately read.
         bool clock_is_usable = false;
 };
 
@@ -284,7 +284,7 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
         }
         ++next_slot;
     }
-    // No clock at all: the half-way bound must switch itself off.
+    // No clock at all: the half-way point must switch itself off.
     if (!built.clock_is_usable) {
         built.clock_index = 0;
         built.clock_upper_bound = 0.0;
@@ -341,7 +341,7 @@ struct NgGeneratedInstance {
         /// @brief `R`, the clock's finite maximum; `H` is derived from it as `R / 2`.
         double clock_upper_bound = 0.0;
 
-        /// @brief Whether the clock is a resource the half-way bound can legitimately read.
+        /// @brief Whether the clock is a resource the half-way point can legitimately read.
         bool clock_is_usable = false;
 };
 

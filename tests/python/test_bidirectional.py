@@ -181,7 +181,7 @@ def test_params_are_settable():
 
 
 def test_result_reports_whether_the_bound_was_in_force():
-    """The result reports whether the half-way bound was in force."""
+    """The result reports whether the half-way point was in force."""
     windows = {node_id: (0.0, 1000.0) for node_id in range(5)}
     arcs = [(1.0, 10.0, i, i + 1) for i in range(4)]
 

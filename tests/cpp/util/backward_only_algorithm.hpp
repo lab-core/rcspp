@@ -18,7 +18,7 @@ namespace test_util {
 ///
 /// The backward search of `SimpleDominanceAlgorithm`
 /// (`rcspp::detail::BackwardSimpleDominanceAlgorithm`): it starts at the sinks and runs backward to
-/// completion, with no half-way bound and no join. It adds accessors to its labels. Its constructor
+/// completion, with no half-way point and no join. It adds accessors to its labels. Its constructor
 /// sets `direction = Backward`.
 ///
 /// @tparam ResourceType       The resource type carried by labels.

@@ -17,7 +17,7 @@
 
 namespace rcspp {
 
-/// @brief Why a bidirectional solve is running without the half-way bound.
+/// @brief Why a bidirectional solve is running without the half-way point.
 enum class HalfWayOff : unsigned {
     NoHalfWayPoint,      ///< the caller gave no `H` -- the default
     CriticalTypeAbsent,  ///< the critical resource type is not in the model
@@ -102,7 +102,7 @@ class HalfWayPolicy {
         bool enabled_ = true;
 };
 
-/// @brief The critical resource's scalar value in @p resource: the clock the half-way bound reads.
+/// @brief The critical resource's scalar value in @p resource: the clock the half-way point reads.
 ///
 /// @tparam CriticalResourceType The critical resource's type.
 /// @tparam ResourceType         The resource type carried by labels.
