@@ -77,12 +77,14 @@ struct AtomicColumnActivity {
 
         /// Return a non-atomic snapshot suitable for the public ColumnActivity API.
         [[nodiscard]] ColumnActivity snapshot() const {
-            return {.age = age.load(std::memory_order_relaxed),
-                    .use_count = use_count.load(std::memory_order_relaxed),
-                    .priced_count = priced_count.load(std::memory_order_relaxed),
-                    .created_at = created_at,
-                    .last_was_negative = last_was_negative.load(std::memory_order_relaxed),
-                    .last_reduced_cost = last_reduced_cost.load(std::memory_order_relaxed)};
+            return {
+                .age = age.load(std::memory_order_relaxed),
+                .use_count = use_count.load(std::memory_order_relaxed),
+                .priced_count = priced_count.load(std::memory_order_relaxed),
+                .created_at = created_at,
+                .last_was_negative = last_was_negative.load(std::memory_order_relaxed),
+                .last_reduced_cost = last_reduced_cost.load(std::memory_order_relaxed),
+            };
         }
 };
 
@@ -1043,7 +1045,8 @@ class FilteredSolutionPool {
                     entry.activity.age = 0;
                     ++entry.activity.use_count;
                     entry.activity.last_was_negative = true;
-                    result.push_back({entry.id, rc_d, &entry.solution});
+                    result.push_back(
+                        {.id = entry.id, .reduced_cost = rc_d, .solution = &entry.solution});
                 } else {
                     ++entry.activity.age;
                     entry.activity.last_was_negative = false;
@@ -1094,7 +1097,8 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
     AtomicColumnActivity activity;
     activity.created_at = pricing_count_.load(std::memory_order_relaxed);
     const uint32_t lp_idx = lp_.append(sol.column);
-    entries_.push_back({new_id, sol, std::move(activity), lp_idx});
+    entries_.push_back(
+        {.id = new_id, .solution = sol, .activity = std::move(activity), .lp_index = lp_idx});
     auto new_it = std::prev(entries_.end());
     id_index_.emplace(new_id, new_it);
     hash_index_[hash].push_back(new_it);

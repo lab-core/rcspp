@@ -625,7 +625,7 @@ class Graph {
         }
 
         // Internal helper: restore one arc while iterating removed_arcs_by_id_.
-        typename ArcMap::iterator restore_arc_from_map(typename ArcMap::iterator it) {
+        ArcMap::iterator restore_arc_from_map(ArcMap::iterator it) {
             Arc<ResourceType>* arc = it->second.get();
             arc->destination->in_arcs.push_back(arc);
             arc->origin->out_arcs.push_back(arc);

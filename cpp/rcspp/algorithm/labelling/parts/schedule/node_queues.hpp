@@ -98,7 +98,7 @@ class NodeQueues {
         ///        node: this does not erase it from the node's container.
         ///
         /// @return The position after it.
-        typename queue_type::iterator remove_current(typename queue_type::iterator position) {
+        queue_type::iterator remove_current(queue_type::iterator position) {
             --number_of_labels_;
             return current_.erase(position);
         }

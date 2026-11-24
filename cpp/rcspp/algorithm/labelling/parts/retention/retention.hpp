@@ -37,20 +37,20 @@ namespace rcspp::parts {
 /// @tparam ResourceType  The resource type carried by labels.
 /// @tparam ContainerType The per-node container of the params.
 template <typename RetentionType, typename ResourceType, typename ContainerType>
-concept Retention = requires(RetentionType retention, const RetentionType const_retention,
-                             size_t pos, Label<ResourceType>* label,
-                             const typename std::list<Label<ResourceType>*>::iterator& position,
-                             const ContainerType& prototype) {
-    retention.reset(pos, prototype);
-    retention.clear();
-    retention.node(pos);
-    {
-        retention.store(pos, label)
-    } -> std::same_as<typename std::list<Label<ResourceType>*>::iterator>;
-    retention.erase(position);
-    const_retention.labels_at(pos);
-    const_retention.containers();
-    { RetentionType::records_at_take } -> std::convertible_to<bool>;
-};
+concept Retention =
+    requires(RetentionType retention, const RetentionType const_retention, size_t pos,
+             Label<ResourceType>* label, const std::list<Label<ResourceType>*>::iterator& position,
+             const ContainerType& prototype) {
+        retention.reset(pos, prototype);
+        retention.clear();
+        retention.node(pos);
+        {
+            retention.store(pos, label)
+        } -> std::same_as<typename std::list<Label<ResourceType>*>::iterator>;
+        retention.erase(position);
+        const_retention.labels_at(pos);
+        const_retention.containers();
+        { RetentionType::records_at_take } -> std::convertible_to<bool>;
+    };
 
 }  // namespace rcspp::parts

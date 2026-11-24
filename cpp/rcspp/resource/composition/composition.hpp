@@ -83,8 +83,7 @@ struct ComponentInitializerTypeTuple {
 ///
 /// @tparam ComponentType A type that satisfies the `ComponentInitializerTypeTuple` trait.
 template <typename ComponentType>
-using component_initializer_type_tuple_t =
-    typename ComponentInitializerTypeTuple<ComponentType>::type;
+using component_initializer_type_tuple_t = ComponentInitializerTypeTuple<ComponentType>::type;
 
 /// @brief Empty tag base class used to identify all `Composition` specializations.
 struct CompositionTag {};
@@ -681,7 +680,7 @@ class Composition : public CompositionTag {
         /// @return Const reference to the component at the given position.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_component(size_t index) const -> const auto& {
-            return *(std::get<ComponentTypeIndex>(components_).at(index));
+            return *std::get<ComponentTypeIndex>(components_).at(index);
         }
 
         /// @brief Returns a mutable reference to a single component by type-slot index and
@@ -692,7 +691,7 @@ class Composition : public CompositionTag {
         /// @return Mutable reference to the component at the given position.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_component(size_t index) -> auto& {
-            return *(std::get<ComponentTypeIndex>(components_).at(index));
+            return *std::get<ComponentTypeIndex>(components_).at(index);
         }
 
         /// @brief Returns a mutable reference to the component vector for a given base type.

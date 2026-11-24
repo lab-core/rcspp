@@ -41,7 +41,7 @@ namespace rcspp::parts {
 template <typename ResourceType, typename Direction>
 class PullSchedule {
     public:
-        using queue_type = typename NodeQueues<ResourceType, Direction>::queue_type;
+        using queue_type = NodeQueues<ResourceType, Direction>::queue_type;
 
         /// @brief Empties the queues and sizes them for the graph being solved, and starts on the
         ///        first sweep.
@@ -89,7 +89,7 @@ class PullSchedule {
         ///        its node: this does not erase it from the node's container.
         ///
         /// @return The position after it.
-        typename queue_type::iterator remove_current(typename queue_type::iterator position) {
+        queue_type::iterator remove_current(queue_type::iterator position) {
             return queues_.remove_current(position);
         }
 

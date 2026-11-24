@@ -92,7 +92,7 @@ concept PullingSchedule =
     Schedule<ScheduleType, ResourceType> &&
     requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context,
              void (*extend)(Label<ResourceType>*, const Arc<ResourceType>*),
-             typename std::list<StoredLabel<ResourceType>>::iterator position) {
+             std::list<StoredLabel<ResourceType>>::iterator position) {
         schedule.visit_next_node(context, extend);
         schedule.current();
         {

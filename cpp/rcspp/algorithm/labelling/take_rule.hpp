@@ -112,9 +112,11 @@ struct TakeRule {
                 if (label.get_cost() < context.upper_bound) {
                     *context.incumbent = std::min(*context.incumbent, label.get_cost());
                 }
-                return {.verdict = Verdict::Keep,
-                        .record = SearchType::retention_type::records_at_take ||
-                                  context.params->return_dominated_solutions};
+                return {
+                    .verdict = Verdict::Keep,
+                    .record = SearchType::retention_type::records_at_take ||
+                              context.params->return_dominated_solutions,
+                };
             }
             if (std::isinf(label.get_cost())) {
                 return {.verdict = Verdict::EraseAndRelease};

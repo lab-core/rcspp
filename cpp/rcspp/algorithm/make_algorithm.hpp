@@ -62,7 +62,7 @@ concept NoPlainTypeParts = !requires { typename Strategy::admission; } && !requi
 
 /// @brief The schedule @p Strategy names, given the resource type and @p Direction.
 template <typename Strategy, typename ResourceType, typename Direction>
-using schedule_of_t = typename Strategy::template schedule<ResourceType, Direction>;
+using schedule_of_t = Strategy::template schedule<ResourceType, Direction>;
 
 /// @brief The admission rule @p Strategy names in @p Direction, or dominance.
 template <typename Strategy, typename ResourceType, typename Direction>
@@ -76,14 +76,14 @@ consteval auto admission_of() {
 
 /// @brief The admission rule @p Strategy names in @p Direction, or dominance.
 template <typename Strategy, typename ResourceType, typename Direction>
-using admission_of_t = typename decltype(admission_of<Strategy, ResourceType, Direction>())::type;
+using admission_of_t = decltype(admission_of<Strategy, ResourceType, Direction>())::type;
 
 /// @brief The retention @p Strategy names in @p Direction, as a template on the container type.
 template <typename Strategy, typename ResourceType, typename Direction>
 struct retention_of {
         template <typename ContainerType>
-        using type = typename Strategy::template retention<ResourceType,
-                                                           Direction>::template type<ContainerType>;
+        using type =
+            Strategy::template retention<ResourceType, Direction>::template type<ContainerType>;
 };
 
 /// @brief The observer @p Strategy names in @p Direction, or none.
@@ -98,7 +98,7 @@ consteval auto observer_of() {
 
 /// @brief The observer @p Strategy names in @p Direction, or none.
 template <typename Strategy, typename ResourceType, typename Direction>
-using observer_of_t = typename decltype(observer_of<Strategy, ResourceType, Direction>())::type;
+using observer_of_t = decltype(observer_of<Strategy, ResourceType, Direction>())::type;
 
 /// @brief The interleave @p Strategy names for a bidirectional search, or least work first.
 template <typename Strategy>
@@ -112,7 +112,7 @@ consteval auto interleave_of() {
 
 /// @brief The interleave @p Strategy names for a bidirectional search, or least work first.
 template <typename Strategy>
-using interleave_of_t = typename decltype(interleave_of<Strategy>())::type;
+using interleave_of_t = decltype(interleave_of<Strategy>())::type;
 
 /// @brief The parts of @p Strategy's search in @p Direction (see @ref search_parts_t).
 ///
@@ -140,8 +140,7 @@ consteval auto search_parts_of() {
 ///        the resource type and @p Direction, and the exact search's part for each it does not
 ///        name.
 template <typename Strategy, typename ResourceType, typename Direction>
-using search_parts_t =
-    typename decltype(search_parts_of<Strategy, ResourceType, Direction>())::type;
+using search_parts_t = decltype(search_parts_of<Strategy, ResourceType, Direction>())::type;
 
 /// @brief Whether @p Strategy searches in @p direction: forward always; backward and
 ///        bidirectionally unless it says otherwise (`backward = false`, `bidirectional = false`)
@@ -183,7 +182,7 @@ constexpr void check_parts() {
             parts::PullingSchedule<typename PartsType::schedule, ResourceType>,
         "the strategy's schedule is neither a label schedule (next(context)) nor a pulling "
         "schedule (visit_next_node(context, extend), current(), remove_current(position))");
-    using Retention = typename PartsType::template retention<ContainerType>;
+    using Retention = PartsType::template retention<ContainerType>;
     static_assert(parts::Retention<Retention, ResourceType, ContainerType>,
                   "the strategy's retention does not satisfy rcspp::parts::Retention: it needs "
                   "reset(number_of_nodes, prototype), clear(), node(pos), store(pos, label), "
@@ -277,7 +276,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
     using R = ResourceType;
     using LC = LabelContainerType;
     if constexpr (ClassStrategy<Strategy>) {
-        using Class = typename Strategy::template algorithm<R, LC>;
+        using Class = Strategy::template algorithm<R, LC>;
         static_assert(std::derived_from<Class, Algorithm<R, LC>> &&
                           std::constructible_from<Class, ResourceFactory<R>*, AlgorithmParams<LC>>,
                       "a strategy's algorithm<ResourceType, LabelContainerType> derives from "

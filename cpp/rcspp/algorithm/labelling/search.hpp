@@ -127,13 +127,13 @@ struct Search {
 
         using resource_type = ResourceType;
         using direction = Direction;
-        using schedule_type = typename PartsType::schedule;
-        using retention_type = typename PartsType::template retention<ContainerType>;
+        using schedule_type = PartsType::schedule;
+        using retention_type = PartsType::template retention<ContainerType>;
 
         retention_type labels;                           ///< where kept labels live
-        typename PartsType::admission admission;         ///< whether a new label is kept
+        PartsType::admission admission;                  ///< whether a new label is kept
         schedule_type schedule;                          ///< the order labels are taken in
-        typename PartsType::observer observer;           ///< told of every extension
+        PartsType::observer observer;                    ///< told of every extension
         CompletionBound<ResourceType> completion_bound;  ///< the completion bound; empty: none
         /// The extensions tried this solve, one per label and arc, masked and unreachable arcs
         /// included; the interleave compares it.

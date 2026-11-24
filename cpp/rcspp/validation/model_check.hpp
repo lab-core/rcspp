@@ -76,9 +76,11 @@ class ModelCheck : public PreSolveStage<ResourceType> {
         /// @param graph The model.
         /// @return One arc, one node with a resource, and the arc's directional resource kinds.
         [[nodiscard]] static Declarations declarations(const Graph<ResourceType>& graph) {
-            return {.arc = threshold_probe::model_arc(graph),
-                    .node = threshold_probe::node_with_resource(graph),
-                    .kinds = threshold_probe::model_kinds(graph)};
+            return {
+                .arc = threshold_probe::model_arc(graph),
+                .node = threshold_probe::node_with_resource(graph),
+                .kinds = threshold_probe::model_kinds(graph),
+            };
         }
 };
 
