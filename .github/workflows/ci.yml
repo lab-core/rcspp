@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           lfs: true
@@ -56,7 +56,7 @@ jobs:
       - name: Look for an earlier pass of this tree
         id: tested
         if: github.event_name == 'pull_request' && github.run_attempt == '1'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .tested
           key: tested-${{ github.job }}-${{ steps.tree.outputs.hash }}
@@ -70,7 +70,7 @@ jobs:
         if: steps.tested.outputs.cache-hit != 'true'
         run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.tested.outputs.cache-hit != 'true'
         with:
           python-version: '3.14'
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always() && steps.tested.outputs.cache-hit != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: coverage/
@@ -144,7 +144,7 @@ jobs:
 
       - name: Save the record
         if: steps.tested.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .tested
           key: tested-${{ github.job }}-${{ steps.tree.outputs.hash }}
