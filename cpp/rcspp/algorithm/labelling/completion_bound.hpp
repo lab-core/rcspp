@@ -96,9 +96,11 @@ CompletionBound<ResourceType> compute_completion_bound(const Graph<ResourceType>
         start->reset(*arc.origin->resource);
         extended->reset(*arc.destination->resource);
         arc.extender->extend(*start, extended.get());
-        shares.push_back({.origin_id = arc.origin->id,
-                          .destination_id = arc.destination->id,
-                          .weight = extended->get_cost() - start->get_cost()});
+        shares.push_back({
+            .origin_id = arc.origin->id,
+            .destination_id = arc.destination->id,
+            .weight = extended->get_cost() - start->get_cost(),
+        });
     });
 
     CompletionBound<ResourceType> bound;
@@ -197,12 +199,14 @@ template <typename ResourceType>
                 arc_pair_probe::is_close(added, share)) {
                 return true;
             }
-            shortfall = ShareShortfall{.first_origin_id = first_arc.origin->id,
-                                       .first_destination_id = first_arc.destination->id,
-                                       .second_origin_id = second_arc.origin->id,
-                                       .second_destination_id = second_arc.destination->id,
-                                       .share = share,
-                                       .added = added};
+            shortfall = ShareShortfall{
+                .first_origin_id = first_arc.origin->id,
+                .first_destination_id = first_arc.destination->id,
+                .second_origin_id = second_arc.origin->id,
+                .second_destination_id = second_arc.destination->id,
+                .share = share,
+                .added = added,
+            };
             return false;
         });
     return shortfall;

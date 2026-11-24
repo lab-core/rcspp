@@ -24,7 +24,7 @@ struct StoredLabel {
         /// The label; null: no label (what a schedule's @c next() returns once none is left).
         Label<ResourceType>* label = nullptr;
         /// @brief Its position in its node's container.
-        typename std::list<Label<ResourceType>*>::iterator position;
+        std::list<Label<ResourceType>*>::iterator position;
 };
 
 }  // namespace rcspp::parts

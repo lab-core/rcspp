@@ -65,8 +65,7 @@ class ReachableFeasibilityFunction
         auto is_reachable(const Resource<ContainerResourceType>& resource,
                           size_t destination_node_id) -> bool override {
             // either not to be checked (i.e., not required) or contained in the reachable set
-            const auto node =
-                static_cast<typename ContainerResourceType::ValueType>(destination_node_id);
+            const auto node = static_cast<ContainerResourceType::ValueType>(destination_node_id);
             return !checked_nodes_->contains(node) || resource.get_value().contains(node);
         }
 

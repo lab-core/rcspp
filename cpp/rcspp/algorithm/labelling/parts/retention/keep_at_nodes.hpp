@@ -56,8 +56,7 @@ class KeepAtNodes {
         ///
         /// @return Its position in the node's container.
         template <typename ResourceType>
-        typename std::list<Label<ResourceType>*>::iterator store(size_t pos,
-                                                                 Label<ResourceType>* label) {
+        std::list<Label<ResourceType>*>::iterator store(size_t pos, Label<ResourceType>* label) {
             return containers_.at(pos).add_label(label);
         }
 

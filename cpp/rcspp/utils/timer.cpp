@@ -69,7 +69,7 @@ std::string Timer::elapsed_to_hms(bool only_current) const noexcept {
     const double sec = elapsed_seconds(only_current);
     const int h = static_cast<int>(sec) / HOURS_IN_SECONDS;
     const int m = (static_cast<int>(sec) % HOURS_IN_SECONDS) / MINUTES_IN_SECONDS;
-    double s = sec - (h * HOURS_IN_SECONDS + m * MINUTES_IN_SECONDS);
+    double s = sec - ((h * HOURS_IN_SECONDS) + (m * MINUTES_IN_SECONDS));
 
     std::array<char, MAX_LENGTH_HMS> buf;
     std::snprintf(buf.data(), buf.size(), "%02d:%02d:%05.2f", h, m, s);

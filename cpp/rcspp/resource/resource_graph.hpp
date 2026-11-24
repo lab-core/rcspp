@@ -158,15 +158,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             std::tuple<std::vector<component_initializer_type_tuple_t<ResourceTypes>>...>
                 resource_initializer;
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                (([&] {
-                     using InitType = std::tuple_element_t<Is, std::tuple<ResourceInitTypes...>>;
-                     constexpr size_t kResourceTypeIndex =
-                         component_type_index_v<InitType, ResourceTypes...>;
-                     auto& res_vec = std::get<kResourceTypeIndex>(resource_initializer);
-                     const auto& res_cons = std::get<Is>(resource_init_values);
-                     res_vec.push_back(res_cons);
-                 }()),
-                 ...);
+                (
+                    [&] {
+                        using InitType = std::tuple_element_t<Is, std::tuple<ResourceInitTypes...>>;
+                        constexpr size_t kResourceTypeIndex =
+                            component_type_index_v<InitType, ResourceTypes...>;
+                        auto& res_vec = std::get<kResourceTypeIndex>(resource_initializer);
+                        const auto& res_cons = std::get<Is>(resource_init_values);
+                        res_vec.push_back(res_cons);
+                    }(),
+                    ...);
             };  // NOLINT
             apply_indices(std::make_index_sequence<sizeof...(ResourceInitTypes)>{});
             return add_node(node_id, resource_initializer, source, sink);
@@ -197,16 +198,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             std::tuple<std::vector<component_initializer_type_tuple_t<ResourceTypes>>...>
                 resource_consumption;
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                (([&] {
-                     using ExtenderType =
-                         std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
-                     constexpr size_t kResourceTypeIndex =
-                         component_type_index_v<ExtenderType, ResourceTypes...>;
-                     auto& res_vec = std::get<kResourceTypeIndex>(resource_consumption);
-                     const auto& res_cons = std::get<Is>(extender_resource_consumption);
-                     res_vec.push_back(res_cons);  // push a single resource consumption
-                 }()),
-                 ...);
+                (
+                    [&] {
+                        using ExtenderType =
+                            std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
+                        constexpr size_t kResourceTypeIndex =
+                            component_type_index_v<ExtenderType, ResourceTypes...>;
+                        auto& res_vec = std::get<kResourceTypeIndex>(resource_consumption);
+                        const auto& res_cons = std::get<Is>(extender_resource_consumption);
+                        res_vec.push_back(res_cons);  // push a single resource consumption
+                    }(),
+                    ...);
             };  // NOLINT
             apply_indices(std::make_index_sequence<sizeof...(ExtenderResourceTypes)>{});
 

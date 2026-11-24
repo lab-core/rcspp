@@ -140,8 +140,10 @@ void add_window_resource(
     std::map<size_t, std::pair<ValueType, ValueType>> converted;
     for (const auto& [node_id, window] : windows) {
         converted.emplace(node_id,
-                          std::pair<ValueType, ValueType>{static_cast<ValueType>(window.first),
-                                                          static_cast<ValueType>(window.second)});
+                          std::pair<ValueType, ValueType>{
+                              static_cast<ValueType>(window.first),
+                              static_cast<ValueType>(window.second),
+                          });
     }
     add_window_resource<ResourceType, GraphType, ValueType>(graph, std::move(converted));
 }
@@ -197,8 +199,7 @@ void add_capacity_resource(GraphType& graph, std::type_identity_t<ValueType> cap
 /// @param graph         The graph to register the resource on.
 /// @param neighborhoods Each node's ng-neighborhood. A node absent from the map forgets every
 ///                      previously visited node on arrival, so give every node a neighborhood.
-template <typename ResourceType, typename GraphType,
-          typename ValueType = typename ResourceType::ValueType>
+template <typename ResourceType, typename GraphType, typename ValueType = ResourceType::ValueType>
 void add_ng_path_resource(GraphType& graph, std::map<size_t, std::set<ValueType>> neighborhoods) {
     std::map<size_t, std::set<ValueType>> forbidden_by_node;
     for (const auto& [node_id, neighborhood] : neighborhoods) {
@@ -238,8 +239,7 @@ void add_ng_path_resource(GraphType& graph, std::map<size_t, std::set<ValueType>
 /// @param graph    The graph to register the resource on.
 /// @param node_ids Every node id in the model (resources are registered before nodes). A node left
 ///                 out gets no neighborhood, and elementarity stops holding through it.
-template <typename ResourceType, typename GraphType,
-          typename ValueType = typename ResourceType::ValueType>
+template <typename ResourceType, typename GraphType, typename ValueType = ResourceType::ValueType>
 void add_elementary_resource(GraphType& graph, const std::vector<size_t>& node_ids) {
     std::set<ValueType> every_node;
     for (const size_t node_id : node_ids) {

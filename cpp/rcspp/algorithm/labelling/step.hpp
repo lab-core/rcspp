@@ -27,8 +27,8 @@ namespace rcspp::detail {
 template <typename SearchType, typename RecordCallable, typename CountCallable>
 bool step_node(SearchType& search, SearchContext<typename SearchType::resource_type>& context,
                const RecordCallable& record, const CountCallable& count) {
-    using ResourceType = typename SearchType::resource_type;
-    using Direction = typename SearchType::direction;
+    using ResourceType = SearchType::resource_type;
+    using Direction = SearchType::direction;
     using Rule = TakeRule<ResourceType, Direction>;
     static_assert(parts::PullingSchedule<typename SearchType::schedule_type, ResourceType>,
                   "step_node needs a pulling schedule (visit_next_node, current, remove_current)");
@@ -87,8 +87,8 @@ bool step_node(SearchType& search, SearchContext<typename SearchType::resource_t
 template <typename SearchType, typename RecordCallable, typename CountCallable>
 bool step(SearchType& search, SearchContext<typename SearchType::resource_type>& context,
           const RecordCallable& record, const CountCallable& count) {
-    using ResourceType = typename SearchType::resource_type;
-    using Direction = typename SearchType::direction;
+    using ResourceType = SearchType::resource_type;
+    using Direction = SearchType::direction;
     using Rule = TakeRule<ResourceType, Direction>;
     if constexpr (parts::PullingSchedule<typename SearchType::schedule_type, ResourceType>) {
         return step_node(search, context, record, count);

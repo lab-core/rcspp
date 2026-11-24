@@ -114,7 +114,7 @@ template <typename Strategy, typename CostResourceType = RealResource,
     double tolerance = 1e-6) {  // NOLINT(readability-magic-numbers)
     // `tag` names the strategy: std::type_identity<S>.
     const auto solve = [&](auto tag, SearchDirection direction) {
-        using S = typename decltype(tag)::type;
+        using S = decltype(tag)::type;
         auto directed = params;
         directed.direction = direction;
         return graph.template solve<S, LabelContainerType, CostResourceType, CriticalResourceType>(

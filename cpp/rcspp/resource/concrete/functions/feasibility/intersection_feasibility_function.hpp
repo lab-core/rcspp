@@ -47,8 +47,7 @@ concept ComparableToNodeId = requires(const ValueType& element, size_t node_id) 
 // ValueType is the element type stored in the per-node forbidden/required sets and is
 // fed to ContainerResourceType::set_value. The default matches the element type the
 // resource advertises; override it to point IFF at an alternative set_value overload.
-template <typename ContainerResourceType,
-          typename ValueType = typename ContainerResourceType::ValueType>
+template <typename ContainerResourceType, typename ValueType = ContainerResourceType::ValueType>
 class IntersectionFeasibilityFunction
     : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
                       DisjointJoinFeasibilityForm<ContainerResourceType,

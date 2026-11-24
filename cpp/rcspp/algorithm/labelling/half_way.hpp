@@ -102,9 +102,11 @@ template <typename CriticalResourceType, typename ResourceType>
     if (params.half_way_point <= 0.0) {
         return {};
     }
-    return {params.half_way_point,
-            params.critical_resource_index,
-            &critical_value<CriticalResourceType, ResourceType>};
+    return {
+        params.half_way_point,
+        params.critical_resource_index,
+        &critical_value<CriticalResourceType, ResourceType>,
+    };
 }
 
 /// @brief Probes whether the critical resource is monotone along every arc: for each probe

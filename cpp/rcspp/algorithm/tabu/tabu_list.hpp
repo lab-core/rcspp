@@ -66,7 +66,7 @@ class TabuList {
                     on_expire(it->first);
                     it = tenure_.erase(it);
                 } else {
-                    --(it->second);
+                    --it->second;
                     ++it;
                 }
             }

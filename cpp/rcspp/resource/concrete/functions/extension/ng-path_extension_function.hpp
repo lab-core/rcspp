@@ -55,7 +55,7 @@ inline bool first_report_of_arc_value() {
 /// @tparam ValueType    Element type stored in the neighborhood sets.  Defaults to
 ///                      `ResourceType::ValueType`; can be overridden to select an
 ///                      alternative `set_value()` overload.
-template <typename ResourceType, typename ValueType = typename ResourceType::ValueType>
+template <typename ResourceType, typename ValueType = ResourceType::ValueType>
 class NgPathExtensionFunction
     : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
                       ArcEndpointsExtensionForm<ResourceType, ExtensionFunction<ResourceType>>,
@@ -75,8 +75,7 @@ class NgPathExtensionFunction
 
     protected:
         // `Side` lives in a dependent base, so it must be named explicitly.
-        using Side =
-            typename ArcEndpointsExtensionForm<ResourceType, ExtensionFunction<ResourceType>>::Side;
+        using Side = ArcEndpointsExtensionForm<ResourceType, ExtensionFunction<ResourceType>>::Side;
 
         /// @brief The ng-path formula, shared by both directions. Called by
         ///        @c ArcEndpointsExtensionForm::extend and @c extend_back.
