@@ -30,7 +30,7 @@ jobs:
       # Checkout the repo
       # -------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The whole history, so pre-commit can diff the pull request against its base.
           fetch-depth: 0
@@ -39,7 +39,7 @@ jobs:
       # Setup Python (for Python hooks)
       # -------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
