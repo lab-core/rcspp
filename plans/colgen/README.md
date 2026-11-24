@@ -257,6 +257,25 @@ in PR #114 on #99 (`e5ee77dc`, changelog `32604ac8`, Pylance fix `8fc64788`); re
 also flags `presets.add_window_resource` (a `Mapping` into the stub's `dict`), on `main` since #56: not this PR's.
 Bounding the cost resource instead of a distance resource fails (pricing writes reduced costs into it: LP 35 for 40),
 explained to the colleague.
+Stack rebased onto `main` `b589e406` (#62-#75, #108) 2026-11-23/24, in `../rcspp-rebase`:
+`git rebase --update-refs`; backups `backup/colgen-<name>-before-main-rebase-2` (the `origin` heads), the local stale
+`core`…`packaging` kept as `backup/colgen-<name>-local-stale-2026-11-23`, the tip before the squash as
+`backup/colgen-main-rebase-with-fixups`. 4 conflicts: `graph.py` (#77: `_chosen_direction(params, direction)`, the
+alias gone, callers in #77 and #88 follow), `CHANGELOG.md` (#80, both sides), `.pre-commit-config.yaml` (#97, main's
+retired names + `benchmarks`), the 4 `examples/cpp/` files (#99, deleted). #99's `ci: clang-tidy …` dropped (on
+`main` already): 141 → 140 commits. API fixes squashed into the commits that brought the code: `PricingStage::make<
+Strategy, LabelContainerType, CostResourceType, CriticalResourceType>` as `ResourceGraph::solve`, `strategies.hpp`
+(#72); the example's and the pure layer's tests (#77, #88); `OPTIONS.md` (#97); `cpp-native` (descriptors,
+`prune_by_incumbent`, no `bidirectional` algorithm), `solve_vrp.cpp`, its test and README, main's
+`test_kernel_timing.cpp` include of the moved reader (#99). Range-diff: only these. Every head MSVC off and on passes
+(off 706/707 C++; on #61 747 … #99 854; Python 316 → 650; example 117; benchmark 394/403/421); one run of
+`vrp.command_line.without_integer_solve` failed in 0.04 s with no output, then passed 10 times and in a full parallel
+run (the flaky test seen on #99). pre-commit clean on every changed file; Pyright's 450 errors are the same before and
+after (local setup). rerere is on here (`.git/rr-cache` exists): check every "using previous resolution".
+**Pushed 2026-11-24:** the 12 branches (`--force-with-lease`, #61 first); #72 and #99's descriptions updated
+(`make<Strategy>`, `strategy::Simple`; item 6 gone, 854 C++ / 727 Python). `../rcspp-dev` is back on
+`feature/column-generation-vehicle-types`, `../rcspp-rebase` is detached and its rebase build folders are gone; the
+backups stay.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
