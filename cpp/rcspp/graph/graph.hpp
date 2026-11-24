@@ -490,6 +490,11 @@ class Graph {
                 auto& node = target.add_node(node_id, node_ptr->source, node_ptr->sink);
                 node.resource = node_ptr->resource ? node_ptr->resource->clone() : nullptr;
             }
+            // The loop above adds the nodes in the node map's order, which differs between
+            // standard libraries; a search starts from the sources in their order, so the clone
+            // keeps the original's.
+            target.source_node_ids_ = source_node_ids_;
+            target.sink_node_ids_ = sink_node_ids_;
 
             for (const auto* node_ptr : sorted_nodes_) {
                 auto* node = target.get_node(node_ptr->id);
