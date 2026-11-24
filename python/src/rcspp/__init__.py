@@ -2,10 +2,10 @@
 #  All rights reserved.
 """Rcspp — Python bindings for the Resource-Constrained Shortest Path solver.
 
-Exposes the compiled C++ extension (``_core``) together with high-level
-Python helpers for graphs, resources, logging, and column-generation pools.
-The package locates the extension in common build directories automatically
-when it is imported from a source tree.
+Exposes the compiled C++ extension (``_core``) together with high-level Python helpers
+for graphs, resources, logging, and column-generation pools. The package locates the
+extension in common build directories automatically when it is imported from a source
+tree.
 """
 
 # ── Build-directory discovery ─────────────────────────────────────────────────

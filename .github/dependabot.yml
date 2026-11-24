@@ -20,6 +20,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # The clang hooks: v1.5.0 runs clang-tidy without the hook's arguments, and it fails. They stay
+    # at v1.3.5 until a release is checked by hand (see .pre-commit-config.yaml).
+    ignore:
+      - dependency-name: https://github.com/pocc/pre-commit-hooks
     groups:
       hooks:
         patterns: ["*"]

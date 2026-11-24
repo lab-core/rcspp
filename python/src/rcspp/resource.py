@@ -2,11 +2,11 @@
 #  All rights reserved.
 """Generic resource-function descriptors for the Python RCSPP API.
 
-Each descriptor class is a lightweight, type-agnostic wrapper that defers
-instantiation of the underlying typed C++ object until the resource type is
-known (i.e. when ``add_xxx_resource`` is called on a ``ResourceGraph``).
-C++ classes are registered as ``FunctionName_<resource_type>``
-(e.g. ``ValueCostFunction_real``, ``UnionExtensionFunction_real_set``).
+Each descriptor class is a lightweight, type-agnostic wrapper that defers instantiation
+of the underlying typed C++ object until the resource type is known (i.e. when
+``add_xxx_resource`` is called on a ``ResourceGraph``). C++ classes are registered as
+``FunctionName_<resource_type>`` (e.g. ``ValueCostFunction_real``,
+``UnionExtensionFunction_real_set``).
 """
 
 from collections.abc import Iterable, Mapping
@@ -22,8 +22,8 @@ from . import _core as _ext
 class _GenericFunctionDescriptor:
     """Base marker for generic (type-unspecialized) resource function descriptors.
 
-    Subclasses implement ``create`` to instantiate the appropriate typed C++
-    object once the concrete resource type is known.
+    Subclasses implement ``create`` to instantiate the appropriate typed C++ object once
+    the concrete resource type is known.
     """
 
     def create(self, resource_type: str):
@@ -227,11 +227,11 @@ class CapacityExtensionFunction(_GenericFunctionDescriptor):
     """A capacity: a load summed along the path that must stay within a cap.
 
     It also supports backward search. Forward, it adds each arc's load, like
-    :class:`AdditionExtensionFunction`. Backward, a label starts at the cap and subtracts
-    each load, so it holds how much load the rest of the path, back to the source, may
-    still use. This lets it be used in a backward or bidirectional solve, and as the
-    bidirectional clock. Only signed types (``"real"``, ``"int"``) are supported, since the
-    backward step subtracts.
+    :class:`AdditionExtensionFunction`. Backward, a label starts at the cap and
+    subtracts each load, so it holds how much load the rest of the path, back to the
+    source, may still use. This lets it be used in a backward or bidirectional solve,
+    and as the bidirectional clock. Only signed types (``"real"``, ``"int"``) are
+    supported, since the backward step subtracts.
 
     Pair it with ``MinMaxFeasibilityFunction(0, capacity)`` using the same capacity: a
     backward or bidirectional solve refuses a cap that differs from the feasibility
@@ -401,9 +401,8 @@ class SupersetDominanceFunction(_GenericFunctionDescriptor):
 class SizeFeasibilityFunction(_GenericFunctionDescriptor):
     """Feasibility function that enforces a cardinality bound on a container resource.
 
-    A label is feasible when the size of its resource set lies within the
-    closed interval ``[min_size, max_size]``. Applicable to container resource
-    types only.
+    A label is feasible when the size of its resource set lies within the closed
+    interval ``[min_size, max_size]``. Applicable to container resource types only.
     """
 
     def __init__(self, min_size: int, max_size: int):
@@ -463,9 +462,9 @@ class NgPathExtensionFunction(_GenericFunctionDescriptor):
 class IntersectionFeasibilityFunction(_GenericFunctionDescriptor):
     """Feasibility function testing the resource set against per-node values.
 
-    With ``forbidden=True`` (the default), a label is infeasible at a node when its set meets the
-    node's values; with ``forbidden=False``, when it does not. Applicable to container resource
-    types only.
+    With ``forbidden=True`` (the default), a label is infeasible at a node when its set
+    meets the node's values; with ``forbidden=False``, when it does not. Applicable to
+    container resource types only.
     """
 
     def __init__(self, values_by_node: Mapping[int, Iterable[int]], forbidden: bool = True):

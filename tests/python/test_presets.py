@@ -145,7 +145,8 @@ def test_cost_resource_matches_the_hand_built_model():
 
 
 def test_preset_built_model_solves_bidirectionally():
-    """A preset-built model is coherent backwards: the bidirectional solve finds a path."""
+    """A preset-built model is coherent backwards: the bidirectional solve finds a
+    path."""
     rg = ResourceGraph()
     presets.add_cost_resource(rg)
     presets.add_window_resource(rg, "real", WINDOWS)
@@ -161,8 +162,8 @@ def test_preset_built_model_solves_bidirectionally():
 def test_capacity_preset_takes_a_uniform_capacity_only():
     """No per-node caps and no floor from Python.
 
-    ``MinMaxFeasibilityFunction`` takes a single window from Python, and a floor on a threshold is
-    never checked backward.
+    ``MinMaxFeasibilityFunction`` takes a single window from Python, and a floor on a
+    threshold is never checked backward.
     """
     rg = ResourceGraph()
     presets.add_cost_resource(rg)

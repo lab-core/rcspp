@@ -1,8 +1,8 @@
 """One call per resource kind, registering a coherent set of four function objects.
 
-Each preset is sugar over the four-object ``add_<type>_resource`` form and documents what it
-expands to. :func:`add_cost_resource` must be called first, since ``ResourceGraph`` requires the
-first resource to be a ``"real"`` cost resource.
+Each preset is sugar over the four-object ``add_<type>_resource`` form and documents
+what it expands to. :func:`add_cost_resource` must be called first, since
+``ResourceGraph`` requires the first resource to be a ``"real"`` cost resource.
 """
 
 from __future__ import annotations

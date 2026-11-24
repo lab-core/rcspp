@@ -3,9 +3,9 @@
 """Tests for pybind11 binding code paths not exercised by other tests.
 
 Covers: SolveResult protocol, Solution.to_arrays(), memory helpers, FilteredSolutionPool
-predicate-based filters, numpy methods, activity filters, make_filter statics, add_filter,
-remove_if/global_remove_if, remove_arcs_if/restore_arcs_if, AlgorithmParams helpers,
-check_interrupted, and related API.
+predicate-based filters, numpy methods, activity filters, make_filter statics,
+add_filter, remove_if/global_remove_if, remove_arcs_if/restore_arcs_if, AlgorithmParams
+helpers, check_interrupted, and related API.
 """
 
 import os
