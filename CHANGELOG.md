@@ -328,8 +328,8 @@ New features are summarised, with a pointer to where they are documented.
   HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
   With `USE_PYTHON`, its bindings in `rcspp._core.cpp_column_generation` and the Python package
   `cpp_column_generation` over them (in the example's folder, not in rcspp), with master solvers
-  over a user's highspy or gurobipy model and a column generation loop written in Python. It also
-  builds on its own over an installed rcspp; see `examples/column_generation/README.md`.
+  over a user's highspy or gurobipy model. It also builds on its own over an installed rcspp; see
+  `examples/column_generation/README.md`.
 - **A column generation benchmark** (`benchmarks/column_generation/`), in the source tree only:
   not installed, not in the wheel. A runner per layer (`rcspp.column_generation`; when it is built,
   the C++ example through its bindings, and the same example in a C++ program of the benchmark,

@@ -49,7 +49,4 @@ The options, the output and how to extend the model: [`python/vrp/README.md`](py
 
 A column generation layer in C++ over rcspp, with master solvers over Gurobi and HiGHS, Python
 bindings and tests, built with `-DUSE_COLUMN_GENERATION_EXAMPLE=ON`: see its
-[README](column_generation/README.md). A column generation loop written in Python over its bindings is
-in [`column_generation/python/column_generation_loop.py`](column_generation/python/column_generation_loop.py);
-it needs the example's HiGHS master solver (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`) and
-highspy.
+[README](column_generation/README.md).

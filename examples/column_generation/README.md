@@ -10,7 +10,6 @@ the wheel does not have it. rcspp's Python package ships `rcspp.column_generatio
 | `cpp/rcspp/column_generation/gurobi/`, `highs/` | the master solvers, a library each |
 | `bindings/` | the Python bindings, compiled into rcspp's module as `rcspp._core.cpp_column_generation` |
 | `python/cpp_column_generation/` | the Python package over those bindings |
-| `python/column_generation_loop.py` | the loop written again in Python from the bound pieces |
 | `tests/cpp/`, `tests/python/` | the tests |
 
 A program built on this layer, a vehicle routing problem with time windows, is in [`examples/cpp/`](../cpp/vrp/README.md):
@@ -40,12 +39,11 @@ ctest runs the example's C++ tests (`tests-column-generation`, and `tests-column
 `tests-column-generation-highs` with their master solvers) with rcspp's.
 
 The bindings are in that build's Python module; the package `cpp_column_generation` is read from this folder. The
-Python tests and the loop script put it on the path themselves:
+Python tests put it on the path themselves:
 
 ```bash
 pip install pytest -r tests/python/requirements.txt
 PYTHONPATH=build/python pytest examples/column_generation/tests/python
-PYTHONPATH=build/python python examples/column_generation/python/column_generation_loop.py
 ```
 
 ## Build on its own
