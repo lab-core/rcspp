@@ -40,22 +40,21 @@ New features are summarised, with a pointer to where they are documented.
   order, and return the same paths and status as before; `max_iterations` still counts episodes.
   Like every labelling search, they now apply `max_extended_labels_per_node`, `prune_by_incumbent`
   and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
-  conditions before each label they take (every 4096 steps before). A solve that made an arc tabu
+  conditions before each label they take (every 4096 steps before). Memory pressure is read every
+  `memory_check_interval` labels an episode takes (50,000 by default), the count restarting each
+  episode, so an episode shorter than that never reads it. A solve that made an arc tabu
   is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
-  `proven`, true only when its first dive proves that no path exists. `TabuSearchAlgorithm`,
+  `proven`, true only when its first dive proves that no path exists below the upper bound (none
+  at all, with no upper bound). `TabuSearchAlgorithm`,
   `ImprovingTabuSearch`, `BacktrackingDiveAlgorithm` and their headers are gone, with no alias:
   `strategy::Tabu` and `strategy::ImprovingTabu` are descriptors, solved as before; in Python,
   `algorithm="tabu"` is unchanged.
 - **Diversification leaves arcs out through an arc mask**, not by removing them from a copy of the
   graph: the inner algorithm reads a mask whose tabu arcs are hard. No copy is made, and an arc
   whose tenure runs out keeps its place among its node's arcs; before, it was put back last, so
-  later dives tried a node's arcs in another order. And the copy listed its sources in the order
-  of the graph's node map (a hash map, so the standard library's order), not the order they were
-  added: on a graph with several sources, the first dive could start from another source. Both
-  are gone; on a graph with one source, the golden runs return what they did, and on the four
-  with two sources the answers change (on one, the best path found went from -33 to -17, which
-  the tabu searches also find there; on another from 6 to -1). A mask set with
-  `Algorithm::set_arc_mask` is now read too.
+  later dives tried a node's arcs in another order. The golden runs return what they did. Each
+  solve now starts with no arc tabu and no extra tenure; before, both carried over from one solve
+  on the same object to the next. A mask set with `Algorithm::set_arc_mask` is now read too.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
