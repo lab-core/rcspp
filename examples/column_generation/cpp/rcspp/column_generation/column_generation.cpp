@@ -6,9 +6,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -17,6 +19,8 @@
 namespace rcspp::column_generation {
 
 namespace {
+
+constexpr double infinity = std::numeric_limits<double>::infinity();
 
 // How a run ends when the master LP was not solved to optimality. Every status is listed, without
 // a default, so that a new SolverStatus value makes the compiler warn here.
@@ -59,6 +63,15 @@ ColumnGeneration::ColumnGeneration(MasterProblem& master, ColumnGenerationParams
     if (params_.initialization == nullptr) {
         params_.initialization = std::make_shared<ArtificialColumns>();
     }
+
+    // A negative gap would silently never stop the run.
+    if (!(params_.absolute_gap >= 0.0)) {
+        throw std::invalid_argument("ColumnGeneration: absolute_gap must be at least 0");
+    }
+
+    if (!(params_.relative_gap >= 0.0)) {
+        throw std::invalid_argument("ColumnGeneration: relative_gap must be at least 0");
+    }
 }
 
 ColumnGenerationResult ColumnGeneration::run() {
@@ -87,6 +100,7 @@ ColumnGenerationResult ColumnGeneration::iterate() {
     const double reduced_cost_tolerance =
         std::max(params_.tolerances->reduced_cost(context_), solver.dual_tolerance());
     std::vector<double> duals;
+    std::vector<double> paths = paths_allowed();
 
     while (true) {
         // Limits.
@@ -119,21 +133,30 @@ ColumnGenerationResult ColumnGeneration::iterate() {
         solver.duals(duals);
 
         // Price the duals and add the columns found.
-        const auto [new_columns, proven] = timed(timers, pricing_timer, [&] {
-            return price(duals, total_timer, reduced_cost_tolerance);
+        const auto [new_columns, proven, bound_terms] = timed(timers, pricing_timer, [&] {
+            return price(duals, total_timer, reduced_cost_tolerance, paths);
         });
         result.statistics.generated_columns += new_columns;
+        const double iteration_bound = result.objective + bound_terms;
+        result.lower_bound = std::max(result.lower_bound, iteration_bound);
 
         if (params_.on_iteration) {
             params_.on_iteration(IterationInfo{.iteration = result.iterations,
                                                .objective = result.objective,
+                                               .lower_bound = iteration_bound,
                                                .new_columns = new_columns,
                                                .total_columns = master_.number_of_columns(),
                                                .elapsed_seconds = total_timer.elapsed_seconds()});
         }
 
-        // New columns: solve again. None: converged, proven or not.
+        // New columns: solve again, unless the bound is already close enough.
         if (new_columns > 0) {
+            const std::optional<ColumnGenerationStatus> stop =
+                early_stop(result.objective, iteration_bound, reduced_cost_tolerance);
+            if (stop.has_value()) {
+                result.status = *stop;
+                break;
+            }
             continue;
         }
 
@@ -153,7 +176,10 @@ ColumnGenerationResult ColumnGeneration::iterate() {
                                        .objective = result.objective,
                                        .duals = duals,
                                        .values = values};
+            // The hook may have changed the problem: the bounds found so far may not hold.
             if (params_.on_converged(context) == ConvergenceAction::Continue) {
+                result.lower_bound = -infinity;
+                paths = paths_allowed();
                 continue;
             }
         }
@@ -188,10 +214,15 @@ void ColumnGeneration::initialize() {
     initialized_ = true;
 }
 
+// The bound: for any solution of the full master, cost = LP value + the sum over the columns of
+// reduced cost * value. A pricer's columns cost at least its best reduced cost each, and its
+// convexity row limits how many a solution uses (paths_allowed), so each pricer adds (paths
+// allowed) * (its best reduced cost) when that is negative.
 ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> duals,
                                                        const Timer& total_timer,
-                                                       double reduced_cost_tolerance) {
-    PricingRound round{.new_columns = 0, .proven = true};
+                                                       double reduced_cost_tolerance,
+                                                       std::span<const double> paths_allowed) {
+    PricingRound round{.new_columns = 0, .proven = true, .bound_terms = 0.0};
 
     for (size_t index = 0; index < master_.number_of_pricers(); ++index) {
         // A column improves when its reduced cost, convexity dual included, is negative.
@@ -209,12 +240,91 @@ ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> d
         const bool finished =
             priced.status == PricingStatus::Optimal || priced.status == PricingStatus::Infeasible;
         const bool nothing_to_price = priced.status == PricingStatus::NotApplicable;
-        round.proven = round.proven && (nothing_to_price || (priced.exact_stage && finished));
+        const bool proved = nothing_to_price || (priced.exact_stage && finished);
+        round.proven = round.proven && proved;
+
+        // Nothing to add to the bound when the pricer proved it has no improving column (its
+        // bound may be the threshold, a tolerance below zero), or when it is already unknown.
+        if (!(proved && priced.columns.empty()) && round.bound_terms > -infinity) {
+            // Its best reduced cost, convexity dual included; never above a column it returned.
+            double best = priced.min_reduced_cost_bound;
+            if (best > -infinity) {
+                for (const Solution& column : priced.columns) {
+                    best = std::min(best, column.cost);
+                }
+            }
+            best -= convexity_dual;
+
+            // An unknown best (-infinity) or no limit on its paths (infinity) makes the bound
+            // unknown; a row that allows no path adds nothing.
+            if (best < 0.0 && paths_allowed[index] > 0.0) {
+                round.bound_terms += paths_allowed[index] * best;
+            }
+        }
+
         round.new_columns += priced.columns.size();
         master_.add_columns(index, std::move(priced.columns));
     }
 
     return round;
+}
+
+std::vector<double> ColumnGeneration::paths_allowed() const {
+    const size_t pricers = master_.number_of_pricers();
+    std::vector<double> paths(pricers, infinity);
+
+    bool any_row = false;
+    for (size_t index = 0; index < pricers; ++index) {
+        any_row = any_row || master_.convexity_row(index).has_value();
+    }
+    if (!any_row) {
+        return paths;
+    }
+
+    const size_t rows = master_.number_of_rows();
+    std::vector<double> lower(rows);
+    std::vector<double> upper(rows);
+    master_.solver().row_bounds(lower, upper);
+
+    for (size_t index = 0; index < pricers; ++index) {
+        const std::optional<size_t> row = master_.convexity_row(index);
+        if (row.has_value()) {
+            paths[index] = upper[*row];
+        }
+    }
+    return paths;
+}
+
+std::optional<ColumnGenerationStatus> ColumnGeneration::early_stop(double objective, double bound,
+                                                                   double tolerance) const {
+    if (bound == -infinity) {
+        return std::nullopt;
+    }
+
+    // Nothing here costs less than the bound; with integer costs, than the bound rounded up.
+    const double lowest_cost =
+        params_.integer_objective ? std::ceil(bound - tolerance) : bound + tolerance;
+
+    if (lowest_cost >= params_.cutoff) {
+        return ColumnGenerationStatus::Cutoff;
+    }
+
+    const double gap = objective - bound;
+
+    if (params_.absolute_gap > 0.0 && gap <= params_.absolute_gap) {
+        return ColumnGenerationStatus::AbsoluteGapLimit;
+    }
+
+    if (params_.relative_gap > 0.0 && gap <= params_.relative_gap * std::abs(objective)) {
+        return ColumnGenerationStatus::RelativeGapLimit;
+    }
+
+    // More iterations cannot raise the bound above the LP value rounded up.
+    if (params_.integer_objective && lowest_cost >= std::ceil(objective - tolerance)) {
+        return ColumnGenerationStatus::IntegerObjectiveGap;
+    }
+
+    return std::nullopt;
 }
 
 ToleranceContext ColumnGeneration::compute_tolerance_context() const {

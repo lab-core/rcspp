@@ -349,8 +349,9 @@ New features are summarised, with a pointer to where they are documented.
   the pricers' `min_reduced_cost_bound` and their convexity rows; `ColumnGenerationResult.lower_bound`
   is the best of the run. `ColumnGenerationParams` stops a run on `cutoff`, `absolute_gap`,
   `relative_gap` or `integer_objective`, all off by default, each with its own status (`Cutoff`,
-  `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`). See "The lower bound and early
-  stops" in `docs/advanced/column-generation.md`.
+  `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`). The C++ column generation
+  example has the same, in C++ and through its bindings. See "The lower bound and early stops" in
+  `docs/advanced/column-generation.md`.
 
 ### Fixed
 

@@ -645,6 +645,74 @@ def test_params_and_options_read_back() -> None:
     assert integer.threads == 0 and not integer.verbose
 
 
+def run_with_a_gap_of_six(**options: Any) -> tuple[Any, list[IterationInfo]]:
+    """LP 10, then 9; the pricer first finds a path of reduced cost -1.5 with a bound of -2,
+    under a row of at most 2 paths whose dual is 1: the bound is 10 + 2 * (-2 - 1) = 4."""
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    path = PricingResult(
+        columns=[make_path(1.0, [(0, 1.0)], -1.5)],
+        status=PricingStatus.Optimal,
+        min_reduced_cost_bound=-2.0,
+        exact_stage=True,
+    )
+    answers = iter([path, proven_none()])
+    master.add_pricer(
+        ScriptedPricer(lambda duals, request: next(answers)), ConvexityRow(max_paths=2.0)
+    )
+    objectives = iter([10.0, 9.0])
+
+    def solve(lp: ScriptedMasterSolver) -> SolverStatus:
+        lp.objective_value = next(objectives)
+        lp.dual_values = [0.0, 1.0]
+        return SolverStatus.Optimal
+
+    solver.on_solve = solve
+    seen: list[IterationInfo] = []
+    params = ColumnGenerationParams(initialization="none", on_iteration=seen.append, **options)
+    return ColumnGeneration(master, params).run(), seen
+
+
+def test_the_bound_and_the_early_stops_cross_the_boundary() -> None:
+    result, seen = run_with_a_gap_of_six()
+    assert [info.lower_bound for info in seen] == [4.0, 9.0]
+    assert result.status == ColumnGenerationStatus.Optimal and result.lower_bound == 9.0
+
+    stops = [
+        ({"cutoff": 4.0}, ColumnGenerationStatus.Cutoff),
+        ({"absolute_gap": 6.0}, ColumnGenerationStatus.AbsoluteGapLimit),
+        ({"relative_gap": 0.6}, ColumnGenerationStatus.RelativeGapLimit),
+        ({"integer_objective": True, "cutoff": 3.5}, ColumnGenerationStatus.Cutoff),
+    ]
+
+    for options, status in stops:
+        result, _ = run_with_a_gap_of_six(**options)
+        assert result.status == status
+        assert (result.iterations, result.objective, result.lower_bound) == (1, 10.0, 4.0)
+
+
+def test_the_stop_options_read_back_and_a_negative_gap_is_refused() -> None:
+    defaults = ColumnGenerationParams()
+    assert (defaults.absolute_gap, defaults.relative_gap) == (0.0, 0.0)
+    assert defaults.cutoff == math.inf and not defaults.integer_objective
+
+    params = ColumnGenerationParams(
+        absolute_gap=0.5, relative_gap=0.01, cutoff=12.0, integer_objective=True
+    )
+    assert (params.absolute_gap, params.relative_gap, params.cutoff) == (0.5, 0.01, 12.0)
+    assert params.integer_objective
+
+    master = MasterProblem(ScriptedMasterSolver())
+
+    for value in (-1.0, math.nan):
+        with pytest.raises(ValueError, match="absolute_gap"):
+            ColumnGeneration(master, ColumnGenerationParams(absolute_gap=value))
+
+        with pytest.raises(ValueError, match="relative_gap"):
+            ColumnGeneration(master, ColumnGenerationParams(relative_gap=value))
+
+
 # ── Tolerances and initializations written in Python ─────────────────────────
 
 

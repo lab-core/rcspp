@@ -56,6 +56,10 @@ class ColumnGenerationStatus(Enum):
     Unbounded: ColumnGenerationStatus
     TimeLimit: ColumnGenerationStatus
     IterationLimit: ColumnGenerationStatus
+    Cutoff: ColumnGenerationStatus
+    AbsoluteGapLimit: ColumnGenerationStatus
+    RelativeGapLimit: ColumnGenerationStatus
+    IntegerObjectiveGap: ColumnGenerationStatus
     SolverError: ColumnGenerationStatus
 
 default_relative_gap: float
@@ -383,6 +387,8 @@ class IterationInfo:
     @property
     def objective(self) -> float: ...
     @property
+    def lower_bound(self) -> float: ...
+    @property
     def new_columns(self) -> int: ...
     @property
     def total_columns(self) -> int: ...
@@ -410,6 +416,10 @@ class ColumnGenerationParams:
     tolerances: Tolerances | None
     initialization: MasterInitialization | None
     statistics: StatisticsParams
+    absolute_gap: float
+    relative_gap: float
+    cutoff: float
+    integer_objective: bool
     on_iteration: Callable[[IterationInfo], None] | None
     on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None
     def __init__(
@@ -421,6 +431,10 @@ class ColumnGenerationParams:
         tolerances: Tolerances | None = None,
         initialization: MasterInitialization | None = None,
         statistics: StatisticsParams = ...,
+        absolute_gap: float = ...,
+        relative_gap: float = ...,
+        cutoff: float = ...,
+        integer_objective: bool = ...,
         on_iteration: Callable[[IterationInfo], None] | None = None,
         on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None,
     ) -> None: ...
