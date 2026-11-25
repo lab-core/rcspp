@@ -327,8 +327,7 @@ struct Setting {
         bool half_way_off = false;
 };
 
-/// @brief The settings that apply to @p direction, on @p container; with buckets, only exact,
-///        quota and pressure.
+/// @brief The settings that apply to @p direction, on @p container.
 ///
 /// - `exact`: the defaults. `pre`: the solve preprocesses the graph.
 /// - `quota`: 2 labels extended per node. `phases` (one direction only): and 3 phases.
@@ -342,8 +341,7 @@ struct Setting {
 /// - Bidirectional only: `early_nojoin` (no join after the early stop) and `half_way_off`.
 template <typename LabelContainerType>
 std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection direction,
-                                                  const LabelContainerType& container,
-                                                  bool buckets = false) {
+                                                  const LabelContainerType& container) {
     using rcspp::SearchDirection;
     using SettingType = Setting<LabelContainerType>;
     const auto base = [&] {
@@ -365,9 +363,6 @@ std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection directi
         s.params.memory_pressure_max_labels_per_node = 2;
         s.forced_pressure_checks = {3, 7};
         all.push_back(s);
-    }
-    if (buckets) {
-        return all;
     }
     {
         SettingType s{"pre", base()};
@@ -549,33 +544,6 @@ inline ::testing::AssertionResult same(const std::vector<Observation>& reference
         }
     }
     return ::testing::AssertionSuccess();
-}
-
-/// @brief Runs @p ReferenceType and @p LibraryType over every case and setting of @p direction,
-///        in both release modes, and expects them to agree, and the library's reference counts
-///        to be consistent.
-///
-/// @return The number of (case, setting, release mode) runs compared.
-template <typename ReferenceType, typename LibraryType, typename LabelContainerType>
-size_t sweep(rcspp::SearchDirection direction, const LabelContainerType& container,
-             bool buckets = false) {
-    size_t compared = 0;
-    for (const Case& c : cases()) {
-        for (const auto& s : settings<LabelContainerType>(direction, container, buckets)) {
-            for (const bool release : {false, true}) {
-                const auto expected = observe<ReferenceType>(c, s, release);
-                const auto actual = observe<LibraryType>(c, s, release);
-                EXPECT_TRUE(same(expected, actual))
-                    << c.name << ", setting " << s.name << (release ? ", released" : ", kept");
-                for (const auto& o : actual) {
-                    EXPECT_TRUE(o.ref_counts_consistent) << c.name << ", setting " << s.name;
-                }
-                ++compared;
-            }
-        }
-    }
-    EXPECT_GT(compared, 0U);
-    return compared;
 }
 
 }  // namespace parity
