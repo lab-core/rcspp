@@ -142,6 +142,25 @@ TEST(Graph, SortNodesDoesNotDependOnTheInsertionOrder) {
     EXPECT_EQ(sorted_ids(true), sorted_ids(false));
 }
 
+// A clone lists the sources and sinks in the original's order, not in the node map's, which
+// differs between standard libraries: a search starts from the sources in that order, so a search
+// on the clone would otherwise differ from one on the original.
+TEST(Graph, CloneKeepsTheOrderOfTheSourcesAndSinks) {
+    Graph<RealResource> g;
+    for (const size_t id : {7, 2, 9, 4, 0}) {
+        g.add_node(id, /*source=*/true);
+    }
+    for (const size_t id : {1, 5, 3}) {
+        g.add_node(id);
+    }
+    for (const size_t id : {8, 11, 6, 10}) {
+        g.add_node(id, /*source=*/false, /*sink=*/true);
+    }
+    const auto clone = g.clone();
+    EXPECT_EQ(clone->get_source_node_ids(), g.get_source_node_ids());
+    EXPECT_EQ(clone->get_sink_node_ids(), g.get_sink_node_ids());
+}
+
 // ============================================================================
 // A throwing solve leaves the caller's graph whole
 // ============================================================================
