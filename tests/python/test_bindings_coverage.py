@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 import rcspp._core as _core  # noqa: E402
 from rcspp._core import solution_pool as _sp  # noqa: E402
 from rcspp._core.graph import AdmissionRule, AlgorithmParams, Column, Row, Solution  # noqa: E402
-from rcspp.graph import ResourceGraph  # noqa: E402
+from rcspp.graph import BucketAlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
     MinMaxFeasibilityFunction,
@@ -218,6 +218,43 @@ def test_k_best_admission_keeps_the_cheapest_labels():
     params.max_admitted_labels_per_node = 0
     with pytest.raises(ValueError, match="max_admitted_labels_per_node"):
         rg.solve(params=params, preprocess=False)
+
+
+def test_relaxed_and_k_best_admission_on_buckets():
+    """The relaxed and k-best rules keep on buckets what they keep on lists.
+
+    Leaving the load out, or keeping one label at each node, leaves no feasible path;
+    leaving the time out, or keeping two, keeps the path.
+    """
+    rg = _make_load_graph()
+    params = BucketAlgorithmParams(bucket_width=10, bucket_resource_pos=0, sort_resource_pos=0)
+    params.admission_rule = AdmissionRule.Relaxed
+    params.dominance_ignored_components = {1}  # the load
+    relaxed = rg.solve(params=params, preprocess=False)
+    assert not relaxed.solutions
+    assert relaxed.proof_lost_by == "relaxed_admission"
+    params.dominance_ignored_components = {2}  # the time
+    assert [round(s.cost) for s in rg.solve(params=params, preprocess=False)] == [-1]
+    params.admission_rule = AdmissionRule.KBest
+    params.dominance_ignored_components = set()
+    params.max_admitted_labels_per_node = 1
+    assert not rg.solve(params=params, preprocess=False).solutions
+    params.max_admitted_labels_per_node = 2
+    assert [round(s.cost) for s in rg.solve(params=params, preprocess=False)] == [-1]
+
+
+def test_dominance_ignored_components_is_assigned_whole():
+    """The set read is a frozenset, a copy: add() raises instead of changing nothing,
+    and an assignment, from a set or a frozenset, is kept."""
+    params = AlgorithmParams()
+    assert params.dominance_ignored_components == frozenset()
+    with pytest.raises(AttributeError):
+        params.dominance_ignored_components.add(1)
+    params.dominance_ignored_components = {1, 2}
+    assert params.dominance_ignored_components == {1, 2}
+    assert isinstance(params.dominance_ignored_components, frozenset)
+    params.dominance_ignored_components = frozenset({3})
+    assert params.dominance_ignored_components == {3}
 
 
 def test_solve_result_bool():

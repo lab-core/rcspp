@@ -211,7 +211,9 @@ struct AlgorithmBaseParams {
         ///   exact search keeps.
         /// - `KBest` keeps, after exact dominance, at most @ref max_admitted_labels_per_node labels
         ///   at each node, the cheapest: at a full node, a candidate takes the place of the
-        ///   costliest label when it costs less, and is dropped otherwise.
+        ///   costliest label when it costs less, and is dropped otherwise. The end nodes are
+        ///   nodes too, so a solve returns at most k paths for each, whatever
+        ///   @ref max_solutions is.
         ///
         /// Either is a heuristic. Every path returned is feasible and correctly priced, since
         /// feasibility and the cost never read dominance, but the optimum may be missed, and the
@@ -219,7 +221,9 @@ struct AlgorithmBaseParams {
         /// no component left out, no limit on k. Honoured by every labelling search (`Simple`,
         /// `Pushing`, `Pulling`, `AStar`), in every direction, and by both sides of a
         /// bidirectional search. Greedy and the tabu searches keep every label
-        /// (@c parts::AdmitAll) and ignore it.
+        /// (@c parts::AdmitAll) and ignore it, though the solve still throws, as for any
+        /// algorithm, when the rule cannot be honoured (@ref max_admitted_labels_per_node 0, an
+        /// unknown component in @ref dominance_ignored_components).
         parts::AdmissionRule admission_rule = parts::AdmissionRule::Exact;
 
         /// @brief `Relaxed`: the components left out of dominance.
@@ -237,7 +241,8 @@ struct AlgorithmBaseParams {
 
         /// @brief `KBest`: the most labels each node keeps, at least 1 (0 throws
         ///        `std::invalid_argument` when the solve starts). With no limit, the default,
-        ///        every label dominance keeps is kept.
+        ///        every label dominance keeps is kept. It holds at the end nodes too, so a solve
+        ///        returns at most this many paths for each.
         size_t max_admitted_labels_per_node = kNoLimit;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
