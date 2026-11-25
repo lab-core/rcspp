@@ -99,11 +99,6 @@ namespace {
 
 namespace cg = column_generation;
 
-using PricingGraph = ResourceGraph<RealResource>;
-using Labels = LabelList<ResourceTypeComposition<RealResource>>;
-using Params = AlgorithmParams<Labels>;
-using Stage = cg::PricingStage<RealResource>;
-
 // A wrong flag or a model that cannot be built: exit code 2.
 class OptionsError : public std::runtime_error {
     public:
@@ -420,7 +415,7 @@ double distance_between(const Customer& first, const Customer& second) {
 
 // As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
 // route (depot to sink) is left out.
-void build_graph(const Instance& instance, PricingGraph& graph) {
+void build_graph(const Instance& instance, ResourceGraph<RealResource>& graph) {
     std::map<size_t, std::pair<double, double>> windows;
     for (const Customer& customer : instance.customers) {
         windows[customer.number] = {customer.ready_time, customer.due_time};
@@ -526,6 +521,7 @@ SearchDirection to_direction(const std::string& text) {
 }
 
 // The fields of AlgorithmParams that Python's AlgorithmParams can set, by name.
+template <typename Params>
 void set_param(Params& params, const std::string& name, const std::string& value) {
     const std::string what = "stage parameter " + name;
     const std::map<std::string, std::function<void()>> setters = {
@@ -568,30 +564,34 @@ void set_param(Params& params, const std::string& name, const std::string& value
 
 // As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
 // greedy and tabu heuristic, the others exact.
-Stage make_stage(const StageOptions& stage) {
-    Params params;
+template <typename... Resources>
+cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
+    using Stage = cg::PricingStage<Resources...>;
+    using Labels = LabelList<ResourceTypeComposition<Resources...>>;
+
+    AlgorithmParams<Labels> params;
     for (const auto& [name, value] : stage.params) {
         set_param(params, name, value);
     }
 
     const std::string& algorithm = stage.algorithm;
     if (algorithm == "simple") {
-        return Stage::make<strategy::Simple, Labels>(params, true);
+        return Stage::template make<strategy::Simple, Labels>(params, true);
     }
     if (algorithm == "pushing") {
-        return Stage::make<strategy::Pushing, Labels>(params, true);
+        return Stage::template make<strategy::Pushing, Labels>(params, true);
     }
     if (algorithm == "pulling") {
-        return Stage::make<strategy::Pulling, Labels>(params, true);
+        return Stage::template make<strategy::Pulling, Labels>(params, true);
     }
     if (algorithm == "astar") {
-        return Stage::make<strategy::AStar, Labels>(params, true);
+        return Stage::template make<strategy::AStar, Labels>(params, true);
     }
     if (algorithm == "greedy") {
-        return Stage::make<strategy::Greedy, Labels>(params, false);
+        return Stage::template make<strategy::Greedy, Labels>(params, false);
     }
     if (algorithm == "tabu") {
-        return Stage::make<strategy::Tabu, Labels>(params, false);
+        return Stage::template make<strategy::Tabu, Labels>(params, false);
     }
     throw OptionsError(std::format(
         "algorithm '{}' is not one of simple, pushing, pulling, astar, greedy, tabu", algorithm));
@@ -750,7 +750,8 @@ std::string status_name(cg::SolverStatus status) {
 }
 
 // Everything a run needs, built in place: the loop holds the master, the master its solver and
-// pricer, the pricer the graph.
+// pricer, the pricer the graph, whose resources are Resources.
+template <typename... Resources>
 struct Model {
         explicit Model(const Options& options)
             : instance(read_solomon(options.instance)),
@@ -769,11 +770,11 @@ struct Model {
                 }
             }
 
-            std::vector<Stage> stages;
+            std::vector<cg::PricingStage<Resources...>> stages;
             for (const StageOptions& stage : options.stages) {
-                stages.push_back(make_stage(stage));
+                stages.push_back(make_stage<Resources...>(stage));
             }
-            pricer.emplace(graph, cg::PricingStrategy<RealResource>(std::move(stages)), 0,
+            pricer.emplace(graph, cg::PricingStrategy<Resources...>(std::move(stages)), 0,
                            options.preprocess);
             // The fleet row, when the run sets one: the pricer's convexity row.
             cg::ConvexityRow convexity;
@@ -842,10 +843,10 @@ struct Model {
         }
 
         Instance instance;
-        PricingGraph graph;
+        ResourceGraph<Resources...> graph;
         std::shared_ptr<cg::MasterSolver> solver;
         cg::MasterProblem problem;
-        std::optional<cg::GraphPricer<RealResource>> pricer;
+        std::optional<cg::GraphPricer<Resources...>> pricer;
         std::optional<cg::ColumnGeneration> loop;
 };
 
@@ -897,21 +898,24 @@ std::pair<std::string, std::string> describe_columns(const cg::MasterProblem& pr
     return {list(used), list(artificial)};
 }
 
-std::vector<double> column_values(const Model& model) {
+std::vector<double> column_values(const cg::MasterProblem& problem, cg::MasterSolver& solver) {
     std::vector<cg::ColumnId> ids;
-    for (const cg::MasterColumn& column : model.problem.columns()) {
+    for (const cg::MasterColumn& column : problem.columns()) {
         ids.push_back(column.id);
     }
     std::vector<double> values(ids.size());
-    model.solver->primal(ids, values);
+    solver.primal(ids, values);
     return values;
 }
 
 // The last LP's solution: its objective, the columns with a value and the duals.
-std::string read_lp(const Model& model, double objective, bool solved_again) {
-    const auto [used, artificial] = describe_columns(model.problem, column_values(model));
-    std::vector<double> duals(model.problem.number_of_rows());
-    model.solver->duals(duals);
+std::string read_lp(const cg::MasterProblem& problem,
+                    cg::MasterSolver& solver,
+                    double objective,
+                    bool solved_again) {
+    const auto [used, artificial] = describe_columns(problem, column_values(problem, solver));
+    std::vector<double> duals(problem.number_of_rows());
+    solver.duals(duals);
     return JsonObject()
         .add("objective", json_number(objective))
         .add("solved_again", solved_again ? "true" : "false")
@@ -922,7 +926,10 @@ std::string read_lp(const Model& model, double objective, bool solved_again) {
 }
 
 // The integer master over the generated columns: status, seconds, objective, columns.
-std::string solve_integer(Model& model, const Options& options) {
+std::string solve_integer(cg::ColumnGeneration& loop,
+                          const cg::MasterProblem& problem,
+                          cg::MasterSolver& solver,
+                          const Options& options) {
     cg::IntegerParams params;
     params.timeout_s = options.integer_timeout_s;
     if (options.integer_gap.has_value()) {
@@ -937,16 +944,16 @@ std::string solve_integer(Model& model, const Options& options) {
     }
 
     const auto start = std::chrono::steady_clock::now();
-    const cg::SolverStatus status = model.loop->solve_restricted_master_integer(params);
+    const cg::SolverStatus status = loop.solve_restricted_master_integer(params);
     const double seconds = seconds_since(start);
     JsonObject found;
     found.add("status", json_string(status_name(status))).add("seconds", json_number(seconds));
 
     // Stopped at its limit, the solve may have no solution: the solver then has no values.
     try {
-        const std::vector<double> values = column_values(model);
-        const double objective = model.solver->objective();
-        const auto [used, artificial] = describe_columns(model.problem, values);
+        const std::vector<double> values = column_values(problem, solver);
+        const double objective = solver.objective();
+        const auto [used, artificial] = describe_columns(problem, values);
         found.add("objective", json_number(objective))
             .add("columns", used)
             .add("artificial_columns", artificial);
@@ -1033,8 +1040,11 @@ std::string process_json() {
 
 // MARK: Main
 
-std::string run(const Options& options) {
-    Model model(options);
+// The run on a graph of Resources.
+template <typename... Resources>
+std::string run_on(const Options& options) {
+    Model<Resources...> model(options);
+    cg::MasterSolver& solver = *model.solver;
     if (options.check) {
         return JsonObject()
             .add("built", "true")
@@ -1073,18 +1083,21 @@ std::string run(const Options& options) {
         if (!lp_solved) {
             solution = R"({"lp": null, "lp_missing": "no master LP was solved"})";
         } else if (finished) {
-            solution = JsonObject().add("lp", read_lp(model, result.objective, false)).str();
+            solution = JsonObject()
+                           .add("lp", read_lp(model.problem, solver, result.objective, false))
+                           .str();
         } else {
             cg::RelaxationParams again;
             again.timeout_s = options.timeout_s.value_or(std::numeric_limits<double>::infinity());
             again.threads = options.threads.value_or(0);
             const auto start_again = std::chrono::steady_clock::now();
-            const cg::SolverStatus solved = model.solver->solve_relaxation(again);
-            model.solver->restore_user_model();
+            const cg::SolverStatus solved = solver.solve_relaxation(again);
+            solver.restore_user_model();
             solved_again_seconds = json_number(seconds_since(start_again));
             if (solved == cg::SolverStatus::Optimal) {
-                solution =
-                    JsonObject().add("lp", read_lp(model, model.solver->objective(), true)).str();
+                solution = JsonObject()
+                               .add("lp", read_lp(model.problem, solver, solver.objective(), true))
+                               .str();
             } else {
                 solution = JsonObject()
                                .add("lp", "null")
@@ -1096,13 +1109,19 @@ std::string run(const Options& options) {
     }
     fields.add("lp_solved_again_seconds", solved_again_seconds);
 
-    const std::string integer = options.integer ? solve_integer(model, options) : "null";
+    const std::string integer =
+        options.integer ? solve_integer(*model.loop, model.problem, solver, options) : "null";
     return fields.add("solution", solution)
         .add("integer", integer)
         .add("versions", versions_json())
         .add("build", build_json())
         .add("process", process_json())
         .str();
+}
+
+// The run, on the graph its options need: the three real resources.
+std::string run(const Options& options) {
+    return run_on<RealResource>(options);
 }
 
 }  // namespace
