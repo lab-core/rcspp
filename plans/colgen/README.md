@@ -302,6 +302,9 @@ stack's head `71c13451`; the old algorithm classes now frozen in `tests/cpp/refe
 kernel's rows updated, A.11 (a strategy of one's own) and B.8 (the caps) added; `D-294`-`D-301` accepted (the
 user); a missing test goes into `T-1.31` (the user). **Next:** CI on the heads (running);
 then `T-1.31`, `T-2.5`.
+2026-11-25: a status slide "What the C++ port removed" after "Where the gains come from" (`D-302`;
+built, no overflow); Boost gets its own task `T-1.35`. The VRP example comparisons on the slides ran over Gurobi
+only: highspy against python-mip was never measured.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks

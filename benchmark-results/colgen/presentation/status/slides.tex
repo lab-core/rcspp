@@ -173,8 +173,7 @@
   \vspace{0.5em}
   \begin{itemize}\small
     \item \textbf{9 instances out of 9} pass. The program is also the benchmark's \texttt{cpp-native} runner.
-    \item The engine's own benchmarks (per-algorithm timings, Boost) left the example; they come back as options
-      of the benchmark.
+    \item The engine's own benchmarks left the example: what goes where, two slides on.
   \end{itemize}
 \end{frame}
 
@@ -211,6 +210,37 @@
       \end{block}
     \end{column}
   \end{columns}
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{What the C++ port removed}
+  \small The engine's own benchmarks lived in the C++ example. Gone with the port:
+
+  \vspace{0.4em}
+  \footnotesize
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.22\textwidth}
+                    >{\raggedright\arraybackslash}p{0.31\textwidth}
+                    >{\raggedright\arraybackslash}p{0.38\textwidth}@{}}
+    \toprule
+    removed & what it did & from now on \\
+    \midrule
+    Several algorithms on the same duals & every iteration's duals priced by 7 algorithms, each timed, best costs
+      cross-checked & a \textbf{replay runner} over recorded duals, one algorithm per run; nothing does it until
+      then \\
+    Boost (\texttt{-{}-boost}) & an outside exact search, a cross-check & an algorithm of the \textbf{C++ runner} only,
+      Boost optional in the build \\
+    Duals dump & one file of duals per iteration & the benchmark's \textbf{per-iteration data}, in each run's folder
+      (duals, objective, columns) \\
+    Gap to the best known cost & a table of best known costs & \textbf{not for now}: its values use 1-decimal
+      distances, a false \texttt{FAIL} on C101 (\#54) \\
+    \texttt{-{}-gh-dir} & read Gehring \& Homberger folders & \textbf{dropped} \\
+    \texttt{benchmark.yml} & the engine benchmarks in CI & \textbf{dropped}: it never ran (no Gurobi on the CI
+      machines) \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.5em}
+  \small The rest (label buckets, ng size) is already in Python: it is connected to the benchmark, not rewritten.
 \end{frame}
 
 %--------------------------------------------------------------
