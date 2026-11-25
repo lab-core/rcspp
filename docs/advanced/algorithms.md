@@ -664,7 +664,8 @@ A labelling search keeps a new label at its node unless a label there dominates 
   are dropped that an exact search keeps.
 - **`KBest`** keeps, after dominance, at most `max_admitted_labels_per_node` labels at each node, the cheapest: at a
   full node, a new label takes the place of the costliest when it costs less, and is dropped
-  otherwise.
+  otherwise. The end nodes are nodes too, so a solve returns at most k paths for each sink (each
+  source, backward), whatever `max_solutions` is.
 
 Either is a heuristic. Every path returned is feasible and correctly priced, since feasibility and
 the cost never read dominance, but the optimum may be missed: `result.proven` is false, and
@@ -712,7 +713,8 @@ early exits assume those resources order dominance.
 
 Every labelling search reads the rule (`simple`, `pushing`, `pulling`, `astar`), in every
 direction, and so do both halves of a bidirectional search; Greedy and the tabu searches keep
-every label and ignore it. In a bidirectional solve, leaving the clock out of dominance turns the
+every label and ignore it, though a rule that cannot be honoured raises for them too. In a
+bidirectional solve, leaving the clock out of dominance turns the
 half-way point off, as a clock outside the dominance order does, and
 `result.bidirectional.half_way_off_reason` says so. The k-best rule keeps the half-way point: a
 label past `H` may then take the place of one below it, which the search would have extended.

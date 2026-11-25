@@ -357,24 +357,36 @@ void init_graph(py::module_& m) {
                        "the optimum may be missed, and result.proven is False (unless the rule is "
                        "at its limit: nothing left out, no limit on k). Read by every labelling "
                        "algorithm (simple, pushing, pulling, astar), in every direction; greedy "
-                       "and tabu keep every label and ignore it.")
-        .def_readwrite("dominance_ignored_components",
-                       &PyAlgorithmParams::dominance_ignored_components,
-                       "Relaxed: the resources left out of dominance, by their position in the "
-                       "order they were registered (0 is the first, the cost's with the default "
-                       "cost_index). Two labels that differ only there compare as equal there. "
-                       "solve() raises ValueError for a position the graph does not have, whatever "
-                       "the rule. Leaving out the bidirectional clock turns the half-way point "
-                       "off. Messages from the search number resources the C++ way, by type and "
-                       "then by registration order within a type: 'component N' in "
-                       "result.bidirectional.half_way_off_reason and in the model checks' messages "
-                       "is in that numbering, not in this one.")
+                       "and tabu keep every label and ignore it, though solve() still raises "
+                       "ValueError for a rule that cannot be honoured (a k of 0, a resource the "
+                       "graph does not have).")
+        // A frozenset, not a set: pybind11 returns a copy of a std::set, so .add() on a set read
+        // here would change only the copy. On a frozenset it raises AttributeError.
+        .def_property(
+            "dominance_ignored_components",
+            [](const PyAlgorithmParams& p) {
+                return py::frozenset(py::cast(p.dominance_ignored_components));
+            },
+            [](PyAlgorithmParams& p, std::set<size_t> components) {
+                p.dominance_ignored_components = std::move(components);
+            },
+            "Relaxed: the resources left out of dominance, by their position in the order they "
+            "were registered (0 is the first, the cost's with the default cost_index). Two labels "
+            "that differ only there compare as equal there. Assign the whole set: the value read "
+            "is a frozenset, a copy, so it has no add(). solve() raises ValueError for a position "
+            "the graph does not have, whatever the rule. Leaving out the bidirectional clock turns "
+            "the half-way point off. Messages from the search number resources the C++ way, by "
+            "type and then by registration order within a type: 'component N' in "
+            "result.bidirectional.half_way_off_reason and in the model checks' messages is in "
+            "that numbering, not in this one.")
         .def_readwrite("max_admitted_labels_per_node",
                        &PyAlgorithmParams::max_admitted_labels_per_node,
                        "KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 "
                        "raises ValueError): at a full node, a new label takes the place of the "
-                       "costliest when it costs less, and is dropped otherwise. The default, "
-                       "1073741823 (no limit), keeps every label dominance keeps.");
+                       "costliest when it costs less, and is dropped otherwise. It holds at the "
+                       "sinks too (the sources, backward), so a solve returns at most this many "
+                       "paths for each. The default, 1073741823 (no limit), keeps every label "
+                       "dominance keeps.");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

@@ -326,7 +326,7 @@ class AlgorithmParams:
     @property
     def admission_rule(self) -> AdmissionRule:
         """
-        Whether a new label is kept at its node: AdmissionRule.Exact (dominance, the default), Relaxed or KBest. Relaxed and KBest drop labels exact dominance keeps: every path returned is feasible and correctly priced, but the optimum may be missed, and result.proven is False (unless the rule is at its limit: nothing left out, no limit on k). Read by every labelling algorithm (simple, pushing, pulling, astar), in every direction; greedy and tabu keep every label and ignore it.
+        Whether a new label is kept at its node: AdmissionRule.Exact (dominance, the default), Relaxed or KBest. Relaxed and KBest drop labels exact dominance keeps: every path returned is feasible and correctly priced, but the optimum may be missed, and result.proven is False (unless the rule is at its limit: nothing left out, no limit on k). Read by every labelling algorithm (simple, pushing, pulling, astar), in every direction; greedy and tabu keep every label and ignore it, though solve() still raises ValueError for a rule that cannot be honoured (a k of 0, a resource the graph does not have).
         """
 
     @admission_rule.setter
@@ -348,14 +348,14 @@ class AlgorithmParams:
     @direction.setter
     def direction(self, arg0: SearchDirection) -> None: ...
     @property
-    def dominance_ignored_components(self) -> set[int]:
+    def dominance_ignored_components(self) -> frozenset:
         """
-        Relaxed: the resources left out of dominance, by their position in the order they were registered (0 is the first, the cost's with the default cost_index). Two labels that differ only there compare as equal there. solve() raises ValueError for a position the graph does not have, whatever the rule. Leaving out the bidirectional clock turns the half-way point off. Messages from the search number resources the C++ way, by type and then by registration order within a type: 'component N' in result.bidirectional.half_way_off_reason and in the model checks' messages is in that numbering, not in this one.
+        Relaxed: the resources left out of dominance, by their position in the order they were registered (0 is the first, the cost's with the default cost_index). Two labels that differ only there compare as equal there. Assign the whole set: the value read is a frozenset, a copy, so it has no add(). solve() raises ValueError for a position the graph does not have, whatever the rule. Leaving out the bidirectional clock turns the half-way point off. Messages from the search number resources the C++ way, by type and then by registration order within a type: 'component N' in result.bidirectional.half_way_off_reason and in the model checks' messages is in that numbering, not in this one.
         """
 
     @dominance_ignored_components.setter
     def dominance_ignored_components(
-        self, arg0: collections.abc.Set[typing.SupportsInt | typing.SupportsIndex]
+        self, arg1: collections.abc.Set[typing.SupportsInt | typing.SupportsIndex]
     ) -> None: ...
     @property
     def half_way_point(self) -> float:
@@ -392,7 +392,7 @@ class AlgorithmParams:
     @property
     def max_admitted_labels_per_node(self) -> int:
         """
-        KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 raises ValueError): at a full node, a new label takes the place of the costliest when it costs less, and is dropped otherwise. The default, 1073741823 (no limit), keeps every label dominance keeps.
+        KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 raises ValueError): at a full node, a new label takes the place of the costliest when it costs less, and is dropped otherwise. It holds at the sinks too (the sources, backward), so a solve returns at most this many paths for each. The default, 1073741823 (no limit), keeps every label dominance keeps.
         """
 
     @max_admitted_labels_per_node.setter
