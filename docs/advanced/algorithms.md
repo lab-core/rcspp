@@ -64,7 +64,8 @@ finish and still not have proved anything:
   the model's arcs), it compares a label's cost alone, which may drop the cheapest path.
 
 `result.proven` combines them: it is true when `status` is `complete` and none of these happened,
-so that no path better than those returned exists (none at all, when none is returned).
+so that no path better than those returned exists. When none is returned, no path exists below
+the upper bound (none at all, with no upper bound).
 `result.proof_lost_by` says why not: the status's name when the search did not finish
 (`"truncated"`, `"timeout"`, ...), otherwise the first loss: `"memory_pressure"`,
 `"arcs_masked"`, `"relaxed_admission"`, `"heuristic_driver"` or `"incumbent_prune"`. A quota that
@@ -591,8 +592,8 @@ dive releases a child reached along a tabu arc, unless every child is (aspiratio
 can always go on. The graph is
 not edited: the tabu arcs are the soft arcs of the search's mask. `max_iterations` counts
 episodes, and must be finite. An episode that runs out of paths while no arc is tabu has proved
-that no path exists, and ends the solve; any other result is not a proof (`result.proven` is
-false).
+that no path exists below the upper bound, and ends the solve; any other result is not a proof
+(`result.proven` is false).
 
 ```python
 params = AlgorithmParams()

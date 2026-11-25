@@ -96,8 +96,9 @@ struct SolveResult {
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
 
-        /// @brief Whether the result is a proof: no path better than those returned exists (none
-        ///        at all, when none is returned).
+        /// @brief Whether the result is a proof: no path better than those returned exists. When
+        ///        none is returned, no path exists below the solve's upper bound (none at all,
+        ///        with no upper bound).
         ///
         /// The status is @c AlgorithmStatus::Complete, and nothing a complete search can still
         /// lose was lost: no arc was masked, the admission rule is exact, no memory pressure

@@ -516,6 +516,28 @@ TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
+/// @brief Diversification starts each solve with no arc tabu and no extra tenure: a second solve
+///        on the same object returns what the first did. In two inner solves, the first finds the
+///        best path and the second, its arcs left out, the other. Had the second outer solve kept
+///        the first's tabu arcs, both paths' arcs would still be left out, and it would find
+///        nothing.
+TEST(DiversificationSearchTest, EachSolveStartsWithNoArcTabu) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 2;
+    params.tabu_random_noise = false;
+    auto algorithm = g->create_algorithm<strategy::Diversification<>>(
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto first = g->solve(algorithm.get());
+    ASSERT_EQ(first.solutions.size(), 2U);
+    const auto second = g->solve(algorithm.get());
+    ASSERT_EQ(second.solutions.size(), first.solutions.size());
+    for (size_t i = 0; i < first.solutions.size(); ++i) {
+        EXPECT_EQ(second.solutions[i].path_arc_ids, first.solutions[i].path_arc_ids);
+    }
+    EXPECT_EQ(second.status, first.status);
+}
+
 namespace {
 
 /// @brief A graph with one source, one sink and one value resource: @p arcs, each as (origin,

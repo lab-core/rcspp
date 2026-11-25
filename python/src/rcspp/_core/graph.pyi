@@ -259,7 +259,7 @@ class SolveResult:
     @property
     def proven(self) -> bool:
         """
-        Whether the result is a proof that no better path exists (none at all when none is returned): status is 'complete', the admission rule is exact, memory pressure did not trim the labels, a tabu search never made an arc tabu (so a tabu solve is a proof only when its first episode found no path), and the incumbent prune had a valid completion bound (an additive cost whose arcs each add their share). proof_lost_by says why it is not.
+        Whether the result is a proof that no better path exists (when none is returned, none below the upper bound, or none at all with no upper bound): status is 'complete', the admission rule is exact, memory pressure did not trim the labels, a tabu search never made an arc tabu (so a tabu solve is a proof only when its first episode found no path), and the incumbent prune had a valid completion bound (an additive cost whose arcs each add their share). proof_lost_by says why it is not.
         """
 
     @property
