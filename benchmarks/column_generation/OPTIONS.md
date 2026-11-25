@@ -28,7 +28,7 @@ A run option `column_generation.timeout_s` stops the solve from inside; a benchm
 | place | named blocks | `[defaults]` | run options | `[matrix]`, `[[runs]]` | benchmark options |
 |---|---|---|---|---|---|
 | [`presets.toml`](column_generation_benchmark/presets.toml) | yes | yes | no | no | no |
-| a benchmark file | yes | yes | in `[defaults]`, `[matrix]`, `[[runs]]` | yes | `[benchmark]` |
+| a benchmark file | yes | yes | in `[defaults]`, `[matrix]` (or `[[matrix]]`), `[[runs]]` | yes | `[benchmark]` |
 | a run file | no | no | yes, at the top level | no | no |
 | a runner's command line | no | no | yes, over the run file | no | no |
 | `benchmark.py`'s command line | no | no | yes, over every run | no | `--processes`, `--repeats`, `--timeout`, `--machine`, `--no-logs` |
@@ -302,6 +302,21 @@ master = "highspy"
 [`example.toml`](example.toml) is a complete file that runs as it is.
 
 - The runs are the matrix's combinations, then the `[[runs]]`; without either, one run of the defaults.
+- Several matrices, when one product would make too many runs: `[[matrix]]` instead of `[matrix]`, each expanded on
+  its own, one after the other.
+
+```toml
+[[matrix]]                      # every exact algorithm on one layer: 3 x 4 = 12 runs
+instance = ["C101_25", "R201_25", "RC201_12"]
+"pricing.stages" = [[{ algorithm = "simple" }], [{ algorithm = "pushing" }], [{ algorithm = "pulling" }],
+                    [{ algorithm = "astar" }]]
+
+[[matrix]]                      # the forward search on the two other layers: 3 x 2 = 6 runs
+instance = ["C101_25", "R201_25", "RC201_12"]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+```
+
 - `from` is a path, relative to the benchmark file's folder or absolute; the entry's options go over the file's.
 - Runs that come out the same are kept once.
 - Every run is expanded and checked before the first one starts.

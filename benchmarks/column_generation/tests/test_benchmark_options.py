@@ -209,6 +209,36 @@ def test_runs_that_expand_alike_are_kept_once():
     assert [run.name for run in runs] == ["C101_25-package-gurobipy-exact-artificial"]
 
 
+def test_several_matrices_expand_one_after_the_other():
+    text = """
+[defaults]
+instance = "C101_25"
+[[matrix]]
+layer = ["package"]
+master = ["highspy", "gurobipy"]
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs", "highspy"]
+[[matrix]]
+master = ["highspy"]
+[[runs]]
+instance = "R201_25"
+"""
+    expansion = expand(text)
+
+    # The last matrix's point is the first one's again, kept once.
+    assert [(run.instance.name, run.layer, run.master.type) for run in expansion.runs] == [
+        ("C101_25", "package", "highspy"),
+        ("C101_25", "package", "gurobipy"),
+        ("C101_25", "cpp-bindings", "highs"),
+        ("C101_25", "cpp-bindings", "highspy"),
+        ("C101_25", "cpp-native", "highs"),
+        ("R201_25", "package", "highspy"),
+    ]
+    assert len(expansion.dropped) == 1
+    assert "layer cpp-native has no master highspy" in expansion.dropped[0]
+
+
 def test_without_a_matrix_or_runs_the_defaults_make_one_run():
     run = run_of('[defaults]\ninstance = "R201_25"\nlayer = "cpp-bindings"\n')
 
@@ -964,7 +994,10 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         # Benchmark files.
         (RUN + '[matrix]\nmaster = "highspy"\n', "non-empty list"),
         (RUN + "[matrix]\ngraph.ng_size = [0, 8]\n", "quote a dotted"),
-        ("matrix = [1]\n", r"\[matrix\] is a table of lists"),
+        ("matrix = 1\n", r"\[matrix\] is a table of lists, or \[\[matrix\]\] several"),
+        ("matrix = []\n", r"\[\[matrix\]\] holds at least one matrix"),
+        ("matrix = [1]\n", r"matrix\[0\] is a table of lists"),
+        ('[[matrix]]\nmaster = ["highspy"]\n[[matrix]]\nmaster = "gurobipy"\n', "non-empty list"),
         ("[runs]\nmaster = 1\n", "runs is a list of tables"),
         ("runs = [1]\n", "a run is a table of options"),
         ("[master]\none-thread = 1\n", r"\[master\] holds named master tables"),
