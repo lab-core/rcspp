@@ -100,7 +100,7 @@ from rcspp.resource import (
 )
 from rcspp import presets          # add_cost_resource, add_window_resource, add_capacity_resource
 from rcspp.pricing_pool import PricingPool
-from rcspp.graph        import Solution, Column, Row, Algorithm, AlgorithmStatus
+from rcspp.graph        import Solution, Column, Row, Algorithm, AlgorithmStatus, AdmissionRule
 ```
 
 **Not exposed to Python.** `NgPathExtensionFunction`, `IntersectionFeasibilityFunction` and
@@ -576,8 +576,19 @@ and solve it as any strategy, `graph.solve<MyStrategy>(params)`, forward only:
 ```cpp
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
 class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
+  public:
+    using Algorithm<ResourceType, LabelContainerType>::Algorithm;
+
   protected:
+    void initialize_labels() override { /* create and queue the start labels */ }
+    [[nodiscard]] size_t number_of_waiting_labels() const override { return 0; /* queued */ }
     void main_loop() override { /* custom label expansion */ }
+    [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
+        return {};  // the labels the solutions are read from
+    }
+    std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+        return {};  // the arcs of the path label holds, in order
+    }
 };
 ```
 
@@ -613,7 +624,8 @@ cpp/rcspp/algorithm/
                                  StoredAsideLabels, NodeQueues; FifoSchedule, BestFirstSchedule
                                  with CostKey and CostPlusBoundKey, SweepSchedule, PullSchedule,
                                  DepthFirstSchedule with ChildFilter, KeepAllChildren and
-                                 TabuChildFilter
+                                 TabuChildFilter; split_off_excess, a queue's cut under memory
+                                 pressure
       driver/                    Driver (the concept), RunEnd; TabuEpisodes and
                                  ImprovingTabuEpisodes, the tabu searches' drivers
     context.hpp                  SearchContext, Role: what every part reads of its solve
