@@ -517,6 +517,22 @@ std::unique_ptr<ResourceGraph<RealResource>> make_graph(
 
 }  // namespace
 
+/// @brief The inner search's budget grows with the graph: on a chain of 1500 nodes, which a dive
+///        takes more than 1000 labels to go through, Diversification still finds the path.
+TEST(DiversificationSearchTest, FindsAPathLongerThanAThousandArcs) {
+    constexpr size_t kChainNodes = 1500;
+    std::vector<std::tuple<size_t, size_t, double>> arcs;
+    for (size_t id = 0; id + 1 < kChainNodes; ++id) {
+        arcs.emplace_back(id, id + 1, -1.0);
+    }
+    auto g = make_graph(kChainNodes, arcs);
+    AlgorithmBaseParams params;
+    params.max_iterations = 1;
+    const auto result = g->solve<strategy::Diversification<>>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, -static_cast<double>(kChainNodes - 1), 1e-9);
+}
+
 // ============================================================================
 // A dive that keeps its labels at the nodes
 // ============================================================================
