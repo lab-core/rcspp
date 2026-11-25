@@ -555,6 +555,19 @@ TEST(DiversificationSearchTest, FindsAPathLongerThanAThousandArcs) {
     EXPECT_NEAR(result.solutions[0].cost, -static_cast<double>(kChainNodes - 1), 1e-9);
 }
 
+/// @brief The inner budget grows with the graph for a labelling search, which counts labels taken,
+///        and stays 1000 for a driven one, which counts episodes.
+TEST(DiversificationSearchTest, InnerBudgetGrowsWithTheGraphForALabellingSearchOnly) {
+    using Composed = ResourceTypeComposition<RealResource>;
+    using OverGreedy = DiversificationSearch<Composed, LabelList<Composed>, strategy::Greedy>;
+    using OverTabu = DiversificationSearch<Composed, LabelList<Composed>, strategy::Tabu>;
+    constexpr size_t kSmall = 10;
+    constexpr size_t kLarge = 1500;
+    EXPECT_EQ(OverGreedy::inner_iteration_budget(kSmall), 1000U);
+    EXPECT_EQ(OverGreedy::inner_iteration_budget(kLarge), 20U * kLarge);
+    EXPECT_EQ(OverTabu::inner_iteration_budget(kLarge), 1000U);
+}
+
 // ============================================================================
 // A dive that keeps its labels at the nodes
 // ============================================================================

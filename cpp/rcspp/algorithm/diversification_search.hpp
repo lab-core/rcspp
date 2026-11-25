@@ -42,9 +42,9 @@ namespace rcspp {
 ///
 /// Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
 /// algorithm is built from this algorithm's params, searching forward, with one solution and at
-/// most @ref inner_iteration_budget iterations per solve (20 for each node of the graph, and never
-/// fewer than 1000): labels taken for a labelling search such as Greedy, episodes for a driven one
-/// such as Tabu.
+/// most @ref inner_iteration_budget iterations per solve: labels taken for a labelling search such
+/// as Greedy, 20 for each node of the graph and never fewer than 1000; 1000 episodes for a driven
+/// one such as Tabu, each episode a whole dive.
 ///
 /// Its solve never ends @c Complete (@ref number_of_waiting_labels answers 1): the status is
 /// @c MaxSolutions when it found @c max_solutions paths, a stop's status after a stop, and
@@ -65,11 +65,18 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
         /// @brief The inner search's iteration budget per solve on a graph of @p number_of_nodes
         ///        nodes: a bound on the work when no path is left, roomy enough for the dives to
-        ///        reach a sink. The inner search counts labels taken, and a dive takes one per node
-        ///        it passes, so the budget is 20 per node (about 20 dives through every node), and
-        ///        never fewer than 1000.
+        ///        reach a sink.
+        ///
+        /// A labelling search counts labels taken, and a dive takes one per node it passes, so its
+        /// budget is 20 per node (about 20 dives through every node), and never fewer than 1000. A
+        /// driven search (@c detail::DrivenStrategy) counts episodes, each a whole dive whatever
+        /// the graph's size, so its budget is 1000.
         [[nodiscard]] static size_t inner_iteration_budget(size_t number_of_nodes) {
-            return std::max(kMinInnerIterations, kInnerIterationsPerNode * number_of_nodes);
+            if constexpr (detail::DrivenStrategy<Inner>) {
+                return kMinInnerIterations;
+            } else {
+                return std::max(kMinInnerIterations, kInnerIterationsPerNode * number_of_nodes);
+            }
         }
 
         [[nodiscard]] bool is_optimal() const override { return false; }
