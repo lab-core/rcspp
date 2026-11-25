@@ -70,11 +70,12 @@ struct AlgorithmBaseParams {
         ///        incumbent (default false).
         ///
         /// Exact when the completion bound is valid: one Bellman–Ford run per solve computes it. It
-        /// is valid when the cost is additive (@c Resource::is_cost_additive) and no arc adds less
-        /// than its share of the cost, whatever the label it extends, which the solve tests at the
-        /// start by running the extension on the model's arcs (a floor, a ceiling or a maximum in
-        /// a priced extension fails it). Otherwise the label's cost alone is compared, which may
-        /// drop the cheapest path when an arc lowers the cost.
+        /// is valid when the cost is additive (@c Resource::is_cost_additive, false under a
+        /// declared clamp such as @c AdditionExtensionFunction's floor) and no arc adds less than
+        /// its share of the cost, whatever the label it extends, which the solve tests at the start
+        /// by running the extension on the model's arcs (an undeclared floor or ceiling, or a
+        /// maximum, in a priced extension fails it). Otherwise the label's cost alone is compared,
+        /// which may drop the cheapest path when an arc lowers the cost.
         bool prune_by_incumbent = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each

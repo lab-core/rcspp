@@ -62,9 +62,11 @@ struct CompletionBound {
 /// The share is measured once per arc, from the origin's start value. It is a valid term of a
 /// lower bound only if the arc never adds less than that from any value a label can hold there:
 /// true when the extension adds a fixed amount per arc, false under a floor, a ceiling or a
-/// maximum (an @c AdditionExtensionFunction with a @c min_value, a bottleneck), even though such
-/// a cost may be declared additive (@c Resource::is_cost_additive). A prune reads the bound only
-/// after the solve has tested this by running the extension (@ref find_share_shortfall).
+/// maximum. An extension that declares its clamp (@c ExtensionFunction::is_clamped, as an
+/// @c AdditionExtensionFunction with a @c min_value does) makes the cost not additive
+/// (@c Resource::is_cost_additive); one that does not, or a bottleneck, may still declare an
+/// additive cost. A prune reads the bound only after the solve has also tested this by running the
+/// extension (@ref find_share_shortfall).
 /// Otherwise the result is not a bound, and only an order reads it (A*), which needs no bound to
 /// stay exact.
 ///

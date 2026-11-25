@@ -181,8 +181,10 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         /// joined path as the forward half's cost plus the backward half's. True for a zero cost,
         /// and for a cost equal to the value under an @c Accumulate extension, whose backward
         /// value is the suffix's share of the sum. False under @c Threshold, whose backward value
-        /// is a deadline, not a cost. Whether the extension really adds is not declared:
-        /// @c JoinCheck tests it by running the extension.
+        /// is a deadline, not a cost, and under an extension that clamps the sum
+        /// (@c ExtensionFunction::is_clamped, a floor say), from which an arc can add less than its
+        /// share. Whether an unclamped extension really adds is not declared: @c JoinCheck tests it
+        /// by running the extension.
         ///
         /// @return `true` when the join may add this component's two costs.
         [[nodiscard]] auto is_cost_additive() const -> bool {
@@ -191,7 +193,8 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                     return true;
                 case CostKind::Value:
                     return this->feasibility_function_->directional_resource_kind() ==
-                           DirectionalResourceKind::Accumulate;
+                               DirectionalResourceKind::Accumulate &&
+                           !this->feasibility_function_->is_extension_clamped();
                 default:
                     return false;
             }

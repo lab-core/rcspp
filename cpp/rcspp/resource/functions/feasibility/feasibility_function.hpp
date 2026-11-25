@@ -116,6 +116,19 @@ class FeasibilityFunction {
             return directional_resource_kind_;
         }
 
+        /// @brief Records whether the paired extension function clamps what it computes
+        ///        (@c ExtensionFunction::is_clamped). Called by @c ResourceGraph::add_resource, not
+        ///        by hand.
+        ///
+        /// @param clamped Whether the paired extension function clamps.
+        void set_extension_clamped(bool clamped) { extension_clamped_ = clamped; }
+
+        /// @brief Whether the paired extension function clamps what it computes; @c false until
+        ///        the resource is added to a graph.
+        ///
+        /// @return What @c ExtensionFunction::is_clamped answered for the paired function.
+        [[nodiscard]] bool is_extension_clamped() const { return extension_clamped_; }
+
         /// @brief Whether this function needs the label's set to exclude the node the label sits
         ///        on, which backward only an @c ArcEndpoints extension guarantees.
         ///
@@ -185,6 +198,7 @@ class FeasibilityFunction {
         /// @brief The paired extension function's directional resource kind, set by add_resource
         ///        and copied into every per-node clone.
         DirectionalResourceKind directional_resource_kind_ = DirectionalResourceKind::Unspecified;
+        bool extension_clamped_ = false;  ///< see @ref is_extension_clamped
 };
 
 /// @brief Thrown by a composed function whose backward members (@c is_back_feasible and

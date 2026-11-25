@@ -24,10 +24,11 @@ namespace rcspp {
 /// a bounded accumulation (capacity, duration) use @c CapacityExtensionFunction instead.
 ///
 /// With a @p min_value, the step is not a sum: an arc takes off less from a value near the floor
-/// than from a higher one, and a backward label meets the floor at the other end of the path. A
-/// priced component with a floor therefore gets no completion-bound prune (@c prune_by_incumbent
-/// compares the cost alone), and a backward or bidirectional search refuses the model. Both are
-/// found by running the extension on the model's arcs.
+/// than from a higher one, and a backward label meets the floor at the other end of the path. So
+/// the function says it clamps (@ref is_clamped), and a priced component with a floor has no
+/// additive cost: it gets no completion-bound prune (@c prune_by_incumbent compares the cost
+/// alone), and a backward or bidirectional search refuses the model, whatever arcs the model
+/// has.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
@@ -60,6 +61,12 @@ class AdditionExtensionFunction
             }
             extended_resource->set_value(sum_value);
         }
+
+        /// @brief Whether a floor clamps the sum: from a value near it, an arc adds less than its
+        ///        share.
+        ///
+        /// @return Whether a @p min_value was given.
+        [[nodiscard]] bool is_clamped() const override { return min_value_.has_value(); }
 
     private:
         std::optional<ValueType> min_value_;

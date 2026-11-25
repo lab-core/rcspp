@@ -1420,18 +1420,18 @@ inline std::unique_ptr<ResourceGraph<RealResource>> floor_graph(std::optional<do
 
 }  // namespace model_checks_test
 
-/// @brief A floored addition declares an accumulation and an additive cost, but a backward label
-///        meets the floor at the other end of the path, so it costs the path differently: refused
-///        for a backward search, and for a bidirectional one; a forward search finds the path.
+/// @brief A floored addition says it clamps (a backward label meets the floor at the other end of
+///        the path, so it costs the path differently), so its cost is not additive: refused for a
+///        backward search, and for a bidirectional one, whatever arcs the model has; a forward
+///        search finds the path.
 TEST(ModelChecks, AFlooredAdditionIsRefusedForABackwardSearch) {
     namespace mc = model_checks_test;
     auto graph = mc::floor_graph(0.0);
     for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
         const std::string message = mc::problems(*graph, direction);
-        EXPECT_NE(message.find("the model's cost is not the same read backward: along 0 -> 1, "
-                               "then 1 -> 2, the forward search costs the path 2.000000 and the "
-                               "backward search 10.000000"),
-                  std::string::npos)
+        EXPECT_NE(message.find("the model's cost function is not additive"), std::string::npos)
+            << to_string(direction) << ": " << message;
+        EXPECT_NE(message.find("a clamped sum (a floor) is not a sum"), std::string::npos)
             << to_string(direction) << ": " << message;
     }
     EXPECT_EQ(mc::problems(*graph, SearchDirection::Forward), "");
@@ -1448,6 +1448,43 @@ TEST(ModelChecks, AFlooredAdditionIsRefusedForABackwardSearch) {
         mc::best_cost(sum->solve<strategy::Simple>(mc::searching(SearchDirection::Backward))),
         2.0,
         mc::kTolerance);
+}
+
+namespace model_checks_test {
+
+/// @brief A floored addition that does not say it clamps: its cost is declared additive, and only
+///        running the extension shows otherwise.
+struct UndeclaredFloor : AdditionExtensionFunction<RealResource> {
+        using AdditionExtensionFunction<RealResource>::AdditionExtensionFunction;
+        [[nodiscard]] bool is_clamped() const override { return false; }
+};
+
+}  // namespace model_checks_test
+
+/// @brief A floor the extension does not declare is found by running it: the backward search
+///        costs the path differently, and is refused for that.
+TEST(ModelChecks, AnUndeclaredFloorIsFoundByRunningTheExtension) {
+    namespace mc = model_checks_test;
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<mc::UndeclaredFloor>(0.0),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 3; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == 2);
+    }
+    for (const auto& [cost, origin, destination] :
+         std::vector<std::tuple<double, size_t, size_t>>{{10.0, 0, 1}, {-8.0, 1, 2}, {3.0, 0, 2}}) {
+        graph->add_arc<RealResource>(std::make_tuple(cost), origin, destination, cost);
+    }
+    for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        const std::string message = mc::problems(*graph, direction);
+        EXPECT_NE(message.find("the model's cost is not the same read backward: along 0 -> 1, "
+                               "then 1 -> 2, the forward search costs the path 2.000000 and the "
+                               "backward search 10.000000"),
+                  std::string::npos)
+            << to_string(direction) << ": " << message;
+    }
 }
 
 /// @brief A priced bottleneck reads the same in either order, so a backward search costs its paths

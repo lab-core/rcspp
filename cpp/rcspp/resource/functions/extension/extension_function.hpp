@@ -107,6 +107,18 @@ class ExtensionFunction {
             return DirectionalResourceKind::Unspecified;
         }
 
+        /// @brief Whether the extension clamps what it computes (a floor, say), so that from some
+        ///        values an arc adds less than its share of the sum.
+        ///
+        /// A priced component whose extension clamps has no additive cost
+        /// (@c Resource::is_cost_additive): a completion bound built from the arcs' shares is not
+        /// a lower bound on it, so no prune adds that bound, and a backward or bidirectional search
+        /// refuses the model. Declared, so the refusal does not rest on the arcs the solve probes.
+        ///
+        /// @return @c false unless overridden; @c AdditionExtensionFunction answers @c true when it
+        ///         has a floor.
+        [[nodiscard]] virtual bool is_clamped() const { return false; }
+
         /// @brief Extends a value backward along an arc: from a label at the arc's destination to
         ///        one at its origin.
         ///
