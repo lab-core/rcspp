@@ -209,6 +209,15 @@ def test_runs_that_expand_alike_are_kept_once():
     assert [run.name for run in runs] == ["C101_25-package-gurobipy-exact-artificial"]
 
 
+def test_preprocessing_off_keeps_the_stages_and_names_the_pricing():
+    on, off = expand(RUN + '[matrix]\n"pricing.preprocess" = [true, false]\n').runs
+
+    assert (on.pricing.preprocess, off.pricing.preprocess) == (True, False)
+    assert off.pricing.stages == [{"algorithm": "simple"}]
+    assert re.fullmatch(f"C101_25-package-highspy-pricing_{FINGERPRINT}-artificial", off.name)
+    assert run_of(RUN).pricing.to_table() == {"stages": [{"algorithm": "simple"}]}
+
+
 def test_several_matrices_expand_one_after_the_other():
     text = """
 [defaults]
@@ -932,6 +941,7 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         (RUN + "statistics = { process = 3 }\n", "3 is not true or false"),
         (RUN + "pricing = { stages = [] }\n", "non-empty list"),
         (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
+        (RUN + '"pricing.preprocess" = "no"\n', "'no' is not true or false"),
         (RUN + 'pricing = { stages = [{ algorithm = "dijkstra" }] }\n', "algorithm 'dijkstra'"),
         (
             RUN + 'pricing = { stages = [{ algorithm = "tabu" }] }\n',

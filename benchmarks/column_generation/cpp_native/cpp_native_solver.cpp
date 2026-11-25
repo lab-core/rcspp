@@ -22,6 +22,7 @@
 //                                   tabu; repeated, in order (default: one simple)
 //   --stage-param NAME VALUE        a field of the last stage's AlgorithmParams; a set as a comma
 //                                   list ("" for none); repeated
+//   --no-preprocess                 the searches do not reduce the graph first
 //   --start single-customer|artificial  with --artificial-cost-factor F for artificial
 //   --vehicles N                    the master row "at most N routes" (default: none)
 //   --max-iterations N, --timeout S, --threads N
@@ -188,6 +189,7 @@ struct Options {
         std::string master;
         std::vector<MasterOption> master_options;
         std::vector<StageOptions> stages;
+        bool preprocess = true;
         std::string start = "artificial";
         std::optional<double> artificial_cost_factor;
         std::optional<size_t> max_iterations;
@@ -288,6 +290,7 @@ Options parse_options(const std::vector<std::string>& arguments) {
              std::string name = value();
              options.stages.back().params.emplace_back(std::move(name), value());
          }},
+        {"--no-preprocess", [&] { options.preprocess = false; }},
         {"--start", [&] { options.start = value(); }},
         {"--artificial-cost-factor",
          [&] { options.artificial_cost_factor = to_double(flag, value()); }},
@@ -770,7 +773,8 @@ struct Model {
             for (const StageOptions& stage : options.stages) {
                 stages.push_back(make_stage(stage));
             }
-            pricer.emplace(graph, cg::PricingStrategy<RealResource>(std::move(stages)));
+            pricer.emplace(graph, cg::PricingStrategy<RealResource>(std::move(stages)), 0,
+                           options.preprocess);
             // The fleet row, when the run sets one: the pricer's convexity row.
             cg::ConvexityRow convexity;
             if (options.vehicles.has_value()) {

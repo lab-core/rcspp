@@ -197,13 +197,16 @@ class Master(Block):
 @dataclass(frozen=True)
 class Pricing(Block):
     """The pricing: its stages, in order; each is ``algorithm`` and any field of
-    ``rcspp.graph.AlgorithmParams``."""
+    ``rcspp.graph.AlgorithmParams``. `preprocess`: whether each search reduces the graph
+    first; None for the layer's default (on)."""
 
     stages: list[dict[str, Any]]
+    preprocess: bool | None = None
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("stages",), "pricing", where)
+        only_keys(given, ("stages", "preprocess"), "pricing", where)
+        preprocess = boolean(given.get("preprocess"), where)
         stages = given.get("stages")
 
         if stages is None:
@@ -220,7 +223,7 @@ class Pricing(Block):
 
             make_algorithm_params(cast(dict[str, Any], stage), f"{where}: stages[{index}]")
 
-        return cls(cast(list[dict[str, Any]], copy.deepcopy(items)))
+        return cls(cast(list[dict[str, Any]], copy.deepcopy(items)), preprocess)
 
 
 @dataclass(frozen=True)

@@ -12,7 +12,8 @@ from typing import Any
 
 import cpp_native_runner
 import pytest
-from column_generation_benchmark import run_folder, source_tree
+from column_generation_benchmark import options, run_folder, source_tree
+from column_generation_benchmark.instances import make_instance
 from test_benchmark_runners import has_gurobi, rerun_command, same
 
 
@@ -159,6 +160,17 @@ def test_a_gurobi_run_fills_its_folder(build: Path, tmp_path: Path):
     assert result["status"] == "Optimal"
     assert result["solution_check"] == "passed"
     assert metadata["versions"]["gurobi"].count(".") == 2
+
+
+@pytest.mark.usefixtures("build")
+def test_preprocessing_off_is_one_flag():
+    given = {"instance": "C101_5", "layer": "cpp-native", "master": "highs"}
+
+    for preprocess, flags in [(None, 0), (True, 0), (False, 1)]:
+        table = given if preprocess is None else {**given, "pricing.preprocess": preprocess}
+        run = options.expand_run(table)
+        arguments = cpp_native_runner.program_arguments(run, make_instance(run.instance.to_table()))
+        assert arguments.count("--no-preprocess") == flags
 
 
 def test_the_flags_write_values_as_the_program_reads_them():

@@ -175,6 +175,7 @@ def test_a_run_goes_to_the_results_folder_by_default(
         ("--column_generation.max_iterations", "3"),
         ("--column_generation.threads", "1"),
         ("--instance.vehicles", "5", "--column_generation.absolute_gap", "1e12"),
+        ("--pricing.preprocess", "false"),
         (
             "--column_generation.tolerances",
             "relative",
@@ -772,6 +773,31 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
         native = results["cpp-native", "highs"]
 
         assert (native["iterations"], native["columns"]) == (highs["iterations"], highs["columns"])
+
+
+def test_preprocessing_changes_no_lp(build: Path, tmp_path: Path):
+    """Without preprocessing, each layer reaches the LP value it reaches with it."""
+    runs = [("package", "highspy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "highs"))
+
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
+    for layer, master in runs:
+        objectives = [
+            run_layer(
+                layer,
+                build,
+                tmp_path / f"{layer}-{preprocess}",
+                *("--instance", "C101_25", "--master", master),
+                *("--pricing.preprocess", preprocess),
+            )["objective"]
+            for preprocess in ("true", "false")
+        ]
+
+        assert objectives[1] == pytest.approx(objectives[0], rel=1e-9)
 
 
 @pytest.mark.usefixtures("gurobi")

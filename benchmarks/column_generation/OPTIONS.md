@@ -199,6 +199,10 @@ A heuristic stage should be followed by an exact one: without it, no iteration e
 `greedy` can enumerate every path; give it `max_solutions` and `timeout_s`. On the command line, `--stage` writes a
 stage as `algorithm:key=value,key=value`, a list as `key=[0,26]` (see [the command line](#the-command-line)).
 
+Beside `stages`, `preprocess` (true or false, absent: true) is the pricer's, for every stage: whether each search
+reduces the graph first. `"pricing.preprocess" = false` turns it off and keeps the stages; on the command line,
+`--pricing.preprocess false`. The LP is the same either way; only the time changes.
+
 ### `start`
 
 | type | what | parameters |
