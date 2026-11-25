@@ -305,6 +305,13 @@ then `T-1.31`, `T-2.5`.
 2026-11-25: a status slide "What the C++ port removed" after "Where the gains come from" (`D-302`;
 built, no overflow); Boost gets its own task `T-1.35`. The VRP example comparisons on the slides ran over Gurobi
 only: highspy against python-mip was never measured.
+Meeting 2026-11-25, the colleagues' feedback, decided with the user (`D-303`-`D-307`): slide 7's column becomes
+"whole run slower by" (the loop from the first LP to the optimal one; the extra is the Python glue, 1-2 ms an
+iteration); regression results on GitHub Pages (`T-1.36`; where to measure stays `Q-66`, `Q-67`); a tuner (`T-1.37`)
+and stored analyses (`T-1.23`); parallel pricing folded into `T-2.1`'s design, generic and permissive (`T-2.6`
+folded); El Hallaoui's work in `prior-art.md`. **Order (`D-307`): phase 2 first.** **Next:** on the main line, a
+phase 2 design chat, then `T-2.3`, `T-2.5`, `T-2.1`, `T-2.2`, `T-2.4`; in parallel chats (own worktree, own roadmap
+row and README paragraph), `T-1.31` first. Slide 7 renamed and rebuilt (no overflow).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks

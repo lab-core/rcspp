@@ -252,19 +252,21 @@
   \centering
   \begin{tabular}{@{}lrrr@{}}
     \toprule
-    master & extra per iteration & share of the solve time & extra per run \\
+    master & extra per iteration & whole run slower by & extra per run \\
     \midrule
     highspy & \textbf{1.9 ms} (1.1--7.8) & \textbf{10\,\%} (2--77) & \textbf{0.05 s} (at most 0.63) \\
     gurobipy & \textbf{0.6 ms} ($-0.1$--2.4) & \textbf{3\,\%} (0--23) & \textbf{0.01 s} (at most 0.19) \\
     \bottomrule
   \end{tabular}
 
-  \scriptsize Medians over the 16 instances, ranges in brackets.
+  \scriptsize Medians over the 16 instances, ranges in brackets. Run: the loop, from the first LP to the optimal one.
 
   \vspace{0.5em}
   \raggedright
   \begin{itemize}\small
-    \item \textbf{Small today}: the large shares are on tiny runs (77\,\% is 8 ms of a 0.01 s run).
+    \item \textbf{Only the glue}: the same LP solves and searches on both sides; the extra is the Python code
+      around them.
+    \item \textbf{Small today}: the large percentages are on tiny runs (77\,\% is 8 ms of a 0.01 s run).
     \item \textbf{It grows with the iterations}: about 2 s per 1,000 iterations over highspy.
     \item \textbf{And with the master}: C102\_50, the largest master here, costs 7.8 ms more an iteration over
       highspy.

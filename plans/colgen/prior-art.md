@@ -105,6 +105,19 @@ approximate duals). None beats HiGHS for a warm-started CG master on what is pub
 | PA-12 | Backend list: HiGHS (default, FetchContent pinned to v1.15.1), Gurobi, **SoPlex instead of "SCIP backend"**; python-mip = low priority (it now wraps highspy; CBC crash reports); SCIP = the optional pricer adapter above | all | D-07, D-14, Q-21, Q-22 |
 | PA-13 | No code from RouteOpt (GPL-3.0) or VRPSolver (closed); ideas only. GCG license to check before reading its code closely | licenses | process |
 
+## GERAD: Issmaïl El Hallaoui and neighbours (2026-11-25, abstracts only)
+
+| work | idea | for us |
+|---|---|---|
+| Dynamic constraint aggregation (Elhallaoui et al., Oper. Res. 2005; multi-phase, bi-dynamic variants) | set-partitioning rows merged by an equivalence of the current columns; smaller, less degenerate master | a master component, later; our masters are degenerate too (`F-75`) |
+| Improved primal simplex, improved column generation (2011; Bouarab et al., EJOR 2017) | a complementary problem picks columns that leave degeneracy; over 10 times faster than plain column generation reported | same; related to stabilization (`T-2.4`) |
+| Integral column generation (Tahir, Desaulniers, El Hallaoui; EURO J. Transp. Logist. 2019, IJOC 2022; with ML, Transp. Sci. 2021) | integer solutions during column generation without branch-and-price (ISUD) | beside our integer master over the columns; a heuristic before `T-3` |
+| Morabit, Desaulniers, Lodi (Transp. Sci. 2021; IJOO 2023), not him | learned column selection; learned arc selection for the pricing graph (up to 40 % less time) | closest to the engine: a reduced-graph heuristic stage before the exact one (arc masks, #81-#87) |
+
+No public code seen. Sources: <https://www.gerad.ca/en/people/issmail-el-hallaoui/publications>,
+<https://publications.polymtl.ca/51489/>, <https://econpapers.repec.org/RePEc:eee:ejores:v:262:y:2017:i:3:p:835-850>,
+<https://econpapers.repec.org/RePEc:inm:oropre:v:53:y:2005:i:4:p:632-645>, <https://arxiv.org/abs/2201.02535>.
+
 ## Sources
 
 SCIP/SoPlex/PySCIPOpt: <https://github.com/scipopt/scip/releases>, <https://raw.githubusercontent.com/scipopt/scip/master/doc/xternal.c>,
