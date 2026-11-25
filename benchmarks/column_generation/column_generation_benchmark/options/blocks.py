@@ -487,6 +487,14 @@ def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[
         except (TypeError, ValueError) as error:
             raise OptionsError(f"{where}: {name} = {value!r} is refused ({error})") from None
 
+    # Each would fail at every pricing call, not at the start: the engine's tabu search
+    # refuses the default iterations, and the heuristics search forward only.
+    if algorithm == "tabu" and params.max_iterations >= AlgorithmParams().max_iterations:
+        raise OptionsError(f"{where}: a tabu stage needs a finite max_iterations")
+
+    if algorithm in ("greedy", "tabu") and params.direction != SearchDirection.Forward:
+        raise OptionsError(f"{where}: a {algorithm} stage searches forward only")
+
     return algorithm, params
 
 

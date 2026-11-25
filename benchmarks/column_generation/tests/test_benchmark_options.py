@@ -934,6 +934,19 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
         (RUN + 'pricing = { stages = [{ algorithm = "dijkstra" }] }\n', "algorithm 'dijkstra'"),
         (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu" }] }\n',
+            "a tabu stage needs a finite max_iterations",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "greedy", direction = "backward" }] }\n',
+            "a greedy stage searches forward only",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu", max_iterations = 10, '
+            'direction = "bidirectional" }] }\n',
+            "a tabu stage searches forward only",
+        ),
+        (
             RUN + 'pricing = { stages = [{ algorithm = "simple", max_solution = 5 }] }\n',
             "'max_solution' is not a field of AlgorithmParams",
         ),

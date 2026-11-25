@@ -190,9 +190,9 @@ is `algorithm` and any field of `rcspp.graph.AlgorithmParams`:
 |---|---|---|
 | `algorithm` | `simple`, `pushing`, `pulling`, `astar` (exact); `greedy`, `tabu` (heuristic) | required |
 | `max_solutions` | stop after this many columns | no limit |
-| `max_iterations` | a heuristic's iterations; `tabu` needs it | no limit |
+| `max_iterations` | a heuristic's iterations; a `tabu` stage without it is refused | no limit |
 | `timeout_s` | the stage's time limit, in seconds | none |
-| `direction` | `forward`, `backward`, `bidirectional` (by name) | `forward` |
+| `direction` | `forward`, `backward`, `bidirectional` (by name); `greedy` and `tabu` refuse any but `forward` | `forward` |
 | any other field | as `AlgorithmParams` documents it; a set is written as a list (`tabu_exempt_node_ids = [0]`) | the engine's |
 
 A heuristic stage should be followed by an exact one: without it, no iteration ends with a proof. Without a cap,
