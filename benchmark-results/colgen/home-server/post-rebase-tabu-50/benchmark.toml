@@ -1,0 +1,524 @@
+[benchmark]
+processes = 1
+repeats = 3
+timeout = 900.0
+machine = "home-server"
+logs = true
+
+[[runs]]
+name = "R201_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-gurobipy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-gurobipy-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-gurobi-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-package-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-package-gurobipy-tabu-first-single-customer-column_generation_85d80e"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-cpp-bindings-highspy-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-cpp-bindings-gurobipy-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-cpp-bindings-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-cpp-native-highs-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC201_50-cpp-native-gurobi-tabu-first-single-customer-column_generation_85d80e"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "single-customer"
+
+[runs.graph]
+
+[runs.column_generation]
+timeout_s = 600.0
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true

@@ -1,0 +1,1266 @@
+[benchmark]
+processes = 1
+repeats = 3
+timeout = 3600.0
+machine = "home-server"
+logs = true
+
+[[runs]]
+name = "C101_50-package-highspy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-package-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-native-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C101_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C101_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-package-highspy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-package-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-native-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "C201_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "C201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-package-highspy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-package-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-native-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R101_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R101_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-highspy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-package-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "R201_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "R201_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-package-highspy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-package-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "package"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-bindings-highspy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highspy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-bindings-gurobipy-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "gurobipy"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-bindings-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-bindings"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-native-highs-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "highs"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true
+
+[[runs]]
+name = "RC101_50-cpp-native-gurobi-exact-artificial-column_generation_c9520b"
+layer = "cpp-native"
+
+[runs.instance]
+type = "solomon"
+name = "RC101_50"
+
+[runs.master]
+type = "gurobi"
+
+[runs.master.parameters]
+
+[runs.pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[runs.start]
+type = "artificial"
+cost_factor = 10000.0
+
+[runs.graph]
+
+[runs.column_generation]
+threads = 1
+
+[runs.integer]
+solve = true
+timeout_s = 60.0
+column_type = "binary"
+
+[runs.statistics]
+process = true
+solution = true

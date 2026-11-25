@@ -1,0 +1,1 @@
+R101_25-cpp-native-highs-exact-single-customer-column_generation_85d80e: Optimal, objective 618.3299155462686; integer Optimal, objective 618.3299155462686

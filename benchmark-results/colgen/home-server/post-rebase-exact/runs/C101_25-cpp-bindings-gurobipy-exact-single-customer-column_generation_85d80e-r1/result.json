@@ -1,0 +1,20 @@
+{
+  "status": "Optimal",
+  "objective": 191.8136197786562,
+  "iterations": 21,
+  "columns": 709,
+  "artificial_columns": 0,
+  "master_seconds": 0.027754592,
+  "pricing_seconds": 0.058183246,
+  "other_seconds": 0.002879347023799536,
+  "solve_seconds": 0.08881718502379954,
+  "lp_solved_again_seconds": null,
+  "integer_status": "Optimal",
+  "integer_objective": 191.8136197786562,
+  "integer_seconds": 0.022106594988144934,
+  "gap": 0.0,
+  "solution_check": "passed",
+  "process_peak_memory_bytes": 74981376,
+  "process_processor_seconds": 0.68,
+  "solution_columns": 3
+}

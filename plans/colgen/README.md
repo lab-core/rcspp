@@ -276,6 +276,32 @@ after (local setup). rerere is on here (`.git/rr-cache` exists): check every "us
 (`make<Strategy>`, `strategy::Simple`; item 6 gone, 854 C++ / 727 Python). `../rcspp-dev` is back on
 `feature/column-generation-vehicle-types`, `../rcspp-rebase` is detached and its rebase build folders are gone; the
 backups stay.
+Post-rebase check 2026-11-24 (read only): every stack PR mergeable, PR bodies free of removed names, no removed name
+left outside the engine; only pre-commit ran on the pushed heads (drafts skip the coverage gate; #114 passed it):
+run-ci / ci-full not run since the push. Open: the recorded runs (C101_25 16/599…, `F-101`'s per-iteration times)
+are the old engine's, the kernel's quota and bidirectional `max_iterations` changes can move capped stages; the home
+server and `../rcspp-dev`'s build folders are pre-rebase; #60 conflicts with `main`. `T-1.34`'s rows for #62-#75
+decided (below). The re-measure is not urgent (the user, 2026-11-24): the layers share the engine, so their
+comparison holds; `post-rebase-runs.md` (S9-S11, copies of S4, S6, S7 on fewer instances, compared run by run): run
+and compared 2026-11-24, every run equal in objective, iterations and columns, times 2 % faster (`F-106`); the
+recorded numbers stand.
+`main`'s ruleset: squash only, linear history, signed commits, one approval, checks up to date with `main`; the stack
+has no merge commit and no signed commit (never had): squash merges, GitHub signs them; after each squash the next PR
+is rebased with `--onto origin/main <parent's old head>`.
+**Moved 2026-11-24** (the laptop, `leo-laptop`): the clones are now in `C:\dev\` (`rcspp`, `rcspp-dev`,
+`rcspp-rebase`, `rcspp-theory`), off OneDrive; relative paths (`../rcspp-dev`) still hold, absolute
+ones in older files are history. Redone: `git worktree repair`; the pybind11 alternates of `rcspp-dev`'s worktree;
+`.venv` in `C:\dev\rcspp` (Python 3.14.0, from a freeze of the old one, deleted since),
+`rcspp-dev\.venv` a junction to it; `rcspp-dev\build` (a junction to a gone folder) removed; pre-commit's hook
+re-installed; `rcspp-dev\build-python-highs` rebuilt from scratch at `71c13451` (Release, VS 18, Python, the example
+with HiGHS and Gurobi, tests off): 421 benchmark tests pass. Not redone: a test build (the package's pytest needs one;
+with `T-1.31`), `../rcspp-docs-preview` (`F-61`, gone); stale builds and the `rcspp-benchmark` worktree
+deleted (the user, 2026-11-24).
+`T-1.34`'s pass for the kernel stack done 2026-11-24: `features-and-options.md` re-sourced (`main` `b589e406`, the
+stack's head `71c13451`; the old algorithm classes now frozen in `tests/cpp/reference/`), every path re-checked, the
+kernel's rows updated, A.11 (a strategy of one's own) and B.8 (the caps) added; `D-294`-`D-301` accepted (the
+user); a missing test goes into `T-1.31` (the user). **Next:** CI on the heads (running);
+then `T-1.31`, `T-2.5`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -365,6 +391,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `overnight-runs.md` | the night of 2026-11-20/21: `T-1.19` on the laptop, `T-1.18` on the server, commands, next TOMLs | before starting or reading those runs |
 | `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
 | `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
+| `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
 ## Project conventions that apply here
