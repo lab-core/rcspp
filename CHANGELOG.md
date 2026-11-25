@@ -422,6 +422,13 @@ New features are summarised, with a pointer to where they are documented.
 - **`Algorithm(n)` with a value no algorithm has raises `ValueError`** in Python. It returned an
   empty result with status `complete`. Value 6, the retired `Algorithm.Bidirectional`, is one of
   them: use `direction="bidirectional"`. `Algorithm.BoundGuidedGreedy` is 7.
+- **A composed resource factory cloned through its base is destroyed whole.**
+  `ResourceFactory` had no virtual destructor, while its `clone()` hands out a
+  `ResourceCompositionFactory` as a `std::unique_ptr<ResourceFactory<...>>`: destroying that copy ran
+  the base's destructor alone, so the per-type sub-factories, and the function objects they hold,
+  were never destroyed (undefined behaviour; AddressSanitizer reports a new-delete-type-mismatch).
+  `ResourceFactory`'s destructor is now virtual, and its moves are declared, so that a factory still
+  moves.
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
   A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it

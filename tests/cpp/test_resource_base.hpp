@@ -11,6 +11,7 @@
 #include <limits>
 #include <memory>
 #include <tuple>
+#include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/resource.hpp"
@@ -110,6 +111,52 @@ TEST(ResourceFactory, CompositionFactoryClonedThroughItsBaseKeepsItsSubFactories
     EXPECT_EQ(composed->get_num_resource_type<RealResource>(), 1U);
     EXPECT_EQ(composed->get_num_resource_type<IntResource>(), 1U);
     EXPECT_NE(cloned->create_resource(), nullptr);
+}
+
+namespace {
+/// @brief An addition that counts its live instances, its clones included.
+class LiveCountingAddition : public Clonable<LiveCountingAddition, ExtensionFunction<R>> {
+    public:
+        explicit LiveCountingAddition(std::shared_ptr<int> live) : live_(std::move(live)) {
+            ++*live_;
+        }
+        LiveCountingAddition(const LiveCountingAddition& other) : live_(other.live_) { ++*live_; }
+        LiveCountingAddition(LiveCountingAddition&&) = delete;
+        auto operator=(const LiveCountingAddition&) -> LiveCountingAddition& = delete;
+        auto operator=(LiveCountingAddition&&) -> LiveCountingAddition& = delete;
+        ~LiveCountingAddition() override { --*live_; }
+
+        void extend(const R& resource, const R& extender_value, R* extended_resource) override {
+            extended_resource->set_value(resource.get_value() + extender_value.get_value());
+        }
+
+    private:
+        std::shared_ptr<int> live_;
+};
+}  // namespace
+
+/// @brief A composition factory cloned through its base class is destroyed whole: its per-type
+///        sub-factories, and the function objects they hold, with it.
+///
+/// ResourceFactory had no virtual destructor, so deleting the clone through the base ran the base's
+/// destructor alone: the sub-factories and their extension functions were never destroyed (and
+/// AddressSanitizer reported a new-delete-type-mismatch).
+TEST(ResourceFactory, CompositionFactoryClonedThroughItsBaseIsDestroyedWhole) {
+    auto live = std::make_shared<int>(0);
+    ResourceGraph<RealResource> graph;
+    graph.add_resource<RealResource>(std::make_unique<LiveCountingAddition>(live),
+                                     std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                     std::make_unique<ValueCostFunction<RealResource>>(),
+                                     std::make_unique<ValueDominanceFunction<RealResource>>());
+    using Base = ResourceFactory<ResourceTypeComposition<RealResource>>;
+    const Base& factory = graph.get_resource_factory();
+
+    const int before = *live;
+    {
+        const std::unique_ptr<Base> cloned = factory.clone();
+        EXPECT_GT(*live, before);  // the clone's sub-factory holds its own extension function
+    }
+    EXPECT_EQ(*live, before);
 }
 
 /// @brief A node added to a cloned graph is priced as the same node added to the original.
