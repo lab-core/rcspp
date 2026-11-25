@@ -465,8 +465,9 @@ TEST(SimpleDominanceAlgorithmTest, IncumbentPruneOnASumKeepsTheProof) {
     EXPECT_TRUE(result.proven);
 }
 
-/// @brief The threshold prune needs a valid completion bound: under a floor it refuses to start,
-///        and says which arcs add less than their shares.
+/// @brief The threshold prune needs a valid completion bound: under a floor, which makes the cost
+///        not additive, it refuses to start; under a bottleneck, which the share test catches, it
+///        says which arcs add less than their shares.
 TEST(LabellingStrategiesTest, ThresholdPruneRefusesAFloor) {
     AlgorithmBaseParams params;
     params.prune_by_threshold = true;
@@ -477,8 +478,15 @@ TEST(LabellingStrategiesTest, ThresholdPruneRefusesAFloor) {
         FAIL() << "the threshold prune started under a floor";
     } catch (const std::invalid_argument& error) {
         const std::string message = error.what();
-        EXPECT_NE(message.find("arc 1 -> 2 adds 0.000000 to the cost from its start value, but "
-                               "-8.000000 after arc 0 -> 1"),
+        EXPECT_NE(message.find("prune_by_threshold needs an additive cost"), std::string::npos)
+            << message;
+    }
+    try {
+        (void)make_priced_bottleneck_line()->solve<strategy::Simple>(params);
+        FAIL() << "the threshold prune started under a bottleneck";
+    } catch (const std::invalid_argument& error) {
+        const std::string message = error.what();
+        EXPECT_NE(message.find("prune_by_threshold needs every arc to add at least its share"),
                   std::string::npos)
             << message;
     }
@@ -666,6 +674,63 @@ TEST(CompletionBound, AFloorTheShareTestMissesStillMakesTheCostNotAdditive) {
     EXPECT_FALSE(detail::find_share_shortfall(*g).has_value()) << "the sample misses the floor";
     EXPECT_FALSE(g->get_node(0)->resource->is_cost_additive());
     EXPECT_TRUE(make_floor_graph(std::nullopt)->get_node(0)->resource->is_cost_additive());
+}
+
+/// @brief The threshold prune refuses a floor the share test misses: without the prune the solve
+///        returns the path costing -1, which a bound measured from the start values (-3 at the
+///        middle node) would cut, as its label there costs 4.
+TEST(LabellingStrategiesTest, ThresholdPruneRefusesAFloorTheShareTestMisses) {
+    AlgorithmBaseParams params;
+    EXPECT_DOUBLE_EQ(
+        cheapest_cost(make_hidden_floor_graph()->solve<strategy::Simple>(params,
+                                                                         /*upper_bound=*/0.0,
+                                                                         /*preprocess=*/false)),
+        -1.0);
+    params.prune_by_threshold = true;
+    EXPECT_THROW((void)make_hidden_floor_graph()->solve<strategy::Simple>(params,
+                                                                          /*upper_bound=*/0.0,
+                                                                          /*preprocess=*/false),
+                 std::invalid_argument);
+}
+
+/// @brief With no upper bound, the threshold prune drops a label at a node that reaches no end
+///        node, whatever the tolerance: with a tolerance of 0 the margin is 0, not 0 times
+///        infinity (NaN, under which nothing was dropped).
+TEST(LabellingStrategiesTest, ThresholdPruneWithNoUpperBoundDropsWhatReachesNoEndNode) {
+    // 0 -> 1 -> 3 reaches no end node; 0 -> 2 is the path.
+    auto make_graph = [] {
+        auto g = std::make_unique<ResourceGraph<RealResource>>();
+        g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+        g->add_node(0, /*source=*/true, /*sink=*/false);
+        g->add_node(1, /*source=*/false, /*sink=*/false);
+        g->add_node(2, /*source=*/false, /*sink=*/true);
+        g->add_node(3, /*source=*/false, /*sink=*/false);
+        g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1);
+        g->add_arc<RealResource>(std::make_tuple(1.0), 1, 3);
+        g->add_arc<RealResource>(std::make_tuple(1.0), 0, 2);
+        return g;
+    };
+    const auto extended = [&make_graph](bool pruning, double tolerance) {
+        auto g = make_graph();
+        AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+        params.prune_by_threshold = pruning;
+        params.tolerance = tolerance;
+        auto algorithm = g->create_algorithm<strategy::Simple>(params);
+        const auto result = g->solve(algorithm.get(),
+                                     std::numeric_limits<double>::infinity(),
+                                     /*preprocess=*/false);
+        EXPECT_EQ(result.solutions.size(), 1U);
+        return algorithm->get_number_of_extended_labels();
+    };
+    constexpr double kDefaultTolerance = 1e-9;
+    const size_t unpruned = extended(/*pruning=*/false, kDefaultTolerance);
+    const size_t pruned = extended(/*pruning=*/true, kDefaultTolerance);
+    EXPECT_LT(pruned, unpruned) << "the label at 1 is dropped";
+    EXPECT_EQ(extended(/*pruning=*/true, 0.0), pruned);
+    EXPECT_EQ(extended(/*pruning=*/true, -1.0), pruned);
 }
 
 /// @brief Timeout=0 returns Timeout status.

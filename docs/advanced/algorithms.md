@@ -669,20 +669,23 @@ params.prune_by_threshold = True
 result = rg.solve(upper_bound=0.0, params=params)   # the same columns, fewer labels
 ```
 
-With no upper bound, only labels that reach no end node are dropped. A negative-cost cycle leaves
-no finite bound, and nothing is dropped. A margin of `tolerance` (relative to the upper bound when
-that is large) keeps rounding in the bound from dropping a path that would be returned. The bound
-needs an additive cost: every resource the cost reads has a zero cost (`TrivialCostFunction`) or a
-value cost (`ValueCostFunction`) under an addition. It also needs every arc to add at least its
-share of the cost, whatever the label it extends: the solve runs the extension on the model's
-arcs, and a floor (`AdditionExtensionFunction`'s `min_value`, C++ only), a ceiling or a maximum in
-a priced extension fails. A cost that fails either raises `ValueError` (`std::invalid_argument`)
-when the solve starts.
+With no upper bound, only labels that reach no end node are dropped, whatever the tolerance. A
+negative-cost cycle leaves no finite bound, and nothing is dropped. A margin of `tolerance`
+(relative to the upper bound when that is large; a negative tolerance counts as 0) keeps rounding
+in the bound from dropping a path that would be returned. The bound needs an additive cost: every
+resource the cost reads has a zero cost (`TrivialCostFunction`) or a value cost
+(`ValueCostFunction`) under an addition that does not clamp, so a floor
+(`AdditionExtensionFunction`'s `min_value`, C++ only) is refused. It also needs every arc to add at
+least its share of the cost, whatever the label it extends: the solve runs the extension on pairs
+of the model's arcs, and a floor or a ceiling the extension does not declare (`is_clamped()`), or
+a maximum, in a priced extension fails. Those pairs are a sample, so an extension of your own that
+clamps should say so. A cost that fails either raises `ValueError` (`std::invalid_argument`) when
+the solve starts.
 
 Every labelling search reads it, Greedy and the tabu searches included, in every direction, and
 both halves of a bidirectional search, each against its own end nodes. Unlike `prune_by_incumbent`,
-it compares with the fixed upper bound, not the best path found so far, so it never cuts a path
-the solve would return.
+it compares with the fixed upper bound, not the best path found so far, so on a cost that passes
+these checks it never cuts a path the solve would return.
 
 ## Keeping fewer labels: relaxed and k-best admission
 

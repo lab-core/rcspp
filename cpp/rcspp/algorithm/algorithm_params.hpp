@@ -113,8 +113,9 @@ struct AlgorithmBaseParams {
         /// @c Algorithm::set_graph_unchanged); a margin of `tolerance × max(1, |upper bound|)`
         /// keeps its rounding from dropping a path that would be returned. The returned paths are
         /// those of the solve without it; fewer labels are extended. With no upper bound, only
-        /// labels that reach no end node are dropped; a negative-cost cycle leaves no finite
-        /// bound, and nothing is dropped.
+        /// labels that reach no end node are dropped, whatever the tolerance; a negative-cost
+        /// cycle leaves no finite bound, and nothing is dropped. A negative tolerance counts as 0
+        /// here.
         ///
         /// Compared with @ref prune_by_incumbent: this prune compares with the solve's upper
         /// bound, which does not change, once per label (the take rule's fixed checks), with a
@@ -123,11 +124,14 @@ struct AlgorithmBaseParams {
         /// label this one drops, except within the margin.
         ///
         /// The bound needs an additive cost: every component the cost reads has a zero cost or a
-        /// value cost under an @c Accumulate extension (@c Resource::is_cost_additive). It also
+        /// value cost under an @c Accumulate extension that does not clamp
+        /// (@c Resource::is_cost_additive; @c AdditionExtensionFunction's floor clamps). It also
         /// needs every arc to add at least its share of the cost, whatever the label it extends,
-        /// which the solve tests at the start by running the extension on the model's arcs: a
-        /// floor, a ceiling or a maximum in a priced extension fails it. A cost that fails either
-        /// throws `std::invalid_argument` when the solve starts. Read by every labelling
+        /// which the solve tests at the start by running the extension on pairs of the model's
+        /// arcs: a floor or a ceiling the extension does not declare
+        /// (@c ExtensionFunction::is_clamped), or a maximum, in a priced extension fails it. The
+        /// pairs are a sample, so declare a clamp rather than rely on the test. A cost that fails
+        /// either throws `std::invalid_argument` when the solve starts. Read by every labelling
         /// search, Greedy and the tabu searches included, in every direction, and by both sides of
         /// a bidirectional search, each against its own end nodes.
         bool prune_by_threshold = false;

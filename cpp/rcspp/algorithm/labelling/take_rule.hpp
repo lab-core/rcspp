@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/label/label.hpp"
@@ -142,17 +143,24 @@ struct TakeRule {
         /// Dropping such a label loses no path below the upper bound, the bound being valid (the
         /// solve refuses the prune otherwise, @c Algorithm::require_valid_completion_bound). The
         /// bound is consistent: at each arc, the bound at the tail is at most the arc's share plus
-        /// the bound at the head. So every label extended from it would be out of reach too. And
-        /// every label it evicted at admission cost at least as much at the same node, so it was
-        /// out of reach too. A bound of -infinity (a negative-cost cycle) puts nothing out of
-        /// reach; one of +infinity (no end node reached) puts the label out of reach of any upper
-        /// bound.
+        /// the bound at the head. So every label extended from it would be out of reach too. Under
+        /// the exact admission rule, every label it evicted at admission cost at least as much at
+        /// the same node, so it was out of reach too; under a heuristic rule the solve is not a
+        /// proof anyway. A bound of -infinity (a negative-cost cycle) puts nothing out of reach;
+        /// one of +infinity (no end node reached) puts the label out of reach of any upper bound.
+        ///
+        /// With no finite upper bound, only a label whose bound is +infinity is out of reach: the
+        /// margin is not computed, as the tolerance times infinity would be NaN, or infinite. A
+        /// negative tolerance counts as 0, so the margin never cuts a path below the upper bound.
         [[nodiscard]] static bool is_out_of_reach(const Label<ResourceType>& label,
                                                   const SearchContext<ResourceType>& context) {
-            const double margin =
-                context.params->tolerance * std::max(1.0, std::abs(context.upper_bound));
-            return label.get_cost() + (*context.completion_bound)(label) >=
-                   context.upper_bound + margin;
+            const double bound = (*context.completion_bound)(label);
+            if (!std::isfinite(context.upper_bound)) {
+                return bound == std::numeric_limits<double>::infinity();
+            }
+            const double margin = std::max(0.0, context.params->tolerance) *
+                                  std::max(1.0, std::abs(context.upper_bound));
+            return label.get_cost() + bound >= context.upper_bound + margin;
         }
 };
 
