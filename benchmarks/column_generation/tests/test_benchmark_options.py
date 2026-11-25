@@ -10,6 +10,7 @@ import math
 import re
 import tomllib
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -654,6 +655,48 @@ PARAMETERS: list[tuple[str, str, Callable[[Run], bool]]] = [
 ]
 
 
+def test_the_fleet_and_the_stops_on_the_command_line():
+    arguments = [
+        *("--instance.vehicles", "25"),
+        *("--column_generation.absolute_gap", "0.5"),
+        *("--column_generation.relative_gap", "0.01"),
+        *("--column_generation.cutoff", "190"),
+        *("--column_generation.integer_objective", "true"),
+    ]
+    command_line = options.run_from_arguments(parse(arguments))
+    run = options.expand_run({"instance": "C101_25"}, command_line)
+
+    assert run.instance.vehicles == 25
+    settings = run.column_generation
+    assert (settings.absolute_gap, settings.relative_gap, settings.cutoff) == (0.5, 0.01, 190.0)
+    assert settings.integer_objective is True
+
+
+def test_stops_without_a_fleet_are_accepted_and_named():
+    stops = "column_generation = { relative_gap = 0.01, integer_objective = false }\n"
+    run = expand('[defaults]\ninstance = "C101_25"\n' + stops).runs[0]
+
+    # Accepted: without the fleet row they cannot stop the run, which goes on as without them.
+    assert options.stops_without_fleet(run) == [
+        "column_generation.relative_gap",
+        "column_generation.integer_objective",
+    ]
+
+    with_fleet = replace(run, instance=replace(run.instance, vehicles=25))
+    assert options.stops_without_fleet(with_fleet) == []
+
+
+def test_a_run_with_a_fleet_is_named_after_it():
+    text = (
+        '[[runs]]\ninstance = "C101_25"\n"instance.vehicles" = 25\n'
+        '[[runs]]\ninstance = "C101_25"\n'
+    )
+    names = [run.name for run in expand(text).runs]
+
+    assert names[0].startswith("C101_25-vehicles_25-package-")
+    assert names[1].startswith("C101_25-package-")
+
+
 @pytest.mark.parametrize(("argument", "value", "check"), PARAMETERS)
 def test_every_parameter_has_its_command_line_option(
     argument: str, value: str, check: Callable[[Run], bool]
@@ -829,6 +872,7 @@ def test_a_run_without_a_layer_is_refused():
 
 
 RUN = '[defaults]\ninstance = "C101_25"\n'
+VEHICLES = RUN + '"instance.vehicles" = 25\n'
 
 
 @pytest.mark.parametrize(
@@ -876,6 +920,15 @@ RUN = '[defaults]\ninstance = "C101_25"\n'
         (RUN + "column_generation = { timeout_s = -5 }\n", "timeout_s must be 0 or more"),
         (RUN + "column_generation = { timeout_s = nan }\n", "timeout_s must be 0 or more"),
         (RUN + "integer = { relative_gap = nan }\n", "relative_gap must be 0 or more"),
+        (
+            VEHICLES + "column_generation = { absolute_gap = -1 }\n",
+            "absolute_gap must be 0 or more",
+        ),
+        (VEHICLES + "column_generation = { relative_gap = nan }\n", "relative_gap must be 0 or"),
+        (VEHICLES + "column_generation = { cutoff = nan }\n", "cutoff must be a number"),
+        (VEHICLES + "column_generation = { integer_objective = 1 }\n", "1 is not true or false"),
+        (RUN + '"instance.vehicles" = 0\n', "instance.vehicles must be 1 or more"),
+        (RUN + '"instance.vehicles" = 2.5\n', "2.5 is not a whole number"),
         (RUN + 'layer = ["package"]\n', r"layer \['package'\] is not one of"),
         (RUN + "integer = { solve = 1 }\n", "1 is not true or false"),
         (RUN + "integer = { timeout_s = 0 }\n", "timeout_s must be a positive, finite number"),

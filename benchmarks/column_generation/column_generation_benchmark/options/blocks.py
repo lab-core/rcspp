@@ -114,22 +114,33 @@ class Block:
 
 @dataclass(frozen=True)
 class Instance(Block):
-    """The problem: ``solomon``, a Solomon VRPTW file of the tree's ``instances/``."""
+    """The problem: ``solomon``, a Solomon VRPTW file of the tree's ``instances/``.
+
+    `vehicles` adds the master row "at most that many routes", the pricer's convexity row:
+    the bound the column generation's lower bound needs. None: no such row, any number of
+    routes. As many vehicles as customers or more leaves the LP value as it is, though not
+    always the iterations: the row can be tight at a degenerate LP.
+    """
 
     type: str
     name: str
+    vehicles: int | None = None
 
     TYPES: ClassVar = ("solomon",)
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("type", "name"), "instance", where)
+        only_keys(given, ("type", "name", "vehicles"), "instance", where)
         name = string(given.get("name"), where)
+        vehicles = integer(given.get("vehicles"), where)
 
         if name is None:
             raise OptionsError(f"{where}: instance.name is missing")
 
-        return cls(kind(given, cls.TYPES, "instance", where), name)
+        if vehicles is not None and vehicles < 1:
+            raise OptionsError(f"{where}: instance.vehicles must be 1 or more")
+
+        return cls(kind(given, cls.TYPES, "instance", where), name, vehicles)
 
 
 #: The solver parameters every master solve sets from the layer's own, by solver (Gurobi's
@@ -260,21 +271,39 @@ class ColumnGeneration(Block):
     """The layer's own parameters, None for the layer's default.
 
     `tolerances` is a table with a ``type``, or a name alone, read as the type. `threads`
-    goes to every master solve; 0 lets the solver choose.
+    goes to every master solve; 0 lets the solver choose. `absolute_gap`, `relative_gap`,
+    `cutoff` and `integer_objective` stop the run early on its lower bound.
     """
 
     max_iterations: int | None = None
     timeout_s: float | None = None
     tolerances: dict[str, Any] | None = None
     threads: int | None = None
+    absolute_gap: float | None = None
+    relative_gap: float | None = None
+    cutoff: float | None = None
+    integer_objective: bool | None = None
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        names = ("max_iterations", "timeout_s", "tolerances", "threads")
+        names = (
+            "max_iterations",
+            "timeout_s",
+            "tolerances",
+            "threads",
+            "absolute_gap",
+            "relative_gap",
+            "cutoff",
+            "integer_objective",
+        )
         only_keys(given, names, "column_generation", where)
         max_iterations = integer(given.get("max_iterations"), where)
         timeout_s = number(given.get("timeout_s"), where)
         threads = integer(given.get("threads"), where)
+        absolute_gap = number(given.get("absolute_gap"), where)
+        relative_gap = number(given.get("relative_gap"), where)
+        cutoff = number(given.get("cutoff"), where)
+        integer_objective = boolean(given.get("integer_objective"), where)
 
         if max_iterations is not None and max_iterations < 0:
             raise OptionsError(f"{where}: column_generation.max_iterations must be 0 or more")
@@ -286,6 +315,14 @@ class ColumnGeneration(Block):
         if threads is not None and threads < 0:
             raise OptionsError(f"{where}: column_generation.threads must be 0 or more")
 
+        for name, gap in (("absolute_gap", absolute_gap), ("relative_gap", relative_gap)):
+            if gap is not None and not gap >= 0:
+                raise OptionsError(f"{where}: column_generation.{name} must be 0 or more")
+
+        # Any cost, inf included (no cutoff); not nan.
+        if cutoff is not None and cutoff != cutoff:
+            raise OptionsError(f"{where}: column_generation.cutoff must be a number")
+
         tolerances = given.get("tolerances")
 
         if isinstance(tolerances, str):
@@ -295,7 +332,16 @@ class ColumnGeneration(Block):
             tolerances = table(tolerances, where)
             check_tolerances(tolerances, where)
 
-        return cls(max_iterations, timeout_s, tolerances, threads)
+        return cls(
+            max_iterations,
+            timeout_s,
+            tolerances,
+            threads,
+            absolute_gap,
+            relative_gap,
+            cutoff,
+            integer_objective,
+        )
 
 
 @dataclass(frozen=True)

@@ -104,6 +104,30 @@ class Run:
         return replace(self, name="-".join(parts))
 
 
+def stops_without_fleet(run: Run) -> list[str]:
+    """The column generation stops a run sets without ``instance.vehicles``: without the
+    row that limits the routes, the lower bound stays unknown until the end, so they
+    never stop the run (they change nothing)."""
+    if run.instance.vehicles is not None:
+        return []
+
+    settings = run.column_generation
+    stops = {
+        "absolute_gap": settings.absolute_gap,
+        "relative_gap": settings.relative_gap,
+        "cutoff": settings.cutoff,
+        "integer_objective": settings.integer_objective,
+    }
+    return [f"column_generation.{name}" for name, value in stops.items() if value is not None]
+
+
+#: What a run with :func:`stops_without_fleet` is warned of.
+STOPS_WITHOUT_FLEET = (
+    "without instance.vehicles, the row that limits the routes, the lower bound is unknown "
+    "until the end: these stops cannot stop the run"
+)
+
+
 def name_part(option: str, value: Any, names: Names, instance_type: str) -> str:
     """How an option shows in a run's name.
 
@@ -116,7 +140,7 @@ def name_part(option: str, value: Any, names: Names, instance_type: str) -> str:
         return value
 
     if option == "instance":
-        return value.name
+        return value.name if value.vehicles is None else f"{value.name}-vehicles_{value.vehicles}"
 
     for name, table in names.get(option, {}).items():
         if complete_alone(option, table, instance_type) == value:

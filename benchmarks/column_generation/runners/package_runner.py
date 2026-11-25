@@ -91,6 +91,7 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
         ArtificialColumns,
         ColumnGeneration,
         ColumnGenerationParams,
+        ConvexityRow,
         GraphPricer,
         MasterInitialization,
         MasterProblem,
@@ -105,7 +106,10 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
     master = MasterProblem(make_master_solver(run, *instance.row_bounds()))
     stages = [PricingStage(*make_algorithm_params(stage)) for stage in run.pricing.stages]
     graph_pricer = GraphPricer(graph, stages)
-    pricer = master.add_pricer(graph_pricer)
+    # The fleet row, when the run sets one: the pricer's convexity row.
+    vehicles = run.instance.vehicles
+    convexity = ConvexityRow() if vehicles is None else ConvexityRow(max_paths=float(vehicles))
+    pricer = master.add_pricer(graph_pricer, convexity)
     initialization: MasterInitialization
 
     if run.start.type == "artificial":
@@ -136,6 +140,10 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
     if settings.threads is not None:
         given["relaxation"] = RelaxationParams(threads=settings.threads)
 
+    for name in ("absolute_gap", "relative_gap", "cutoff", "integer_objective"):
+        if getattr(settings, name) is not None:
+            given[name] = getattr(settings, name)
+
     params = ColumnGenerationParams(initialization=initialization, **given)
     return instance, master, ColumnGeneration(master, params)
 
@@ -152,6 +160,7 @@ def solve(loop: ColumnGeneration) -> dict[str, Any]:
     return {
         "status": result.status.name,
         "objective": result.objective,
+        "lower_bound": None if math.isinf(result.lower_bound) else result.lower_bound,
         "iterations": result.iterations,
         "columns": statistics.generated_columns,
         "artificial_columns": statistics.artificial_columns,

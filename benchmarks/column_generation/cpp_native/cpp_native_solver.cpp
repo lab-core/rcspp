@@ -23,7 +23,9 @@
 //   --stage-param NAME VALUE        a field of the last stage's AlgorithmParams; a set as a comma
 //                                   list ("" for none); repeated
 //   --start single-customer|artificial  with --artificial-cost-factor F for artificial
+//   --vehicles N                    the master row "at most N routes" (default: none)
 //   --max-iterations N, --timeout S, --threads N
+//   --absolute-gap G, --relative-gap G, --cutoff C, --integer-objective   the early stops
 //   --tolerances absolute|relative  with --tolerance NAME VALUE (reduced_cost, feasibility,
 //                                   optimality_gap), repeated
 //   --integer                       solve the integer master over the generated columns, with
@@ -189,8 +191,13 @@ struct Options {
         std::string start = "artificial";
         std::optional<double> artificial_cost_factor;
         std::optional<size_t> max_iterations;
+        std::optional<size_t> vehicles;
         std::optional<double> timeout_s;
         std::optional<int> threads;
+        std::optional<double> absolute_gap;
+        std::optional<double> relative_gap;
+        std::optional<double> cutoff;
+        bool integer_objective = false;
         std::optional<std::string> tolerances;
         std::map<std::string, double> tolerance_values;
         bool integer = false;
@@ -285,8 +292,13 @@ Options parse_options(const std::vector<std::string>& arguments) {
         {"--artificial-cost-factor",
          [&] { options.artificial_cost_factor = to_double(flag, value()); }},
         {"--max-iterations", [&] { options.max_iterations = to_count(flag, value()); }},
+        {"--vehicles", [&] { options.vehicles = to_count(flag, value()); }},
         {"--timeout", [&] { options.timeout_s = to_double(flag, value()); }},
         {"--threads", [&] { options.threads = static_cast<int>(to_integer(flag, value())); }},
+        {"--absolute-gap", [&] { options.absolute_gap = to_double(flag, value()); }},
+        {"--relative-gap", [&] { options.relative_gap = to_double(flag, value()); }},
+        {"--cutoff", [&] { options.cutoff = to_double(flag, value()); }},
+        {"--integer-objective", [&] { options.integer_objective = true; }},
         {"--tolerances", [&] { options.tolerances = value(); }},
         {"--tolerance",
          [&] {
@@ -704,6 +716,14 @@ std::string status_name(cg::ColumnGenerationStatus status) {
             return "TimeLimit";
         case cg::ColumnGenerationStatus::IterationLimit:
             return "IterationLimit";
+        case cg::ColumnGenerationStatus::Cutoff:
+            return "Cutoff";
+        case cg::ColumnGenerationStatus::AbsoluteGapLimit:
+            return "AbsoluteGapLimit";
+        case cg::ColumnGenerationStatus::RelativeGapLimit:
+            return "RelativeGapLimit";
+        case cg::ColumnGenerationStatus::IntegerObjectiveGap:
+            return "IntegerObjectiveGap";
         case cg::ColumnGenerationStatus::SolverError:
             return "SolverError";
     }
@@ -751,7 +771,12 @@ struct Model {
                 stages.push_back(make_stage(stage));
             }
             pricer.emplace(graph, cg::PricingStrategy<RealResource>(std::move(stages)));
-            const size_t index = problem.add_pricer(*pricer);
+            // The fleet row, when the run sets one: the pricer's convexity row.
+            cg::ConvexityRow convexity;
+            if (options.vehicles.has_value()) {
+                convexity.max_paths = static_cast<double>(*options.vehicles);
+            }
+            const size_t index = problem.add_pricer(*pricer, convexity);
 
             cg::ColumnGenerationParams params;
             if (options.start == "artificial") {
@@ -779,6 +804,10 @@ struct Model {
             if (options.threads.has_value()) {
                 params.relaxation.threads = *options.threads;
             }
+            params.absolute_gap = options.absolute_gap.value_or(params.absolute_gap);
+            params.relative_gap = options.relative_gap.value_or(params.relative_gap);
+            params.cutoff = options.cutoff.value_or(params.cutoff);
+            params.integer_objective = options.integer_objective;
             loop.emplace(problem, params);
         }
 
@@ -1020,6 +1049,7 @@ std::string run(const Options& options) {
     JsonObject fields;
     fields.add("status", json_string(status))
         .add("objective", json_number(result.objective))
+        .add("lower_bound", json_number(result.lower_bound))
         .add("iterations", std::to_string(result.iterations))
         .add("columns", std::to_string(statistics.generated_columns))
         .add("artificial_columns", std::to_string(statistics.artificial_columns))

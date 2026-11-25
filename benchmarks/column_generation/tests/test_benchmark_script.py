@@ -120,6 +120,22 @@ def status_lines(tmp_path: Path) -> list[str]:
 # MARK: Order
 
 
+def test_stops_without_a_fleet_are_warned_of_once(
+    build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    text = (
+        TWO_RUNS
+        + "[defaults]\ncolumn_generation = { relative_gap = 0.01, integer_objective = false }\n"
+    )
+
+    assert run(build, tmp_path, text, "--check", "options") == 0
+    warnings = [line for line in capsys.readouterr().err.splitlines() if "warning" in line]
+
+    assert len(warnings) == 1
+    assert warnings[0].startswith("warning: 2 runs set a column generation stop (C101_5-")
+    assert "these stops cannot stop the run" in warnings[0]
+
+
 @pytest.mark.usefixtures("fake")
 def test_runs_go_round_after_round(build: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     assert run(build, tmp_path, "[benchmark]\nrepeats = 2\n" + TWO_RUNS) == 0

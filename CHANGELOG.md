@@ -350,8 +350,10 @@ New features are summarised, with a pointer to where they are documented.
   is the best of the run. `ColumnGenerationParams` stops a run on `cutoff`, `absolute_gap`,
   `relative_gap` or `integer_objective`, all off by default, each with its own status (`Cutoff`,
   `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`). The C++ column generation
-  example has the same, in C++ and through its bindings. See "The lower bound and early stops" in
-  `docs/advanced/column-generation.md`.
+  example has the same, in C++ and through its bindings. The column generation benchmark takes the
+  four as `column_generation` options, with `instance.vehicles`, the row limiting the routes that
+  the bound needs, and records `lower_bound` in `result.json`. See "The lower bound and early
+  stops" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 
