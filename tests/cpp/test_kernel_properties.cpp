@@ -352,6 +352,117 @@ TEST(KernelProperties, TheHeuristicsSearchBackward) {
     }
 }
 
+namespace kernel_properties {
+
+/// @brief Three solves of @p c on one @p Strategy object with @p params, each under the previous
+///        best cost + 5 (none for the first); expects every returned path to replay.
+template <typename Strategy>
+std::vector<rcspp::SolveResult> three_solves(const parity::Case& c,
+                                             const rcspp::AlgorithmParams<List>& params) {
+    auto graph = c.build();
+    auto algorithm = graph->template create_algorithm<Strategy>(params);
+    std::vector<rcspp::SolveResult> runs;
+    double upper_bound = parity::kInf;
+    for (size_t k = 0; k < 3; ++k) {
+        runs.push_back(graph->solve(algorithm.get(), upper_bound, /*preprocess=*/false));
+        for (const auto& solution : runs.back().solutions) {
+            EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "")
+                << c.name << ", solve " << k;
+        }
+        if (!runs.back().solutions.empty()) {
+            upper_bound = runs.back().solutions.front().cost + 5.0;
+        }
+    }
+    return runs;
+}
+
+/// @brief Whether two solves ended alike: the same status, and the same solutions in the same
+///        order, to the bit.
+inline bool same_result(const rcspp::SolveResult& a, const rcspp::SolveResult& b) {
+    if (a.status != b.status || a.solutions.size() != b.solutions.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.solutions.size(); ++i) {
+        if (a.solutions[i].path_arc_ids != b.solutions[i].path_arc_ids ||
+            parity::bits(a.solutions[i].cost) != parity::bits(b.solutions[i].cost)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// @brief Runs @ref three_solves of @p c with @p Strategy and @p params (the noise on), twice on
+///        new objects and once with the noise off. Expects no path cheaper than @p optimum's and
+///        the second run to repeat the first; counts in @p noise_changed the solves the noise
+///        changed.
+template <typename Strategy>
+void check_with_noise(const parity::Case& c, rcspp::AlgorithmParams<List> params,
+                      const Outcome& optimum, const std::string& where, size_t& noise_changed) {
+    const auto runs = three_solves<Strategy>(c, params);
+    const auto again = three_solves<Strategy>(c, params);
+    params.tabu_random_noise = false;
+    const auto quiet = three_solves<Strategy>(c, params);
+    for (size_t k = 0; k < runs.size(); ++k) {
+        const auto& result = runs[k];
+        const std::string at = where + ", solve " + std::to_string(k);
+        if (!result.solutions.empty()) {
+            ASSERT_FALSE(optimum.solutions.empty()) << at;
+            EXPECT_GE(result.solutions.front().cost, optimum.solutions.front().cost - 1e-6) << at;
+        }
+        EXPECT_TRUE(same_result(result, again[k])) << at << ": the same seed gave another result";
+        if (!same_result(result, quiet[k])) {
+            ++noise_changed;
+        }
+    }
+}
+
+}  // namespace kernel_properties
+
+/// @brief With the tabu tenure's noise on (seed 3), Tabu and Improving Tabu, forward and backward,
+///        and Diversification, each solving three times on one object, labels kept and released:
+///        every path replays, none is cheaper than the optimum, a second object with the same
+///        seed returns the same, and the noise changes some result.
+///
+/// The golden rows turn the noise off, since each standard library draws differently, so they
+/// cannot record what it does; this test checks what holds whatever is drawn.
+TEST(KernelProperties, TheTabuSearchesWithTheTenuresNoiseOn) {
+    namespace kp = kernel_properties;
+    namespace strategy = rcspp::strategy;
+    const auto reference = kp::rows().front();
+    size_t noise_changed = 0;
+    for (const auto& c : kp::property_cases()) {
+        const auto optimum = reference.solve(c);
+        for (const bool release : {false, true}) {
+            rcspp::AlgorithmParams<kp::List> params;
+            params.max_iterations = 20;
+            params.tabu_random_noise = true;
+            params.seed = 3;
+            params.release_after_solve = release;
+            const std::string where = c.name + (release ? ", released" : ", kept");
+            kp::check_with_noise<strategy::Diversification<>>(c,
+                                                              params,
+                                                              optimum,
+                                                              where + ", diversification",
+                                                              noise_changed);
+            for (const auto direction : {SearchDirection::Forward, SearchDirection::Backward}) {
+                params.direction = direction;
+                const std::string at = where + ", " + std::string(rcspp::to_string(direction));
+                kp::check_with_noise<strategy::Tabu>(c,
+                                                     params,
+                                                     optimum,
+                                                     at + " tabu",
+                                                     noise_changed);
+                kp::check_with_noise<strategy::ImprovingTabu>(c,
+                                                              params,
+                                                              optimum,
+                                                              at + " improving tabu",
+                                                              noise_changed);
+            }
+        }
+    }
+    EXPECT_GT(noise_changed, 0U) << "the noise never changed a result";
+}
+
 /// @brief A hard mask leaves its arcs out of every search, as if they were removed from the
 ///        graph: every exact search, and Greedy with no budget, returns the optimum of the graph
 ///        without them, along paths that use none of them and replay on the whole graph.
