@@ -734,6 +734,24 @@ TEST(DepthFirstSchedule, ReleasesTheChildrenTheFilterDrops) {
               (std::vector<std::pair<size_t, double>>{{1, 0.5}, {1, 1.5}}));
 }
 
+/// @brief A dropped child is erased from its node, unless a sibling's admission already evicted
+///        it (it is dominated, and no longer there): that one is only released.
+TEST(DepthFirstSchedule, ErasesOnlyTheDroppedChildrenStillAtTheirNode) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    parts::DepthFirstSchedule<dfs_test::Composed, parts::CostKey, dfs_test::DropsTheDear> dfs;
+    dfs.initialize(f.context);
+    dfs.push(f.label(1, 2.0, /*dominated=*/true));
+    dfs.push(f.label(1, 1.5));
+    dfs.push(f.label(1, 4.0));
+    size_t erased = 0;
+    dfs.place_children(f.context, [&erased](const auto& /*position*/) { ++erased; });
+    EXPECT_EQ(erased, 1U) << "the label at 4 is erased; the dominated one at 2 is not";
+    EXPECT_EQ(f.in_use(), 1U) << "both dropped children are released";
+    EXPECT_EQ(bft::drain(&dfs, f.context), (std::vector<std::pair<size_t, double>>{{1, 1.5}}));
+}
+
 /// @brief Over the quota a label is stored aside until the next phase, or, on a bidirectional
 ///        side, counted and dropped; a dominated one is released.
 TEST(DepthFirstSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {

@@ -11,6 +11,7 @@
 
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -491,6 +492,78 @@ TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     params.tabu_exempt_node_ids = {0U, 3U};  // source and sink
     const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_FALSE(result.solutions.empty());
+}
+
+namespace {
+
+/// @brief A graph with one source, one sink and one value resource: @p arcs, each as (origin,
+///        destination, cost), over nodes 0 to @p number_of_nodes - 1, the source 0 and the sink
+///        the last.
+std::unique_ptr<ResourceGraph<RealResource>> make_graph(
+    size_t number_of_nodes, const std::vector<std::tuple<size_t, size_t, double>>& arcs) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t id = 0; id < number_of_nodes; ++id) {
+        g->add_node(id, /*source=*/id == 0, /*sink=*/id + 1 == number_of_nodes);
+    }
+    for (const auto& [origin, destination, cost] : arcs) {
+        g->add_arc<RealResource>(std::make_tuple(cost), origin, destination);
+    }
+    return g;
+}
+
+}  // namespace
+
+// ============================================================================
+// A dive that keeps its labels at the nodes
+// ============================================================================
+
+namespace {
+
+/// @brief Drops every child that costs 2 or more.
+template <typename ResourceType>
+struct DropsTheDearChildren {
+        void select(std::vector<parts::StoredLabel<ResourceType>>& children,
+                    std::vector<parts::StoredLabel<ResourceType>>& rejected,
+                    const detail::SearchContext<ResourceType>& /*context*/) const {
+            constexpr double kDear = 2.0;
+            for (const auto& child : children) {
+                if (child.label->get_cost() >= kDear) {
+                    rejected.push_back(child);
+                }
+            }
+            std::erase_if(children,
+                          [](const auto& child) { return child.label->get_cost() >= kDear; });
+        }
+};
+
+/// @brief A depth-first search with the default admission (dominance) and retention (every label
+///        kept at its node), and a filter on the children.
+struct DiveKeepingItsLabels {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DepthFirstSchedule<ResourceType, parts::CostKey,
+                                                   DropsTheDearChildren<ResourceType>>;
+};
+
+}  // namespace
+
+/// @brief A child the filter drops after a sibling evicted it is released, not erased again.
+///
+/// Two parallel arcs lead from the source to node 1: the first costs 5, the second 1. The second
+/// child dominates the first, whose admission evicts it from node 1, and the filter then drops
+/// the first child. Erasing it from node 1 a second time was undefined behaviour.
+TEST(DepthFirstScheduleTest, ADroppedChildThatASiblingEvictedIsNotErasedAgain) {
+    constexpr double kDearArc = 5.0;
+    constexpr double kCheapArc = 1.0;
+    constexpr double kLastArc = -3.0;
+    auto g = make_graph(3, {{0, 1, kDearArc}, {0, 1, kCheapArc}, {1, 2, kLastArc}});
+    const auto result = g->solve<DiveKeepingItsLabels>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kCheapArc + kLastArc, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 // ============================================================================

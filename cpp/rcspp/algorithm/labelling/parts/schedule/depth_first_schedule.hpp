@@ -98,8 +98,9 @@ class DepthFirstSchedule {
         ///
         /// The search stored every child at its node before this runs, so a dropped child must
         /// be erased there too, or a retention that stores labels would keep a released label. A
-        /// dropped child was admitted first, so labels it dominated at its node were evicted and
-        /// stay evicted.
+        /// dropped child that a later sibling's admission has already evicted (dominated) is no
+        /// longer at its node, so it is released without being erased again. A dropped child was
+        /// admitted first, so labels it dominated at its node were evicted and stay evicted.
         ///
         /// @param erase Callable `(const LabelIterator&)` erasing a label from its node.
         template <typename EraseCallable>
@@ -108,7 +109,9 @@ class DepthFirstSchedule {
             rejected_.clear();
             filter_.select(children_, rejected_, context);
             for (const auto& stored : rejected_) {
-                erase(stored.position);
+                if (!stored.label->dominated) {
+                    erase(stored.position);
+                }
                 context.pool->release_with_ref_count(stored.label);
             }
             const KeyType key{};
