@@ -317,7 +317,19 @@ example layer and the benchmark's options, complete on its own (`D-308`, unfreez
 Python loop goes (`D-309`); `T-2.3` designed in full (bound, gap, cutoff, integer objective, statuses `GapLimit` and
 `Cutoff`, four commits; `D-312`'s tolerance details proposed, settled at commit 2); the others' open questions listed
 (`T-2.5` ready after `T-2.3`; `T-2.1`, `T-2.2`, `T-2.4` need their own design chats; `T-2.2` raises `D-16`).
-**Next:** `T-2.3`'s code, branch `feature/column-generation-lagrangian-bound` from #114 `71c13451` in `../rcspp-dev`.
+`T-2.3` done 2026-11-25 (`D-271`: code and local review): branch `feature/column-generation-lagrangian-bound` from #114
+`71c13451` in `../rcspp-dev`, four commits `f8d5b605` (the example's Python loop removed, `D-309`), `b6d4bede` (the
+package), `837594ff` (the C++ example layer), `26b67ed2` (the benchmark); pushed, PR #124 (base #114's branch, assigned
+to the user, opened 2026-11-25). As built: `phase-2-design.md` §2.6 (one status per stop `D-314`, details `D-312`,
+`D-315`, the benchmark's fleet row `instance.vehicles` `D-316`, `F-107`, stops accepted with a warning without it
+`D-317`). Tests: package 683, ctest 868, the example's Python 110 (2 skipped), benchmark 436; pre-commit and pyright
+clean. Done-when checked by hand (C101_25, R201_25, §2.6). The benchmark writes `lower_bound` in `result.json` (not
+`solution.json`). PR description written with the user (no plan IDs). New test build `../rcspp-dev/build` (VS 18,
+Release, Python, tests, the example with HiGHS and Gurobi): the package's tests find `_core` only in `build/`; stale
+`__pycache__` from the move to `C:\dev\` broke a warning-path test (cleared). `git stash` is shared by the worktrees and
+holds an old unrelated entry (`dc946fe1`): do not pop it. `T-1.31` (parallel) also edits the benchmark's option blocks:
+expect a conflict in `options/blocks.py` and `OPTIONS.md` when the two meet. **Next:** the user commits these plan docs;
+CI and review on #124; then `T-2.5` on the main line (`D-307`; its open points in `phase-2-design.md` §3).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks

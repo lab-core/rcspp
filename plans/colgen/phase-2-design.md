@@ -97,11 +97,40 @@ base #114's branch.
   `integer_objective` and `cutoff` with `ceil`; defaults change nothing (iterations and LP equal to today's).
 - The three layers: equal `lower_bound` per iteration on C101_25 (the benchmark's layers test, `D-237`'s rule).
 
+### 2.6 As built (2026-11-25)
+
+| item | as designed (§2.1-2.5) | as built |
+|---|---|---|
+| statuses | `GapLimit`, `Cutoff` | `Cutoff`, `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`, checked in that order (`D-314`) |
+| stop details | `D-312` proposed | as proposed (`D-312` accepted) |
+| a pricer's best | `min_reduced_cost_bound` | capped by the best column it returned (`D-315`) |
+| `U_k` | read each iteration | read once per run and after an `on_converged` restart (highspy copies its model) (`D-315`) |
+| a restart | not designed | resets the best bound (`D-315`) |
+| gaps | not designed | negative or NaN refused (`ValueError`; `std::invalid_argument`) (`D-315`) |
+| `Infeasible` run | `-inf` | the artificial LP's value, a valid bound (`D-315`) |
+| benchmark output | `solution.json`'s `lower_bound` | `result.json`'s `lower_bound`, null when unknown; the summary shows it |
+| benchmark model | unchanged | `instance.vehicles` (`D-316`): no fleet row before, so the bound was `-inf` until the proof (`F-107`); without it the stops are accepted, with a warning (`D-317`) |
+| `cpp-native` | its flags | `--absolute-gap`, `--relative-gap`, `--cutoff`, `--integer-objective`, `--vehicles`; its own status names needed the new statuses |
+
+| # | commit | size |
+|---|---|---|
+| 1 | `f8d5b605` the example's Python loop removed | +5 / -354 |
+| 2 | `b6d4bede` the package | +503 / -15 |
+| 3 | `837594ff` the C++ example layer (`tests/cpp/test_column_generation_bound.hpp`, 14 tests) | +666 / -15 |
+| 4 | `26b67ed2` the benchmark | +330 / -17 |
+
+Done-when, by hand through the hooks (the runners' `build()`, a throwaway script): C101_25 (21 iterations) and
+R201_25 (19) with 25 vehicles, package (highspy) and `cpp-bindings` (highs): a finite bound at every iteration, none
+above its LP or the optimum, the last equal to the LP. `cpp-native`: the benchmark's cross-layer test (C101_25, 5 %
+relative gap, the example's HiGHS layers at the same iteration and bound). C101_10 with 10 vehicles: 10 iterations
+against 14 without the row (the row tight at a degenerate LP), 8 at a 5 % relative gap in the three layers, bound 56.544
+for an LP of 58.326.
+
 ## 3. Open questions of the other tasks (each for its own design chat)
 
 | task | ready? | open |
 |---|---|---|
-| `T-2.5` statistics | ready after `T-2.3` | which candidates ship and each one's switch and cost; `IterationInfo` grows or a record type; the benchmark's per-iteration file (`D-239`) |
+| `T-2.5` statistics | ready (`T-2.3` done) | which candidates ship and each one's switch and cost; `IterationInfo` grows or a record type; the benchmark's per-iteration file (`D-239`) |
 | `T-2.1` budget, schedule | no | where the schedule sits (stages inside `GraphPricer` today, the loop's `for` over pricers); the `Pricer` contract; a per-solve stop from Python (missing); a graph per thread (`F-06`); a deterministic mode; a read of #49's `pricing_budget.hpp` (open PR, `feature/pricing-budget`) |
 | `T-2.2` pool, removal | no | a column delete in `MasterSolver` (self-test, highspy, gurobipy, the C++ masters) and the column records in step; artificial columns protected (`D-29`); the pool's form: core `SolutionPool` or Python; pricing stored columns is a sparse product: **`D-16` for the user** (numpy, `scipy.sparse`, C++ CSR); its "done when" names the retired baseline file |
 | `T-2.4` stabilization | no | after `T-2.3` and `T-2.1`'s proof rule: where the component plugs in (the duals before pricing), mispricing with a heuristic first stage, proof only at the LP's own duals, `LB` at the true duals (`D-25`) |
