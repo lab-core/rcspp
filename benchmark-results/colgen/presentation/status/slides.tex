@@ -70,25 +70,26 @@
   The package ships, the C++ layer is an example beside it. Last week: the benchmark's design, and the list of
   tasks it would serve.
 
-  \vspace{0.4em}
-  \small
-  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.38\textwidth}>{\raggedright\arraybackslash}p{0.08\textwidth}
-      >{\raggedright\arraybackslash}p{0.46\textwidth}@{}}
+  \vspace{0.2em}
+  \footnotesize
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.44\textwidth}>{\raggedright\arraybackslash}p{0.07\textwidth}
+      >{\raggedright\arraybackslash}p{0.43\textwidth}@{}}
     \toprule
     task & status & what came of it \\
     \midrule
-    the benchmark: runners, benchmark, summary & \done & three runners, a comparison script, in review \\
-    Python VRP example on the package & \done & same LP, never slower; in review \\
+    the benchmark: runners, benchmark, summary & \done & two runners, a comparison script \\
+    Python VRP example on the package & \done & same LP, never slower \\
     C++ VRP example on the C++ example layer & \done & same LP, never slower; the \texttt{cpp-native} runner \\
-    many cheap iterations & \done & 399 runs on the quiet machine: the three layers equal \\
-    every feature and option, ng-routes included & \done & what Python and the benchmark lack (slide 8) \\
+    many cheap iterations & \done & 399 runs on the quiet machine (slide 7) \\
+    every feature and option & \done & what Python and the benchmark lack (slide 8) \\
+    several vehicle types & \done & an example, one graph per type  \\
     \bottomrule
   \end{tabular}
 
   \begin{itemize}\footnotesize
     \item Every number in this talk comes from the benchmark or from scripts kept next to its results.
     \item A home server now runs the long measurements (next slide).
-    \item Your kernel stack (\#62--\#75) is on \texttt{main}: the column generation stack moves onto it.
+    \item Rebased onto your kernel stack (\#62--\#75): 91 cases again, the \textbf{same results}, 2\,\% faster.
   \end{itemize}
 \end{frame}
 
@@ -119,8 +120,7 @@
 
   \vspace{0.6em}
   \begin{block}{A quiet machine for timings}
-    \small An old laptop at home, idle, one run at a time. Run-to-run spread \textbf{1--3\,\%}, against 2--13\,\%
-    on my desktop (up to 126\,\% on a bad case). It is slower, but it is the timing reference now.
+    \small An old laptop at home, idle, one run at a time. Run-to-run spread \textbf{1--3\,\%}). It is slow but consistent, and is the timing reference now.
   \end{block}
 \end{frame}
 
@@ -194,8 +194,8 @@
       \vspace{0.3em}
       \textbf{The layers' own work}
       \begin{itemize}\small
-        \item Python: the package is \textbf{3--7 times cheaper per column} than the old example (no
-          dictionaries of duals, no path objects)
+        \item Python: the package's own work is \textbf{6--12\,\textmu s a column}, against 18--47\,\textmu s in
+          the old example (no dictionaries of duals, no path objects)
         \item C++: adding columns is the one slower part, and grows with the master (C201: 15 against 1.3\,\textmu s
           a column)
       \end{itemize}
@@ -214,40 +214,32 @@
 \end{frame}
 
 %--------------------------------------------------------------
-\begin{frame}{The three layers, with many cheap iterations}
-  \begin{columns}[T]
-    \begin{column}{0.5\textwidth}
-      \begin{tikzpicture}
-        \begin{semilogxaxis}[
-            width=\linewidth, height=5.6cm,
-            xlabel={C++ from Python: ms per iteration},
-            ylabel={pure Python: extra, \% of an iteration},
-            xmin=1, xmax=300, ymin=-5, ymax=80,
-            tick label style={font=\scriptsize}, label style={font=\scriptsize},
-            legend style={font=\scriptsize, at={(0.97,0.97)}, anchor=north east},
-          ]
-          \addplot[only marks, mark=*, mark size=1.8pt, GLOrange] table[x=bindings_ms, y=extra_percent]
-            {highspy.dat};
-          \addlegendentry{highspy}
-          \addplot[only marks, mark=square*, mark size=1.6pt, GLBlue] table[x=bindings_ms, y=extra_percent]
-            {gurobipy.dat};
-          \addlegendentry{gurobipy}
-          \addplot[GLGray, dashed, domain=1:300] {5};
-        \end{semilogxaxis}
-      \end{tikzpicture}
-    \end{column}
-    \begin{column}{0.46\textwidth}
-      \small Home server, 16 instances (25, 50, 100 customers), exact pricing, 3 rounds: 336 runs (and 63 more
-      with tabu stages, same conclusions).
-      \begin{itemize}\small
-        \item the three layers give the \textbf{same results} everywhere (one Gurobi path apart)
-        \item pure Python against C++ from Python: \textbf{the rule passes on every case}
-        \item per iteration it costs about \textbf{1--2.5 ms more over highspy}, 0.2--1.6 ms over gurobipy
-          (iterations under 100 ms)
-        \item above 5\,\% (dashed line) only when an iteration takes less than about 30 ms
-      \end{itemize}
-    \end{column}
-  \end{columns}
+\begin{frame}{What pure Python costs}
+  \small Home server, 16 instances (25, 50, 100 customers), exact pricing, 3 rounds. Pure Python against C++ from
+  Python, same master: the \textbf{same results} everywhere (one Gurobi path apart).
+
+  \vspace{0.5em}
+  \centering
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    master & extra per iteration & share of the solve time & extra per run \\
+    \midrule
+    highspy & \textbf{1.9 ms} (1.1--7.8) & \textbf{10\,\%} (2--77) & \textbf{0.05 s} (at most 0.63) \\
+    gurobipy & \textbf{0.6 ms} ($-0.1$--2.4) & \textbf{3\,\%} (0--23) & \textbf{0.01 s} (at most 0.19) \\
+    \bottomrule
+  \end{tabular}
+
+  \scriptsize Medians over the 16 instances, ranges in brackets.
+
+  \vspace{0.5em}
+  \raggedright
+  \begin{itemize}\small
+    \item \textbf{Small today}: the large shares are on tiny runs (77\,\% is 8 ms of a 0.01 s run).
+    \item \textbf{It grows with the iterations}: about 2 s per 1,000 iterations over highspy.
+    \item \textbf{And with the master}: C102\_50, the largest master here, costs 7.8 ms more an iteration over
+      highspy.
+    \item So it matters for long runs, as in branch-and-price.
+  \end{itemize}
 \end{frame}
 
 %--------------------------------------------------------------
@@ -272,7 +264,8 @@
         \item \textbf{ng-routes}: \texttt{graph.ng\_size = 8} is refused; ng runs were by hand
         \item \textbf{Label buckets}: \texttt{bucket\_width} in a stage is refused
         \item \textbf{Preprocessing}: always on
-        \item \textbf{Tabu without \texttt{max\_iterations}}: fails only at run time
+        \item \textbf{Tabu without \texttt{max\_iterations}}, \textbf{greedy or tabu backward}: fail only at run
+          time
       \end{itemize}
       \scriptsize One task, before the test of everything together.
     \end{column}
@@ -283,46 +276,90 @@
 \end{frame}
 
 %--------------------------------------------------------------
-\begin{frame}{Next tasks}
+\begin{frame}{Where to go next}
   \centering
   \begin{tikzpicture}[
-      task/.style={box, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt},
-      wait/.style={later, font=\scriptsize, text width=3.3cm, minimum height=2.3em, inner sep=3pt}]
-    \node[task] (inventory) at (0, 0) {\textbf{benchmark options}: ng-routes, buckets, preprocessing};
-    \node[task] (periteration) at (0, -1.15) {\textbf{per-iteration data}: duals, bound, time split};
-    \node[task] (types) at (0, -2.3) {\textbf{several vehicle types}: one graph each};
-    \node[wait] (alltest) at (4.4, 0) {test of everything together (ng-routes included); presets, with you};
-    \node[wait] (replay) at (4.4, -1.15) {pricing replayed on one dual sequence};
-    \node[wait] (analysis) at (8.8, -1.15) {analysis tool: comparisons, plots, replays};
-    \node[wait] (order) at (4.4, -2.3) {order of several pricers; parallel pricers};
-    \node[wait] (cluster) at (8.8, 0) {the benchmark in CI, regression runs, Compute Canada};
-    \draw[flow] (inventory) -- (alltest);
-    \draw[flow] (periteration) -- (replay);
-    \draw[flow] (replay) -- (analysis);
-    \draw[flow] (types) -- (order);
-    \node[wait] (profiling) at (0, -3.6) {profiling pass on the package};
-    \node[wait] (docs) at (4.4, -3.6) {docs and theory pages, after the merges};
-    \node[wait] (bound) at (8.8, -3.6) {Lagrangian bound, then stabilization; column pool and removal; budgets};
+      card/.style={box, font=\scriptsize, minimum height=1.35em, inner sep=1.8pt, anchor=north},
+      next/.style={card, line width=1.1pt, fill=GLBlue!14},
+      idea/.style={later, font=\scriptsize, minimum height=1.35em, inner sep=1.8pt, anchor=north},
+      head/.style={font=\small\bfseries, text=GLBlue, anchor=south},
+      tag/.style={font=\tiny\bfseries, text=GLBlue, anchor=east}]
+    % The benchmark
+    \begin{scope}[card/.append style={text width=6.3cm}, idea/.append style={text width=6.3cm}]
+      \node[head] at (0, 0.1) {The benchmark};
+      \node[next] (b1) at (0, 0) {\textbf{Options}: ng-routes, buckets, preprocessing};
+      \node[next] (b2) at ([yshift=-1mm]b1.south) {\textbf{Per-iteration data}: duals, bound, time split};
+      \node[card] (b3) at ([yshift=-1mm]b2.south) {Pricing replay on one dual sequence};
+      \node[card] (b4) at ([yshift=-1mm]b3.south) {Analysis tool and plots};
+      \node[card] (b5) at ([yshift=-1mm]b4.south) {Presets};
+      \node[card] (b6) at ([yshift=-1mm]b5.south) {Test of everything together};
+      \node[idea] (b7) at ([yshift=-2.5mm]b6.south) {A proper environment (Compute Canada, \ldots)};
+      \node[idea] (b8) at ([yshift=-1mm]b7.south) {Regression tests};
+      \node[idea] (b9) at ([yshift=-1mm]b8.south) {Other solvers and instances};
+    \end{scope}
+    \node[tag] at ([xshift=-1mm]b1.west) {next};
+    \node[tag] at ([xshift=-1mm]b2.west) {next};
+    % Column generation features
+    \begin{scope}[card/.append style={text width=3.6cm}]
+      \node[head] at (5.4, 0.1) {Column generation features};
+      \node[card] (c1) at (5.4, 0) {Lagrangian bound, stop on gap};
+      \node[card] (c2) at ([yshift=-1mm]c1.south) {Stabilization};
+      \node[card] (c3) at ([yshift=-1mm]c2.south) {Column pool and removal};
+      \node[card] (c4) at ([yshift=-1mm]c3.south) {Pricing budget, pricer order};
+      \node[card] (c5) at ([yshift=-1mm]c4.south) {Parallel pricers};
+    \end{scope}
+    % Performance
+    \begin{scope}[card/.append style={text width=2.6cm}]
+      \node[head] at (9.0, 0.1) {Performance};
+      \node[card] (p1) at (9.0, 0) {Profiling pass};
+    \end{scope}
   \end{tikzpicture}
 
-  \vspace{0.4em}
-  \footnotesize
-  \textcolor{GLBlue}{\textbf{Solid}}: next. \textcolor{GLGray}{Dashed}: waits. Where methods differ (pool, stabilization,
-  budgets, pricer order), they come as components you pass in, like masters and pricers. Branch-and-price (ours or in
-  SCIP) and SoPlex: kept possible, not planned.
+  \vspace{0.2em}
+  \raggedright\scriptsize
+  Solid: planned, \textbf{next} in bold. \textcolor{GLGray}{Dashed}: not planned yet. Pool, stabilization, budgets,
+  pricer order: components you pass in, like masters and pricers.
 \end{frame}
 
 %--------------------------------------------------------------
 \begin{frame}{Questions for you}
-  \begin{itemize}\small
-    \item \textbf{Direction}: which matters first: performance, several vehicle types, branch-and-price?
-    \item \textbf{Instances}: which match your work? Their size decides whether 1--2 ms an iteration matters.
-    \item \textbf{Presets}: which pricing setups should the benchmark ship?
+  \begin{itemize}
+    \item \textbf{Direction}: which comes first: the benchmark, column generation features, or performance?
+    \item \textbf{More realistic tests}: should we make them, and how?
+      \begin{itemize}\small
+        \item which instances match your work
+        \item which pricing setups the benchmark should ship as presets
+        \item which other solvers to compare against, and where to run it all
+      \end{itemize}
   \end{itemize}
 \end{frame}
 
 %--------------------------------------------------------------
 \appendix
+
+\begin{frame}{Backup: pure Python's extra time against the iteration's}
+  \centering
+  \begin{tikzpicture}
+    \begin{semilogxaxis}[
+        width=0.7\linewidth, height=5.6cm,
+        xlabel={C++ from Python: ms per iteration},
+        ylabel={pure Python: extra, \% of an iteration},
+        xmin=1, xmax=300, ymin=-5, ymax=80,
+        tick label style={font=\scriptsize}, label style={font=\scriptsize},
+        legend style={font=\scriptsize, at={(0.97,0.97)}, anchor=north east},
+      ]
+      \addplot[only marks, mark=*, mark size=1.8pt, GLOrange] table[x=bindings_ms, y=extra_percent]
+        {highspy.dat};
+      \addlegendentry{highspy}
+      \addplot[only marks, mark=square*, mark size=1.6pt, GLBlue] table[x=bindings_ms, y=extra_percent]
+        {gurobipy.dat};
+      \addlegendentry{gurobipy}
+      \addplot[GLGray, dashed, domain=1:300] {5};
+    \end{semilogxaxis}
+  \end{tikzpicture}
+
+  \footnotesize Above 5\,\% (dashed) only when an iteration takes less than about 30 ms.
+\end{frame}
 
 \begin{frame}{Backup: the three layers, every case}
   \tiny Pure Python's extra time per iteration against C++ from Python, same master, same iterations.
