@@ -312,6 +312,12 @@ and stored analyses (`T-1.23`); parallel pricing folded into `T-2.1`'s design, g
 folded); El Hallaoui's work in `prior-art.md`. **Order (`D-307`): phase 2 first.** **Next:** on the main line, a
 phase 2 design chat, then `T-2.3`, `T-2.5`, `T-2.1`, `T-2.2`, `T-2.4`; in parallel chats (own worktree, own roadmap
 row and README paragraph), `T-1.31` first. Slide 7 renamed and rebuilt (no overflow).
+Phase 2 design chat 2026-11-25 (`phase-2-design.md`, `D-308`-`D-313`): every phase 2 task covers the package, the C++
+example layer and the benchmark's options, complete on its own (`D-308`, unfreezes the C++ example layer); the example's
+Python loop goes (`D-309`); `T-2.3` designed in full (bound, gap, cutoff, integer objective, statuses `GapLimit` and
+`Cutoff`, four commits; `D-312`'s tolerance details proposed, settled at commit 2); the others' open questions listed
+(`T-2.5` ready after `T-2.3`; `T-2.1`, `T-2.2`, `T-2.4` need their own design chats; `T-2.2` raises `D-16`).
+**Next:** `T-2.3`'s code, branch `feature/column-generation-lagrangian-bound` from #114 `71c13451` in `../rcspp-dev`.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -401,6 +407,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `overnight-runs.md` | the night of 2026-11-20/21: `T-1.19` on the laptop, `T-1.18` on the server, commands, next TOMLs | before starting or reading those runs |
 | `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
 | `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
+| `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
 | `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 

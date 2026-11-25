@@ -55,13 +55,14 @@ pricers and initializations are, with nothing provided by default when column ge
 answer or a plain speed-up is built **as is**. Components: `T-2.1`'s budget policy and pricer schedule, `T-2.2`'s pool
 and removal policy, `T-2.4`'s stabilization. As is: `T-2.3`'s bound and gap stop, `T-2.5`'s statistics (extension
 through `on_iteration`); `T-2.6` folded into `T-2.1` (`D-306`). Each task's detailed shape: a design chat first
-(`D-307`).
+(`D-307`). Every task covers the package, the C++ example layer and the benchmark's options, complete on its own
+(`D-308`); the frame and each task's design or open questions: `phase-2-design.md`.
 
 | ID | task | status | done when |
 |---|---|---|---|
 | T-2.1 | `PricingStrategy`: stages (`D-23`, in PR 3) + budget escalation, ported from #49 `pricing_budget.hpp`; multi-pricer options (`D-27`); one generic, permissive schedule, in sequence or in parallel, with replaceable stop, merge and limit rules (`D-306`, folds `T-2.6` in) | waits (`D-276`); todo: the budget and the options | no unproven stop counted as proof; ≥ #49's speed-ups on its instances |
 | T-2.2 | `SolutionPool` in the loop (`F-04`): price stored columns first, `update_activity`; column management (`D-29`) | waits (`D-276`); todo | measured effect recorded in the baseline file |
-| T-2.3 | Lagrangian bound from the pricers' bounds + early stop on gap or cutoff (`D-21`, `D-28`) | waits (`D-276`); todo | bound ≤ LP at every iteration (tier 3 check) |
+| T-2.3 | Lagrangian bound from the pricers' bounds + early stop on gap or cutoff (`D-21`, `D-28`); designed 2026-11-25 (`phase-2-design.md` §2, `D-309`-`D-313`): the bound, `absolute_gap`, `relative_gap`, `cutoff`, `integer_objective`, statuses `GapLimit` and `Cutoff`, in the package, the C++ example layer and the benchmark; first commit removes the example's Python loop | **next**: designed, ready to code (`D-312` proposed, settled at commit 2); branch `feature/column-generation-lagrangian-bound` from #114 `71c13451` | the bound ≤ LP at every iteration and equal to it at the end, on C101_25 and R201_25, in the three layers; each stop tested; defaults change nothing |
 | T-2.4 | `Smoothing` stabilization: automatic α, mispricing schedule, bound from its formula (`D-25`) | waits (`D-276`); todo | same LP value; fewer iterations on the R2 family |
 | T-2.6 | Parallel pricers | folded into `T-2.1` (`D-306`) | see `T-2.1` |
 
