@@ -44,6 +44,19 @@ class ColumnGenerationStatus(Enum):
     TimeLimit = auto()
     #: Stopped by ``ColumnGenerationParams.max_iterations``.
     IterationLimit = auto()
+    #: Stopped by ``ColumnGenerationParams.cutoff``: the lower bound reached the cutoff, so no
+    #: solution here costs less than it. Checked first of the early stops.
+    Cutoff = auto()
+    #: Stopped by ``ColumnGenerationParams.absolute_gap``: the LP value minus the lower bound is
+    #: at most the gap. Checked after ``Cutoff``.
+    AbsoluteGapLimit = auto()
+    #: Stopped by ``ColumnGenerationParams.relative_gap``: the LP value minus the lower bound is
+    #: at most the gap times the LP value's magnitude. Checked after ``AbsoluteGapLimit``.
+    RelativeGapLimit = auto()
+    #: Stopped by ``ColumnGenerationParams.integer_objective``: the lower bound rounded up
+    #: reached the LP value rounded up, so more iterations cannot raise what it proves about an
+    #: integer solution. Checked last.
+    IntegerObjectiveGap = auto()
     #: An LP solve failed for another reason (numerical trouble...).
     SolverError = auto()
 
@@ -56,7 +69,9 @@ class ColumnGenerationResult:
     status: ColumnGenerationStatus
     #: Value of the last master LP solved (``None`` when none was).
     objective: float | None
-    #: A proven lower bound on the master LP optimum (``-inf`` when none).
+    #: A proven lower bound on the master LP optimum: the objective when ``Optimal``, else the
+    #: best Lagrangian bound of the run's iterations (``-inf`` when none is known; see
+    #: :attr:`IterationInfo.lower_bound`).
     lower_bound: float
     #: Number of iterations (LP solves).
     iterations: int
@@ -224,6 +239,7 @@ class ColumnGeneration:
         objective: float | None = None
         lower_bound = -math.inf
         iterations = generated_columns = 0
+        paths_allowed = self._paths_allowed()
 
         while True:
             # Limits.
@@ -262,23 +278,34 @@ class ColumnGeneration:
 
             # Price the duals and add the columns found.
             with pricing.measure():
-                new_columns, proven = self._price(duals, start, reduced_cost_tolerance)
+                new_columns, proven, bound_terms = self._price(
+                    duals, start, reduced_cost_tolerance, paths_allowed
+                )
 
             generated_columns += new_columns
+            iteration_bound = objective + bound_terms
+            lower_bound = max(lower_bound, iteration_bound)
 
             if params.on_iteration is not None:
                 params.on_iteration(
                     IterationInfo(
                         iteration=iterations,
                         objective=objective,
+                        lower_bound=iteration_bound,
                         new_columns=new_columns,
                         total_columns=master.number_of_columns,
                         elapsed_seconds=time.perf_counter() - start,
                     )
                 )
 
-            # New columns: solve again. None: converged, proven or not.
+            # New columns: solve again, unless the bound is already close enough.
             if new_columns > 0:
+                early_stop = self._early_stop(objective, iteration_bound, reduced_cost_tolerance)
+
+                if early_stop is not None:
+                    status = early_stop
+                    break
+
                 continue
 
             # Unproven: the run's time limit may have cut pricing short.
@@ -300,7 +327,10 @@ class ColumnGeneration:
                     values=self._column_values(),
                 )
 
+                # The hook may have changed the problem: the bounds found so far may not hold.
                 if params.on_converged(context) == ConvergenceAction.Continue:
+                    lower_bound = -math.inf
+                    paths_allowed = self._paths_allowed()
                     continue
 
             # An artificial column still in use means no real solution exists.
@@ -342,13 +372,25 @@ class ColumnGeneration:
         self._initialized = True
 
     def _price(
-        self, duals: FloatArray, start: float, reduced_cost_tolerance: float
-    ) -> tuple[int, bool]:
+        self,
+        duals: FloatArray,
+        start: float,
+        reduced_cost_tolerance: float,
+        paths_allowed: list[float],
+    ) -> tuple[int, bool, float]:
         """Prices every pricer once and adds what they find: the number of columns added,
-        and whether pricing proved that no column improves."""
+        whether pricing proved that no column improves, and what the pricers add to the LP
+        value to give the Lagrangian bound (``-inf`` when unknown).
+
+        The bound: for any solution of the full master, cost = LP value + the sum over the
+        columns of reduced cost * value. A pricer's columns cost at least its best reduced
+        cost each, and its convexity row limits how many a solution uses (``paths_allowed``),
+        so each pricer adds (paths allowed) * (its best reduced cost) when that is negative.
+        """
         master = self._master
         new_columns = 0
         proven = True
+        bound_terms = 0.0
 
         for index, entry in enumerate(master.pricers):
             # A column improves when its reduced cost, convexity dual included, is negative.
@@ -366,11 +408,80 @@ class ColumnGeneration:
             # nothing to price holds no improving column.
             finished = priced.status in (PricingStatus.Optimal, PricingStatus.Infeasible)
             nothing_to_price = priced.status == PricingStatus.NotApplicable
-            proven = proven and (nothing_to_price or (priced.exact_stage and finished))
+            proved = nothing_to_price or (priced.exact_stage and finished)
+            proven = proven and proved
             new_columns += len(priced.columns)
             master.add_columns(index, priced.columns)
 
-        return new_columns, proven
+            # Nothing to add to the bound when the pricer proved it has no improving column (its
+            # bound may be the threshold, a tolerance below zero), or when it is already unknown.
+            if (proved and not priced.columns) or bound_terms == -math.inf:
+                continue
+
+            # Its best reduced cost, convexity dual included; never above a column it returned.
+            best = priced.min_reduced_cost_bound
+
+            if priced.columns and best > -math.inf:
+                best = min(best, min(column.cost for column in priced.columns))
+
+            best -= convexity_dual
+
+            # An unknown best (-inf) or no limit on its paths (inf) makes the bound unknown; a
+            # row that allows no path adds nothing.
+            paths = paths_allowed[index]
+
+            if best < 0.0 and paths > 0.0:
+                bound_terms += paths * best
+
+        return new_columns, proven, bound_terms
+
+    def _paths_allowed(self) -> list[float]:
+        """How many paths each pricer's convexity row allows: its upper bound, ``inf``
+        without a row.
+
+        Read once per run and after a restart, as a master solver may copy its whole
+        model to answer.
+        """
+        master = self._master
+        rows = [entry.convexity_row for entry in master.pricers]
+
+        if all(row is None for row in rows):
+            return [math.inf] * len(rows)
+
+        upper = master.solver.row_bounds()[1]
+        return [math.inf if row is None else float(upper[row]) for row in rows]
+
+    def _early_stop(
+        self, objective: float, bound: float, tolerance: float
+    ) -> ColumnGenerationStatus | None:
+        """The status of a stop on the cutoff or the gap, or ``None`` to go on."""
+        params = self._params
+
+        if bound == -math.inf:
+            return None
+
+        # Nothing here costs less than the bound; with integer costs, than the bound rounded up.
+        if params.integer_objective:
+            lowest_cost = math.ceil(bound - tolerance)
+        else:
+            lowest_cost = bound + tolerance
+
+        if lowest_cost >= params.cutoff:
+            return ColumnGenerationStatus.Cutoff
+
+        gap = objective - bound
+
+        if params.absolute_gap > 0.0 and gap <= params.absolute_gap:
+            return ColumnGenerationStatus.AbsoluteGapLimit
+
+        if params.relative_gap > 0.0 and gap <= params.relative_gap * abs(objective):
+            return ColumnGenerationStatus.RelativeGapLimit
+
+        # More iterations cannot raise the bound above the LP value rounded up.
+        if params.integer_objective and lowest_cost >= math.ceil(objective - tolerance):
+            return ColumnGenerationStatus.IntegerObjectiveGap
+
+        return None
 
     def _compute_tolerance_context(self) -> ToleranceContext:
         """At least 1: the largest pricer cost scale, starting column cost and cost of the

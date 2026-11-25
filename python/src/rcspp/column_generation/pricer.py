@@ -51,7 +51,9 @@ class PricingResult:
     #: The new columns; each ``Solution.column`` holds its cost and rows.
     columns: list[Solution] = field(default_factory=list[Solution])
     status: PricingStatus = PricingStatus.Unknown
-    #: A lower bound on the best reduced cost (``-inf`` when unknown); not read by the loop yet.
+    #: A lower bound on the best reduced cost of any of its columns, without the convexity dual
+    #: (``-inf`` when unknown). It must hold whatever the status: the loop builds the
+    #: Lagrangian bound (:attr:`IterationInfo.lower_bound`) from it.
     min_reduced_cost_bound: float = -math.inf
     #: Only an exact call that is Optimal or Infeasible, or a call answering NotApplicable,
     #: proves that no improving column exists.

@@ -344,6 +344,13 @@ New features are summarised, with a pointer to where they are documented.
   cost per distance, and optionally a longest route and a vehicle limit; the integer plan says how
   many vehicles of each type to use. `pricing_graph` in the VRP example takes a vehicle's capacity
   and costs; its defaults build the same graph as before. See `examples/python/vrp/README.md`.
+- **A lower bound and early stops in column generation.** Each iteration of
+  `rcspp.column_generation` gives the Lagrangian bound (`IterationInfo.lower_bound`), built from
+  the pricers' `min_reduced_cost_bound` and their convexity rows; `ColumnGenerationResult.lower_bound`
+  is the best of the run. `ColumnGenerationParams` stops a run on `cutoff`, `absolute_gap`,
+  `relative_gap` or `integer_objective`, all off by default, each with its own status (`Cutoff`,
+  `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`). See "The lower bound and early
+  stops" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 

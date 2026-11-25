@@ -603,8 +603,10 @@ def test_an_artificial_column_in_use_at_convergence_is_infeasible() -> None:
     result = ColumnGeneration(toy.master).run()
 
     assert result.status == ColumnGenerationStatus.Infeasible
-    assert result.lower_bound == -math.inf
     assert result.objective == ArtificialColumns.AUTOMATIC_COST_FACTOR
+
+    # Pricing proved its LP optimal, artificial column included: a bound on the master's LP.
+    assert result.lower_bound == ArtificialColumns.AUTOMATIC_COST_FACTOR
 
 
 def test_an_artificial_column_below_the_feasibility_tolerance_is_not_in_use() -> None:
@@ -676,7 +678,12 @@ def test_no_path_with_an_artificial_column_in_use_is_infeasible() -> None:
 def test_anything_else_proves_nothing(answer: PricingResult) -> None:
     result = run_with_answer(answer)
     assert result.status == ColumnGenerationStatus.NotProven
-    assert result.lower_bound == -math.inf
+
+    # A pricer's bound holds whatever its status: 0 bounds the LP by its own value.
+    if answer.min_reduced_cost_bound == -math.inf:
+        assert result.lower_bound == -math.inf
+    else:
+        assert result.lower_bound == result.objective
 
 
 def test_every_pricer_is_priced_and_all_must_prove() -> None:
@@ -854,6 +861,245 @@ def test_the_loop_keeps_its_master_solver_and_pricers_alive() -> None:
     assert calls == ["solve", "price"]
 
 
+# MARK: The Lagrangian bound and the early stops
+
+# The convexity dual of the runs below.
+CONVEXITY_DUAL = 1.0
+
+
+def found(bound: float, *reduced_costs: float, exact: bool = True) -> PricingResult:
+    """A pricing answer with a column per reduced cost (without the convexity dual) and
+    the given bound."""
+    return PricingResult(
+        columns=[make_path(1.0, [(0, 1.0)], reduced_cost) for reduced_cost in reduced_costs],
+        status=PricingStatus.Optimal if exact else PricingStatus.SolverLimit,
+        min_reduced_cost_bound=bound,
+        exact_stage=exact,
+    )
+
+
+def run_bounded(
+    answers: list[PricingResult],
+    objectives: list[float],
+    convexity: ConvexityRow = ConvexityRow(max_paths=2.0),
+    **options: Any,
+) -> tuple[ColumnGenerationResult, list[IterationInfo]]:
+    """A run over one row "cover >= 1" and one pricer that gives `answers` in turn,
+    while the LP values are `objectives` and the convexity dual CONVEXITY_DUAL; with the
+    iterations seen."""
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    pricing = iter(answers)
+    master.add_pricer(ScriptedPricer(lambda duals, request: next(pricing)), convexity)
+    solves = iter(objectives)
+
+    def solve(lp: ScriptedMasterSolver) -> SolverStatus:
+        lp.objective_value = next(solves)
+        lp.dual_values = [0.0, CONVEXITY_DUAL]
+        return SolverStatus.Optimal
+
+    solver.on_solve = solve
+    seen: list[IterationInfo] = []
+    params = ColumnGenerationParams(initialization="none", on_iteration=seen.append, **options)
+    return ColumnGeneration(master, params).run(), seen
+
+
+def test_the_bound_counts_each_path_at_the_best_reduced_cost() -> None:
+    # 10 + 2 paths * (-2 - 1), then a proof: the bound is the LP value.
+    result, seen = run_bounded([found(-2.0, -1.5), proven_none()], [10.0, 9.0])
+
+    assert [info.lower_bound for info in seen] == [4.0, 9.0]
+    assert result.status == ColumnGenerationStatus.Optimal and result.lower_bound == 9.0
+
+
+def test_the_bound_is_never_above_a_column_returned() -> None:
+    _, seen = run_bounded([found(0.0, -4.0), proven_none()], [10.0, 9.0])
+    assert seen[0].lower_bound == 10.0 + 2.0 * (-4.0 - CONVEXITY_DUAL)
+
+
+def test_a_proof_with_the_threshold_as_its_bound_adds_nothing() -> None:
+    # The graph pricer's bound when it finds nothing: the threshold, a tolerance below 0.
+    threshold = found(CONVEXITY_DUAL - 1e-9)
+    result, seen = run_bounded([threshold], [10.0])
+    assert seen[0].lower_bound == 10.0 and result.lower_bound == 10.0
+
+
+@pytest.mark.parametrize(
+    "answer, convexity",
+    [
+        (found(-math.inf, -1.0, exact=False), ConvexityRow(max_paths=2.0)),
+        (found(-2.0, -1.0), ConvexityRow()),
+    ],
+    ids=["heuristic", "no-convexity-row"],
+)
+def test_an_unknown_term_leaves_the_bound_unknown(
+    answer: PricingResult, convexity: ConvexityRow
+) -> None:
+    _, seen = run_bounded([answer, proven_none()], [10.0, 9.0], convexity)
+    assert seen[0].lower_bound == -math.inf and seen[1].lower_bound == 9.0
+
+
+def test_a_row_without_an_upper_bound_leaves_the_bound_unknown() -> None:
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    fleet = master.add_rows(1, RowSense.GreaterEqual, 1.0).first
+    answers = iter([found(-2.0, -1.0), proven_none()])
+    master.add_pricer(
+        ScriptedPricer(lambda duals, request: next(answers)), ConvexityRow(existing_row=fleet)
+    )
+    seen: list[IterationInfo] = []
+    ColumnGeneration(
+        master, ColumnGenerationParams(initialization="none", on_iteration=seen.append)
+    ).run()
+    assert seen[0].lower_bound == -math.inf
+
+
+def test_an_existing_equal_row_counts_its_right_hand_side() -> None:
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    fleet = master.add_rows(1, RowSense.Equal, 3.0).first
+    answers = iter([found(-2.0, -1.0), proven_none()])
+    master.add_pricer(
+        ScriptedPricer(lambda duals, request: next(answers)), ConvexityRow(existing_row=fleet)
+    )
+    solver.dual_values = [0.0, CONVEXITY_DUAL]
+    seen: list[IterationInfo] = []
+    ColumnGeneration(
+        master, ColumnGenerationParams(initialization="none", on_iteration=seen.append)
+    ).run()
+    assert seen[0].lower_bound == 3.0 * (-2.0 - CONVEXITY_DUAL)
+
+
+def test_a_row_that_allows_no_path_adds_nothing() -> None:
+    answer = found(-math.inf, -1.0, exact=False)
+    _, seen = run_bounded([answer, proven_none()], [10.0, 9.0], ConvexityRow(max_paths=0.0))
+    assert seen[0].lower_bound == 10.0
+
+
+def test_the_pricers_terms_add_up() -> None:
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    first = iter([found(-2.0, -1.0), proven_none()])
+    second = iter([found(-1.0, -1.0), proven_none()])
+    master.add_pricer(
+        ScriptedPricer(lambda duals, request: next(first)), ConvexityRow(max_paths=2.0)
+    )
+    master.add_pricer(
+        ScriptedPricer(lambda duals, request: next(second)), ConvexityRow(max_paths=1.0)
+    )
+
+    def solve(lp: ScriptedMasterSolver) -> SolverStatus:
+        lp.objective_value = 10.0
+        lp.dual_values = [0.0, 1.0, 0.5]
+        return SolverStatus.Optimal
+
+    solver.on_solve = solve
+    seen: list[IterationInfo] = []
+    ColumnGeneration(
+        master, ColumnGenerationParams(initialization="none", on_iteration=seen.append)
+    ).run()
+    assert seen[0].lower_bound == 10.0 + 2.0 * (-2.0 - 1.0) + 1.0 * (-1.0 - 0.5)
+
+
+def test_the_result_keeps_the_best_bound() -> None:
+    answers = [found(-2.0, -1.0), found(-3.0, -1.0), PricingResult()]
+    result, seen = run_bounded(answers, [10.0, 9.0, 8.0])
+
+    assert [info.lower_bound for info in seen] == [4.0, 1.0, -math.inf]
+    assert result.status == ColumnGenerationStatus.NotProven and result.lower_bound == 4.0
+
+
+def test_a_restart_by_the_convergence_hook_forgets_the_bounds() -> None:
+    answers = [found(-2.0, -1.0), proven_none(), PricingResult()]
+    restarts: list[int] = []
+
+    def on_converged(context: ConvergenceContext) -> ConvergenceAction:
+        restarts.append(context.iteration)
+        return ConvergenceAction.Continue
+
+    result, _ = run_bounded(answers, [10.0, 9.0, 8.0], on_converged=on_converged)
+
+    assert restarts == [2]
+    assert result.status == ColumnGenerationStatus.NotProven and result.lower_bound == -math.inf
+
+
+@pytest.mark.parametrize(
+    "options, status",
+    [
+        ({}, ColumnGenerationStatus.Optimal),
+        ({"absolute_gap": 6.0}, ColumnGenerationStatus.AbsoluteGapLimit),
+        ({"absolute_gap": 5.9}, ColumnGenerationStatus.Optimal),
+        ({"relative_gap": 0.6}, ColumnGenerationStatus.RelativeGapLimit),
+        ({"relative_gap": 0.5}, ColumnGenerationStatus.Optimal),
+        ({"cutoff": 4.0}, ColumnGenerationStatus.Cutoff),
+        ({"cutoff": 4.5}, ColumnGenerationStatus.Optimal),
+        # When several hold, the first checked gives the status.
+        ({"cutoff": 4.0, "absolute_gap": 6.0, "relative_gap": 0.6}, ColumnGenerationStatus.Cutoff),
+        ({"absolute_gap": 6.0, "relative_gap": 0.6}, ColumnGenerationStatus.AbsoluteGapLimit),
+    ],
+    ids=str,
+)
+def test_the_stops_on_the_gap_and_the_cutoff(
+    options: dict[str, Any], status: ColumnGenerationStatus
+) -> None:
+    # The first iteration: LP 10, bound 4 (a gap of 6), then a proof at 9.
+    result, _ = run_bounded([found(-2.0, -1.5), proven_none()], [10.0, 9.0], **options)
+
+    assert result.status == status
+
+    if status == ColumnGenerationStatus.Optimal:
+        assert (result.iterations, result.objective, result.lower_bound) == (2, 9.0, 9.0)
+    else:
+        assert (result.iterations, result.objective, result.lower_bound) == (1, 10.0, 4.0)
+
+
+@pytest.mark.parametrize(
+    "options, status",
+    [
+        ({"integer_objective": True}, ColumnGenerationStatus.IntegerObjectiveGap),
+        ({"integer_objective": True, "cutoff": 10.0}, ColumnGenerationStatus.Cutoff),
+        ({"integer_objective": True, "cutoff": 11.0}, ColumnGenerationStatus.IntegerObjectiveGap),
+        ({"cutoff": 10.0}, ColumnGenerationStatus.Optimal),
+        ({"integer_objective": True, "relative_gap": 0.1}, ColumnGenerationStatus.RelativeGapLimit),
+        ({}, ColumnGenerationStatus.Optimal),
+    ],
+    ids=str,
+)
+def test_an_integer_objective_rounds_the_bound_up(
+    options: dict[str, Any], status: ColumnGenerationStatus
+) -> None:
+    # LP 10, bound 10 + 2 * (0.6 - 1) = 9.2: with integer costs, any solution costs at least
+    # 10, the LP value rounded up; without, the gap 0.8 goes on.
+    result, _ = run_bounded([found(0.6, 0.6), proven_none()], [10.0, 9.5], **options)
+
+    assert result.status == status
+    assert result.iterations == (2 if status == ColumnGenerationStatus.Optimal else 1)
+
+
+def test_the_stops_wait_for_columns_and_a_bound() -> None:
+    # A proof wins over the cutoff: the run is optimal.
+    result, _ = run_bounded([proven_none()], [10.0], cutoff=-1e9)
+    assert result.status == ColumnGenerationStatus.Optimal
+
+    # No bound: nothing to compare.
+    answers = [found(-math.inf, -1.0, exact=False), proven_none()]
+    result, _ = run_bounded(answers, [10.0, 9.0], absolute_gap=1e9, cutoff=-1e9)
+    assert result.status == ColumnGenerationStatus.Optimal and result.iterations == 2
+
+
+@pytest.mark.parametrize("value", [-1.0, math.nan])
+def test_a_gap_below_zero_or_not_a_number_is_refused(value: float) -> None:
+    with pytest.raises(ValueError, match="absolute_gap"):
+        ColumnGenerationParams(absolute_gap=value)
+
+    with pytest.raises(ValueError, match="relative_gap"):
+        ColumnGenerationParams(relative_gap=value)
+
+
 # MARK: Params and results
 
 
@@ -884,6 +1130,8 @@ def test_the_defaults_of_the_params() -> None:
     assert params.relaxation.timeout_s == math.inf and params.statistics.timers
     assert isinstance(params.tolerances, AbsoluteTolerances)
     assert isinstance(params.initialization, ArtificialColumns)
+    assert params.absolute_gap == 0.0 and params.relative_gap == 0.0
+    assert params.cutoff == math.inf and not params.integer_objective
     assert params.on_iteration is None and params.on_converged is None
 
     # Each set of params has its own components.
@@ -930,6 +1178,10 @@ def test_the_statuses_and_actions() -> None:
         "Unbounded",
         "TimeLimit",
         "IterationLimit",
+        "Cutoff",
+        "AbsoluteGapLimit",
+        "RelativeGapLimit",
+        "IntegerObjectiveGap",
         "SolverError",
     ]
     assert list(ConvergenceAction.__members__) == ["Stop", "Continue"]
