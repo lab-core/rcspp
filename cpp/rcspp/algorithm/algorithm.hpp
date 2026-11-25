@@ -453,17 +453,18 @@ class Algorithm {
                     "prune_by_threshold needs an additive cost, so that the cost still to pay "
                     "from a node is bounded by the sum of the arcs' shares: every component "
                     "the cost reads must have a zero cost (TrivialCostFunction) or a value "
-                    "cost (ValueCostFunction) under an accumulating extension");
+                    "cost (ValueCostFunction) under an accumulating extension that does not "
+                    "clamp (a floor, as AdditionExtensionFunction's min_value, clamps)");
             }
             if (share_shortfall_.has_value()) {
                 throw std::invalid_argument(
                     "prune_by_threshold needs every arc to add at least its share of the cost, "
                     "whatever the label it extends: " +
                     detail::to_string(*share_shortfall_) +
-                    ", so the bound the prune reads could drop the cheapest path. A floor "
-                    "(AdditionExtensionFunction's min_value), a ceiling or a maximum in a priced "
-                    "extension does this; turn the prune off, or price only components whose "
-                    "extension adds a fixed amount per arc");
+                    ", so the bound the prune reads could drop the cheapest path. A floor or a "
+                    "ceiling the extension does not declare (ExtensionFunction::is_clamped), or "
+                    "a maximum, in a priced extension does this; turn the prune off, or price "
+                    "only components whose extension adds a fixed amount per arc");
             }
         }
 

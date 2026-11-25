@@ -243,8 +243,10 @@ New features are summarised, with a pointer to where they are documented.
   has a labelling search drop a label whose cost plus its completion bound (a Bellman–Ford run
   over the arcs' shares of the cost, from the end nodes) is at or above the solve's upper bound,
   with a margin of `tolerance`. The paths returned are unchanged; fewer labels are extended. Every
-  labelling search reads it, the dives included, in every direction. It needs an additive cost;
-  another throws `std::invalid_argument` (`ValueError`) when the solve starts.
+  labelling search reads it, the dives included, in every direction. It needs an additive cost (a
+  floored addition is not one) on which every arc adds at least its share, as the solve tests on
+  pairs of the model's arcs; another throws `std::invalid_argument` (`ValueError`) when the solve
+  starts.
 - **Relaxed and k-best admission**: `AlgorithmBaseParams::admission_rule` (`AdmissionRule` in
   Python) chooses how a labelling search keeps a new label at its node: `Exact` (dominance, the
   default), `Relaxed` (dominance over the components not in `dominance_ignored_components`) or
