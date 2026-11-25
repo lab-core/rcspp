@@ -13,6 +13,8 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <set>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -800,6 +802,32 @@ TEST(TabuStatusTest, ATabuSearchReadsTheMaskItIsGiven) {
           solve_masked(g->create_algorithm<strategy::ImprovingTabu>(with_list))}) {
         ASSERT_EQ(result.solutions.size(), 1U);
         EXPECT_EQ(result.solutions[0].path_arc_ids, (std::vector<size_t>{2, 3}));
+    }
+}
+
+/// @brief A tabu search makes the arcs of the path it found tabu, backward as forward: in two
+///        episodes on the two-path graph, the first takes the best path and the second, its arcs
+///        tabu, the other, so the solve returns both. Without the marking, the second episode
+///        would take the best path again.
+TEST(TabuStatusTest, ATabuSearchMakesThePathsArcsTabuInEitherDirection) {
+    auto g = make_two_path_graph();
+    const std::set<std::vector<size_t>> both{{0, 1}, {2, 3}};
+    for (const auto direction : {SearchDirection::Forward, SearchDirection::Backward}) {
+        AlgorithmBaseParams params;
+        params.direction = direction;
+        params.max_iterations = 2;
+        params.tabu_random_noise = false;
+        const std::string where = direction == SearchDirection::Forward ? "forward" : "backward";
+        for (const auto& [name, result] :
+             {std::pair{"tabu", g->solve<strategy::Tabu>(params)},
+              std::pair{"improving tabu", g->solve<strategy::ImprovingTabu>(params)}}) {
+            std::set<std::vector<size_t>> paths;
+            for (const auto& solution : result.solutions) {
+                paths.insert(solution.path_arc_ids);
+            }
+            EXPECT_EQ(paths, both) << where << ", " << name;
+            EXPECT_EQ(result.solutions.size(), 2U) << where << ", " << name;
+        }
     }
 }
 
