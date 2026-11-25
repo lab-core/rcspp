@@ -206,7 +206,7 @@ New features are summarised, with a pointer to where they are documented.
 ### Added
 
 - **The parts of a dive**, in `rcspp::parts`: `DepthFirstSchedule<ResourceType, KeyType, FilterType>` takes labels depth
-  first, settling each label's children together, cheapest first (`CostKey`), after a filter
+  first, placing each label's children together, cheapest first (`CostKey`), after a filter
   (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `AdmitAll` keeps every feasible
   label; `KeepWhileWaiting` stores none at the nodes, records a solution when its label at the sink
   is taken, and releases each label once it is extended (`releases_taken_labels`). `Retain<RetentionTemplate>`
@@ -334,7 +334,7 @@ New features are summarised, with a pointer to where they are documented.
 ### Fixed
 
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
-  A\*, Pushing and Pulling, forward and backward, and Greedy). The prune now compares a label's cost
+  A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
   compared the cost alone, and a label whose path goes on to a negative arc could be dropped. Under
   a cost that is not additive there is no valid bound, and the prune compares the cost alone, as
