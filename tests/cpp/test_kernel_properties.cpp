@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -446,6 +447,117 @@ TEST(KernelProperties, ARelaxedOrKBestSolveReturnsPathsThatReplayAndNoneBelowThe
         }
     }
     EXPECT_GT(fewer_labels, 0U) << "no rule ever dropped a label";
+}
+
+namespace kernel_properties {
+
+/// @brief What a solve kept: its result, how many labels each node ended with, and whether one
+///        of them is marked dominated, as an evicted label is.
+struct Kept {
+        rcspp::SolveResult result;
+        std::map<size_t, size_t> labels_at;
+        bool holds_a_dominated_label = false;
+        bool ref_counts_consistent = true;
+};
+
+/// @brief Simple's search in @p Direction solves @p c on containers like @p container, with the
+///        params @p adjust sets and the labels kept; expects every returned path to replay.
+template <typename Direction, typename LabelContainerType>
+Kept solve_simple_on(const parity::Case& c, const LabelContainerType& container,
+                     const Adjust& adjust) {
+    auto graph = c.build();
+    rcspp::AlgorithmParams<LabelContainerType> params(container);
+    params.direction = std::is_same_v<Direction, rcspp::BackwardDirection>
+                           ? SearchDirection::Backward
+                           : SearchDirection::Forward;
+    params.release_after_solve = false;
+    adjust(params);
+    parity::Observed<
+        test_util::Labelling<rcspp::strategy::Simple, Composed, LabelContainerType, Direction>>
+        algorithm(&graph->get_resource_factory(), params);
+    Kept kept{graph->solve(&algorithm, parity::kInf, /*preprocess=*/false)};
+    algorithm.visit_labels(
+        [&kept](bool /*backward*/, size_t pos, const rcspp::Label<Composed>& label) {
+            ++kept.labels_at[pos];
+            kept.holds_a_dominated_label = kept.holds_a_dominated_label || label.dominated;
+        });
+    kept.ref_counts_consistent = algorithm.get_label_pool().check_ref_count_consistency();
+    for (const auto& solution : kept.result.solutions) {
+        EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "") << c.name;
+    }
+    return kept;
+}
+
+}  // namespace kernel_properties
+
+/// @brief A relaxed or k-best solve on label buckets, forward and backward, returns paths that
+///        replay, none cheaper than the optimum, and no proof; it ends with no label marked
+///        dominated at a node and consistent reference counts; under k-best, no node ends with
+///        more than k labels.
+///
+/// k-best evicts a node's costliest label through the container's erase, which buckets override
+/// to keep each bucket's first label; the buckets are on the time, 5 wide, so a node holds several.
+TEST(KernelProperties, ARelaxedOrKBestSolveOnLabelBucketsKeepsItsBucketsConsistent) {
+    namespace kp = kernel_properties;
+    const parity::Buckets buckets(/*bucket_width=*/5,
+                                  /*bucket_resource_index=*/1,
+                                  /*sort_resource_index=*/0);
+    size_t fewer_labels = 0;  // k-best solves that kept fewer labels than an exact one
+    for (const auto& c : kp::property_cases()) {
+        const auto optimum = kp::rows().front().solve(c);
+        std::vector<std::tuple<std::string, kp::Adjust, size_t>> rules;
+        for (size_t component = 1; component < kp::number_of_components(c); ++component) {
+            rules.emplace_back("relaxed over " + std::to_string(component),
+                               kp::relaxed({component}),
+                               0);
+        }
+        for (const size_t k : {1, 2, 3}) {
+            rules.emplace_back("k-best with k " + std::to_string(k), kp::k_best(k), k);
+        }
+        const auto check = [&](const kp::Kept& exact,
+                               const kp::Kept& out,
+                               const std::string& where,
+                               size_t k) {
+            EXPECT_FALSE(out.result.proven) << where;
+            EXPECT_FALSE(out.holds_a_dominated_label) << where;
+            EXPECT_TRUE(out.ref_counts_consistent) << where;
+            if (!out.result.solutions.empty()) {
+                ASSERT_FALSE(optimum.solutions.empty()) << where;
+                EXPECT_GE(out.result.solutions.front().cost, optimum.solutions.front().cost - 1e-6)
+                    << where;
+            }
+            if (k > 0) {
+                size_t kept = 0;
+                size_t kept_exact = 0;
+                for (const auto& [pos, count] : out.labels_at) {
+                    EXPECT_LE(count, k) << where << ", node position " << pos;
+                    kept += count;
+                }
+                for (const auto& [pos, count] : exact.labels_at) {
+                    kept_exact += count;
+                }
+                if (kept < kept_exact) {
+                    ++fewer_labels;
+                }
+            }
+        };
+        const auto exact_forward =
+            kp::solve_simple_on<rcspp::ForwardDirection>(c, buckets, [](auto& /*params*/) {});
+        const auto exact_backward =
+            kp::solve_simple_on<rcspp::BackwardDirection>(c, buckets, [](auto& /*params*/) {});
+        EXPECT_TRUE(exact_forward.result.proven) << c.name;
+        for (const auto& [name, adjust, k] : rules) {
+            check(exact_forward,
+                  kp::solve_simple_on<rcspp::ForwardDirection>(c, buckets, adjust),
+                  c.name + ", forward, " + name,
+                  k);
+            check(exact_backward,
+                  kp::solve_simple_on<rcspp::BackwardDirection>(c, buckets, adjust),
+                  c.name + ", backward, " + name,
+                  k);
+        }
+    }
+    EXPECT_GT(fewer_labels, 0U) << "k-best never kept fewer labels than an exact solve";
 }
 
 /// @brief Leaving the capacity out of dominance with the relaxed rule ends every exact search with
