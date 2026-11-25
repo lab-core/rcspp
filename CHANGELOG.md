@@ -359,6 +359,12 @@ New features are summarised, with a pointer to where they are documented.
   with custom composition functions lost them too. Nodes and arcs present when the graph was
   cloned were not affected, so a clone that is only solved, or whose arcs are only removed and
   restored (as diversification does), gave the same results.
+- **A cloned graph lists its sources and sinks in the original's order**, in C++ and in Python.
+  The clone added the nodes in the order of the graph's node map, a hash map, so its sources and
+  sinks came in the standard library's order, not the order they were added. A search starts from
+  the sources in their order, so on a graph with several sources a solve of a clone could start
+  from another one than a solve of the original: `DiversificationSearch`, which solves a clone,
+  could return other paths with GCC's library than with MSVC's.
 - `ResourceGraph::is_connected()` no longer makes the next solve skip the feasibility reduction.
   It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
   path uses stayed in the graph. Results were the same, but the search was slower. The
