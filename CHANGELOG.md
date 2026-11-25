@@ -22,9 +22,10 @@ New features are summarised, with a pointer to where they are documented.
   - A dive whose last path reaches `max_solutions` ends `Complete`, as every labelling search does,
     not `MaxSolutions`: it has tried every path.
   - The second, empty extension of a dive's last label at a dead end is gone.
-  - `strategy::Diversification<>` gives its inner search 1000 iterations a solve, which a labelling
-    search counts in labels taken, instead of 20 (dives, for Greedy). On the golden instances it
-    returns what it did; where 20 dives ran out, the inner search now goes further.
+  - `strategy::Diversification<>` gives its inner search 20 iterations a solve for each node of
+    the graph, and never fewer than 1000, which a labelling search counts in labels taken, instead
+    of 20 (dives, for Greedy). On the golden instances it returns what it did; where 20 dives ran
+    out, the inner search now goes further, and a path longer than 1000 arcs is still found.
 
   `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
   a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,

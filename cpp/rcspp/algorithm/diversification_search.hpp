@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <list>
 #include <memory>
 #include <utility>
@@ -35,7 +37,8 @@ namespace rcspp {
 ///
 /// Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
 /// algorithm is built from this algorithm's params, searching forward, with one solution and at
-/// most 1000 iterations per solve (labels taken, for a labelling search such as Greedy).
+/// most @ref inner_iteration_budget iterations per solve (labels taken, for a labelling search such
+/// as Greedy): 20 for each node of the graph, and never fewer than 1000.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container.
@@ -46,17 +49,16 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
                               AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)),
-              tabu_(this->params_.seed) {
-            auto inner_params = this->params_;
-            inner_params.direction = SearchDirection::Forward;
-            inner_params.max_solutions = 1;  // only need one solution per iteration
-            // A bound on the work when no path is left, roomy enough for a first dive to reach a
-            // sink: the inner search counts labels taken.
-            inner_params.max_iterations = 1000;        // NOLINT(readability-magic-numbers)
-            inner_params.release_after_solve = false;  // pool reused each iteration; skip shrink
-            algo_ = detail::make_algorithm<Inner, ResourceType, LabelContainerType>(
-                resource_factory,
-                std::move(inner_params));
+              tabu_(this->params_.seed),
+              resource_factory_(resource_factory) {}
+
+        /// @brief The inner search's iteration budget per solve on a graph of @p number_of_nodes
+        ///        nodes: a bound on the work when no path is left, roomy enough for the dives to
+        ///        reach a sink. The inner search counts labels taken, and a dive takes one per node
+        ///        it passes, so the budget is 20 per node (about 20 dives through every node), and
+        ///        never fewer than 1000.
+        [[nodiscard]] static size_t inner_iteration_budget(size_t number_of_nodes) {
+            return std::max(kMinInnerIterations, kInnerIterationsPerNode * number_of_nodes);
         }
 
         [[nodiscard]] bool is_optimal() const override { return false; }
@@ -67,6 +69,24 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             graph_copy_ = std::move(graph->clone());
+            build_inner(inner_iteration_budget(graph->get_number_of_nodes()));
+        }
+
+        /// @brief Builds the inner algorithm with @p max_iterations, unless the one built for the
+        ///        last solve has it already (its pool is then reused).
+        void build_inner(size_t max_iterations) {
+            if (algo_ != nullptr && inner_max_iterations_ == max_iterations) {
+                return;
+            }
+            auto inner_params = this->params_;
+            inner_params.direction = SearchDirection::Forward;
+            inner_params.max_solutions = 1;  // only need one solution per iteration
+            inner_params.max_iterations = max_iterations;
+            inner_params.release_after_solve = false;  // pool reused each iteration; skip shrink
+            algo_ = detail::make_algorithm<Inner, ResourceType, LabelContainerType>(
+                resource_factory_,
+                std::move(inner_params));
+            inner_max_iterations_ = max_iterations;
         }
         void main_loop() override {
             // check stopping criteria
@@ -152,9 +172,14 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         }
 
     private:
+        static constexpr size_t kMinInnerIterations = 1000;
+        static constexpr size_t kInnerIterationsPerNode = 20;
+
         std::unique_ptr<Graph<ResourceType>> graph_copy_;
         std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> algo_;
         TabuList tabu_;
+        ResourceFactory<ResourceType>* resource_factory_;
+        size_t inner_max_iterations_ = 0;  // the budget algo_ was built with
 };
 
 }  // namespace rcspp
