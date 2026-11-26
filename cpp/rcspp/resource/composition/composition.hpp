@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -95,12 +96,82 @@ struct CompositionTag {};
 template <typename T>
 concept IsComposition = std::derived_from<std::remove_cvref_t<T>, CompositionTag>;
 
+namespace detail {
+
+/// @brief The components of a @c Composition, and whether the cost kept for them is invalid: the
+///        only mutable access to them invalidates it.
+///
+/// @c Resource<ResourceTypeComposition> keeps its cost until its components change (its
+/// @c get_cost); this class holds the components and the bit that says whether the kept cost is
+/// still theirs. A non-const dereference (`*components`) hands out the tuple of per-type component
+/// vectors and invalidates the kept cost, whether or not the caller then writes; a const
+/// dereference leaves it valid. A composition reaches its components only through this class, so
+/// every non-const member function that touches them invalidates the cost without having to say
+/// so, the ones added later included.
+///
+/// @tparam Components The component classes, one per type slot.
+template <typename... Components>
+class CostInvalidatingComponents {
+    public:
+        /// @brief The per-type component vectors.
+        using tuple_type = std::tuple<std::vector<std::unique_ptr<Components>>...>;
+
+        /// @brief No components; the kept cost is invalid.
+        CostInvalidatingComponents() = default;
+
+        /// @brief Adopts @p components; the kept cost is invalid.
+        ///
+        /// @param components Tuple of per-type vectors to adopt (moved in).
+        explicit CostInvalidatingComponents(tuple_type components)
+            : components_(std::move(components)) {}
+
+        /// @brief The components, for writing: invalidates the kept cost.
+        [[nodiscard]] tuple_type& operator*() noexcept {
+            cost_invalid_ = true;
+            return components_;
+        }
+
+        /// @brief The components, for reading: the kept cost stays valid.
+        [[nodiscard]] const tuple_type& operator*() const noexcept { return components_; }
+
+        /// @brief Whether the kept cost is invalid: a component may have changed since the last
+        ///        @ref mark_cost_kept.
+        [[nodiscard]] bool cost_invalid() const noexcept { return cost_invalid_; }
+
+        /// @brief Invalidates the kept cost without a non-const dereference: for a write through a
+        ///        const composition, whose `const std::unique_ptr` still hands out a mutable
+        ///        component.
+        void invalidate_cost() const noexcept { cost_invalid_ = true; }
+
+        /// @brief Records that the cost has been evaluated on the components as they are now.
+        void mark_cost_kept() const noexcept { cost_invalid_ = false; }
+
+        /// @brief Swaps the components of @p first and @p second; both kept costs are invalid.
+        friend void swap(CostInvalidatingComponents& first,
+                         CostInvalidatingComponents& second) noexcept {
+            using std::swap;
+            swap(first.components_, second.components_);
+            first.cost_invalid_ = true;
+            second.cost_invalid_ = true;
+        }
+
+    private:
+        tuple_type components_;
+        // Mutable: invalidating or keeping the cost does not change the components.
+        mutable bool cost_invalid_ = true;
+};
+
+}  // namespace detail
+
 /// @brief Heterogeneous container that holds one vector of `ComponentClass<BaseType>` per base
 /// type.
 ///
 /// Each entry in @p BaseTypes corresponds to a `std::vector<std::unique_ptr<ComponentClass<BT>>>`
 /// stored in an internal tuple.  The class provides iteration helpers (`apply`,
 /// `for_each_component`) that dispatch a callable across every component-type slot simultaneously.
+/// The tuple lives in a @c detail::CostInvalidatingComponents: every non-const member function that
+/// reaches a component invalidates the cost that @c Resource<ResourceTypeComposition> keeps
+/// (@ref kept_cost_invalid).
 ///
 /// @tparam ComponentClass A class template whose single template parameter is a base type.
 /// @tparam BaseTypes      The ordered list of base types that parameterise @p ComponentClass.
@@ -170,7 +241,7 @@ class Composition : public CompositionTag {
         /// @return Reference to the newly added component.
         template <size_t ComponentTypeIndex, typename ComponentType>
         auto add_component(std::unique_ptr<ComponentType> component) -> auto& {
-            return *std::get<ComponentTypeIndex>(components_).emplace_back(std::move(component));
+            return *std::get<ComponentTypeIndex>(*components_).emplace_back(std::move(component));
         }
 
         /// @brief Applies a unary callable to each per-type component vector (mutable).
@@ -183,7 +254,7 @@ class Composition : public CompositionTag {
         template <typename Callable>
         void apply(Callable&& func) {
             std::apply([&](auto&&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
-                       components_);
+                       *components_);
         }
 
         /// @brief Applies a unary callable to each per-type component vector (const).
@@ -193,7 +264,7 @@ class Composition : public CompositionTag {
         template <typename Callable>
         void apply(Callable&& func) const {
             std::apply([&](const auto&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
-                       components_);
+                       *components_);
         }
 
         /// @brief Applies a binary callable to paired component vectors of this and another
@@ -266,7 +337,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_components);
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
@@ -287,7 +358,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_components);
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
@@ -308,7 +379,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_components);
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
@@ -329,7 +400,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_components);
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a ternary callable to component-vector triples from this and two other
@@ -376,7 +447,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_composition.get_components());
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a ternary callable to component-vector triples from this and two other
@@ -407,7 +478,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_composition.get_components());
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a unary predicate to each component vector and returns the logical AND.
@@ -421,7 +492,7 @@ class Composition : public CompositionTag {
         bool apply_and(Callable&& func) const {
             return std::apply(
                 [&](const auto&... args_comp_vec) -> auto { return (func(args_comp_vec) && ...); },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a binary predicate to paired component vectors and returns the logical
@@ -460,7 +531,7 @@ class Composition : public CompositionTag {
                         },
                         rhs_components);
                 },
-                components_);
+                *components_);
         }
 
         /// @brief Applies a unary callable to every individual component (mutable).
@@ -648,12 +719,12 @@ class Composition : public CompositionTag {
         /// @brief Returns a mutable reference to the full component tuple.
         ///
         /// @return Reference to the internal tuple of per-type component vectors.
-        [[nodiscard]] auto get_components() -> auto& { return components_; }
+        [[nodiscard]] auto get_components() -> auto& { return *components_; }
 
         /// @brief Returns a const reference to the full component tuple.
         ///
         /// @return Const reference to the internal tuple of per-type component vectors.
-        [[nodiscard]] auto get_components() const -> auto& { return components_; }
+        [[nodiscard]] auto get_components() const -> auto& { return *components_; }
 
         /// @brief Returns a mutable reference to the component vector at the given index.
         ///
@@ -661,7 +732,7 @@ class Composition : public CompositionTag {
         /// @return Reference to `std::vector<std::unique_ptr<ComponentClass<BT>>>` at that slot.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_components() -> auto& {
-            return std::get<ComponentTypeIndex>(components_);
+            return std::get<ComponentTypeIndex>(*components_);
         }
 
         /// @brief Returns a const reference to the component vector at the given index.
@@ -671,7 +742,7 @@ class Composition : public CompositionTag {
         ///         slot.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_components() const -> const auto& {
-            return std::get<ComponentTypeIndex>(components_);
+            return std::get<ComponentTypeIndex>(*components_);
         }
 
         /// @brief Returns a const reference to a single component by type-slot index and position.
@@ -681,7 +752,7 @@ class Composition : public CompositionTag {
         /// @return Const reference to the component at the given position.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_component(size_t index) const -> const auto& {
-            return *(std::get<ComponentTypeIndex>(components_).at(index));
+            return *(std::get<ComponentTypeIndex>(*components_).at(index));
         }
 
         /// @brief Returns a mutable reference to a single component by type-slot index and
@@ -692,7 +763,7 @@ class Composition : public CompositionTag {
         /// @return Mutable reference to the component at the given position.
         template <size_t ComponentTypeIndex>
         [[nodiscard]] auto get_component(size_t index) -> auto& {
-            return *(std::get<ComponentTypeIndex>(components_).at(index));
+            return *(std::get<ComponentTypeIndex>(*components_).at(index));
         }
 
         /// @brief Returns a mutable reference to the component vector for a given base type.
@@ -739,10 +810,30 @@ class Composition : public CompositionTag {
             return get_component<kComponentTypeIndex>(index);
         }
 
+    protected:
+        /// @brief Whether the cost kept by @c Resource<ResourceTypeComposition> is invalid: a
+        ///        component may have changed since the last @ref mark_cost_kept.
+        ///
+        /// Every non-const member function that reaches a component invalidates it, whether or not
+        /// the caller then writes (the components are reachable only through a
+        /// @c detail::CostInvalidatingComponents, whose mutable access invalidates the cost), as do
+        /// construction, copy and swap. A component reached through a const composition is not seen
+        /// (a `const std::unique_ptr` still hands out a mutable component), so code that writes
+        /// through one must say so with @ref invalidate_kept_cost (@c Resource::invalidate_cost).
+        ///
+        /// @return @c true when the cost must be evaluated again.
+        [[nodiscard]] bool kept_cost_invalid() const noexcept { return components_.cost_invalid(); }
+
+        /// @brief Invalidates the kept cost.
+        void invalidate_kept_cost() const noexcept { components_.invalidate_cost(); }
+
+        /// @brief Records that the cost has been evaluated on the components as they are now.
+        void mark_cost_kept() const noexcept { components_.mark_cost_kept(); }
+
     private:
-        // Tuple of resource vectors in which each component of the tuple is associated with
-        // a different type from the template arguments (i.e., Components...)
-        std::tuple<std::vector<std::unique_ptr<ComponentClass<BaseTypes>>>...> components_;
+        // One vector of components per base type, and whether the kept cost is invalid: reached
+        // only through operator*, whose non-const overload invalidates it.
+        detail::CostInvalidatingComponents<ComponentClass<BaseTypes>...> components_;
 };
 
 }  // namespace rcspp

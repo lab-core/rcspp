@@ -166,6 +166,31 @@ Built-in implementations:
 | `TrivialCostFunction<T>` | `0.0` |
 | `ValueCostFunction<T>` | `static_cast<double>(resource.value)` |
 
+A label's cost, the cost function of its composed resource, is evaluated once after its
+components change and kept until they change again: an extension, a reset, or any mutable access
+to a component is a change. A cost function must therefore depend on the resource's components
+only, and so must each component's own cost function, whose value a `CompositionCostFunction`
+adds into the kept one. Call `invalidate_cost()` on the resource when a cost function reads
+anything else that changes, when a component is written through a const composition, and when it
+is written through a reference obtained before a later read of the cost: the change is recorded
+when a mutable component is handed out, not when it is written.
+
+<!-- docs-check: given Resource<ResourceTypeComposition<RealResource, IntResource>>
+     resource(*graph.get_node(0)->resource); -->
+
+```cpp
+auto& waiting = resource.get_component<0>(0);  // a mutable access: recorded now
+std::cout << resource.get_cost() << '\n';      // evaluated, then kept
+waiting.set_value(5.0);                        // not seen: the access came before get_cost
+resource.invalidate_cost();                    // declares it
+std::cout << resource.get_cost() << '\n';      // evaluated again
+```
+
+Defining `RCSPP_VERIFY_COST_CACHE` makes every read of a kept value evaluate the cost function
+first, and throw `std::logic_error` when the two differ: the Debug builds of the test suite do.
+`rcspp::kVerifyCostCache` tells whether the check is on. Every translation unit and every shared
+library of a program must define the macro alike.
+
 ---
 
 ## Arc consumption

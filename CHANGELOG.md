@@ -52,6 +52,29 @@ New features are summarised, with a pointer to where they are documented.
   later dives tried a node's arcs in another order. The golden runs return what they did. Each
   solve now starts with no arc tabu and no extra tenure; before, both carried over from one solve
   on the same object to the next. A mask set with `Algorithm::set_arc_mask` is now read too.
+- **A composed resource keeps its cost until its components change.**
+  `Resource<ResourceTypeComposition<...>>::get_cost()` evaluates the cost function once after a
+  change and returns the kept value until the next one. A change is any mutable access to a
+  component (a non-const `get_component`, `get_components`, `apply`, `for_each_component` or
+  `add_component`, whether or not it writes), an extension into the resource (`Extender::extend`,
+  `extend_back`, `start_back`), `reset`, a copy or a swap. A label's cost is read by every
+  dominance test, the schedules and the take rule, and a `CompositionCostFunction` evaluates one
+  virtual call per component, so a model whose cost sums several components (penalised resources,
+  for instance) no longer pays that at every read. A cost function must now depend on the
+  components only, and so must each component's own cost function, whose value a
+  `CompositionCostFunction` adds into the kept one. Call the new `Resource::invalidate_cost()` when
+  a cost function reads something else that changes, when a component is written through a const
+  composition (a const `std::unique_ptr` still hands out a mutable component), and when it is
+  written through a reference obtained before a later `get_cost()`: the change is recorded when a
+  mutable component is handed out, not when it is written. Since `get_cost` may now store the value,
+  two threads must not call it on the same resource at once. Built with `RCSPP_VERIFY_COST_CACHE`,
+  as the Debug builds of the test suite are, a `get_cost` that would return the kept value first
+  evaluates the cost function and throws `std::logic_error` when the two differ;
+  `rcspp::kVerifyCostCache` tells whether the check is on; every translation unit and every shared
+  library of a program must define the macro alike. See "Cost function" in `docs/cpp/concepts.md`.
+- **`Label::get_resource()` on a const label returns a const resource**; a non-const label still
+  returns a mutable one. Code that modified a label's resource through a const label no longer
+  compiles. Reading a label through a const reference now leaves its kept cost valid.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

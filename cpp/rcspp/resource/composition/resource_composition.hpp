@@ -4,7 +4,9 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -14,6 +16,7 @@
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/composition/composition.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -220,6 +223,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         ///
         /// @param node_id Identifier of the target node.
         void reset(size_t node_id) {
+            invalidate_cost();
             Prototype::reset(node_id);
             this->for_each_component([node_id](auto&& res) { res->reset(node_id); });
         }
@@ -228,6 +232,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         ///
         /// @param other_composition The composition to copy state from.
         void reset(const Resource& other_composition) {
+            invalidate_cost();
             Prototype::reset(other_composition);
             this->for_each_component(other_composition, [](auto&& res_comp, auto&& other_res_comp) {
                 res_comp.reset(*other_res_comp);
@@ -255,10 +260,44 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
 
         /// @brief Returns the total cost of this composed resource.
         ///
+        /// The cost function is evaluated once after the components change, and the value is
+        /// kept until they change again: a label's cost is read many times (by every dominance
+        /// test, the schedules, the take rule), and with a @c CompositionCostFunction each
+        /// evaluation is a virtual call per component. A change is anything that hands out a
+        /// mutable component (see @c Composition::kept_cost_invalid), an extension
+        /// (@c Extender::extend writes into this resource) and @ref reset. The cost function must
+        /// therefore depend on the components only, and so must each component's own cost function
+        /// when it adds their values. Call @ref invalidate_cost when it reads anything else that
+        /// changes, when a component is written through a const composition, and when it is
+        /// written through a reference obtained before a later call: the change is recorded when a
+        /// mutable component is handed out, not when it is written. A call
+        /// may store the value: two threads must not call it on the same resource at once (a
+        /// search reads its labels from one thread).
+        ///
+        /// Built with @c RCSPP_VERIFY_COST_CACHE (@ref kVerifyCostCache: the Debug builds of the
+        /// test suite), a call that would return the kept value first evaluates the cost function,
+        /// and throws @c std::logic_error when the two differ: a change that did not invalidate it.
+        ///
         /// @return The cost value computed by the cost function.
+        /// @throws std::logic_error With @c RCSPP_VERIFY_COST_CACHE, on a stale kept value.
         [[nodiscard]] auto get_cost() const -> double {
-            return this->cost_function_->get_cost(*this);
+            if constexpr (kVerifyCostCache) {
+                verify_kept_cost();
+            }
+            if (this->kept_cost_invalid()) {
+                cached_cost_ = this->cost_function_->get_cost(*this);
+                this->mark_cost_kept();
+            }
+            return cached_cost_;
         }
+
+        /// @brief Forgets the kept cost, so that the next @ref get_cost evaluates the cost
+        ///        function.
+        ///
+        /// Needed only when the cost changes without a mutable access to the components: a
+        /// component written through a const composition, or a cost function whose result
+        /// depends on something else that changed.
+        void invalidate_cost() const noexcept { this->invalidate_kept_cost(); }
 
         /// @brief Whether the cost is additive: the cost of a path is the sum of its two halves'
         ///        costs, wherever it is split.
@@ -291,6 +330,33 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->feasibility_function_->can_be_joined(*this, back_resource);
         }
 
+    private:
+        /// @brief With @ref kVerifyCostCache: throws when the tracking says the kept cost is
+        ///        current but the cost function gives another value.
+        ///
+        /// A kept cost that differs means a component changed without invalidating it. When the
+        /// kept cost is already invalid, @ref get_cost evaluates it anyway, so
+        /// there is nothing to check.
+        void verify_kept_cost() const {
+            if (this->kept_cost_invalid()) {
+                return;
+            }
+            const double computed = this->cost_function_->get_cost(*this);
+            if (computed != cached_cost_ && !(std::isnan(computed) && std::isnan(cached_cost_))) {
+                throw std::logic_error(
+                    "Resource::get_cost: the kept cost " + std::to_string(cached_cost_) +
+                    " differs from the " + std::to_string(computed) + " of the cost function " +
+                    short_type_name(*this->cost_function_) +
+                    ": a component changed without invalidating the kept cost (see "
+                    "invalidate_cost)");
+            }
+        }
+
+        // The cost function's value for the components as they were when it was last evaluated;
+        // valid while Composition::kept_cost_invalid() is false (see get_cost).
+        mutable double cached_cost_ = 0.0;
+
+    public:
         /// @brief Returns `true` if this resource can reach the given destination node.
         ///
         /// @param destination_node_id Identifier of the destination node.

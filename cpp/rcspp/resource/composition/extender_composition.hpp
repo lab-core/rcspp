@@ -8,6 +8,7 @@
 
 #include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/composition/composition.hpp"
+#include "rcspp/resource/composition/resource_composition.hpp"
 
 namespace rcspp {
 
@@ -67,6 +68,8 @@ class Extender<ResourceTypeComposition<ResourceTypes...>>
         void extend(const Resource<ResourceType>& resource,
                     Resource<ResourceType>* extended_resource) const {
             this->extension_function_->extend(resource, *this, extended_resource);
+            // Whatever the extension function wrote, and however: the next get_cost evaluates.
+            extended_resource->invalidate_cost();
         }
 
         /// @brief Extends a resource in the backward direction along the arc.
@@ -78,6 +81,7 @@ class Extender<ResourceTypeComposition<ResourceTypes...>>
         void extend_back(const Resource<ResourceType>& resource,
                          Resource<ResourceType>* extended_resource) const {
             this->extension_function_->extend_back(resource, *this, extended_resource);
+            extended_resource->invalidate_cost();
         }
 
         /// @brief Sets the values a backward label starts with at the arc's destination.
@@ -87,6 +91,7 @@ class Extender<ResourceTypeComposition<ResourceTypes...>>
         /// @param resource The backward label resource at the arc's destination.
         void start_back(Resource<ResourceType>* resource) const {
             this->extension_function_->start_back(*this, resource);
+            resource->invalidate_cost();
         }
 };
 }  // namespace rcspp

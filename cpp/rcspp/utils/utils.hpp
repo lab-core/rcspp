@@ -17,6 +17,19 @@
 
 namespace rcspp {
 
+/// @brief Whether `Resource::get_cost` checks every kept cost against its cost function: true when
+///        built with `RCSPP_VERIFY_COST_CACHE`, as the Debug builds of the test suite are.
+///
+/// The library reads this constant, never the macro, so that the check is ordinary code
+/// (`if constexpr`) that every build compiles. Every translation unit and every shared library of
+/// a program must agree on the macro (ODR): two libraries built with different settings and loaded
+/// together may each run the other's `get_cost`.
+#ifdef RCSPP_VERIFY_COST_CACHE
+inline constexpr bool kVerifyCostCache = true;
+#else
+inline constexpr bool kVerifyCostCache = false;
+#endif
+
 /// @brief Returns a human-readable type name for the given `std::type_info`.
 ///
 /// On GCC and Clang (non-MSVC), uses `abi::__cxa_demangle` to convert the
