@@ -361,6 +361,15 @@ New features are summarised, with a pointer to where they are documented.
   four as `column_generation` options, with `instance.vehicles`, the row limiting the routes that
   the bound needs, and records `lower_bound` in `result.json`. See "The lower bound and early
   stops" in `docs/advanced/column-generation.md`.
+- **What each column generation iteration did, and a progress log.** `IterationInfo` gains the
+  iteration's LP and pricing times, and, each behind its own `StatisticsParams` switch (all off by
+  default), what each pricer did (`pricers`: a `PricerIterationInfo` with its status, columns, best
+  reduced cost, time and, for a `GraphPricer`, the stages it ran), the engine's counts in each
+  stage (`search`), the duals (`duals`), the LP solution's nonzero values (`master_values`) and the
+  columns added (`columns`). A pricer written in Python may fill `PricingResult.search_details`
+  when `PricingRequest.search_details` asks. `ColumnGenerationParams.log_frequency` logs a line
+  every that many iterations to the logger `rcspp.column_generation`. See "What each iteration
+  did" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 

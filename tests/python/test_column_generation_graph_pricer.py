@@ -514,6 +514,36 @@ def test_the_pricer_shows_its_stages_and_the_last_one_run() -> None:
     assert GraphPricer(two_path_graph()).stages == (PricingStage(),)
 
 
+def test_the_details_list_the_stages_run_when_asked() -> None:
+    stages = [PricingStage("greedy"), PricingStage("simple", direction="bidirectional")]
+    pricer = GraphPricer(two_path_graph(), stages)
+
+    # Not asked: none.
+    assert pricer.price(np.array([1.0, 1.0])).search_details == ()
+
+    # Nothing found: the greedy stage hands over to the exact one, which proves it.
+    asked = PricingRequest(search_details=True)
+    greedy, simple = pricer.price(np.array([1.0, 1.0]), asked).search_details
+
+    assert (greedy.stage, simple.stage) == (0, 1)
+    assert greedy.status == simple.status == AlgorithmStatus.Complete
+    assert greedy.new_columns == simple.new_columns == 0
+    assert greedy.seconds >= 0.0 and simple.seconds >= 0.0
+    # Greedy does not count its labels. Here no path can beat the threshold, so the
+    # preprocessing leaves the exact search nothing to extend.
+    assert greedy.extended_labels == 0 and greedy.bidirectional is None
+    assert simple.extended_labels == 0 and simple.bidirectional is not None
+
+    # Found by the first stage: only it ran.
+    (found,) = pricer.price(np.array([10.0, 0.0]), asked).search_details
+    assert found.stage == 0 and found.new_columns == 1
+
+    # An exact search that finds a path counts its extensions.
+    (exact,) = GraphPricer(two_path_graph()).price(np.array([10.0, 0.0]), asked).search_details
+    assert exact.new_columns == 1
+    assert exact.extended_labels is not None and exact.extended_labels > 0
+
+
 def test_the_next_stage_returns_what_it_finds() -> None:
     requests: list[StageRequest] = []
 

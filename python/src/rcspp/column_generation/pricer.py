@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from .._core.graph import Solution
+from .._core.graph import AlgorithmStatus, BidirectionalStats, Solution
 from .types import FloatArray
 
 
@@ -42,6 +42,29 @@ class PricingRequest:
     #: Return only columns whose reduced cost (without the convexity dual) is below this value.
     reduced_cost_threshold: float = 0.0
     timeout_s: float = math.inf
+    #: Whether the run reads :attr:`PricingResult.search_details`; a pricer may skip them
+    #: otherwise.
+    search_details: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class PricingStageInfo:
+    """What one stage of a pricing call did, in :attr:`PricingResult.search_details`."""
+
+    #: The stage's position in the pricer's stages, from 0.
+    stage: int
+    #: How the stage's search ended.
+    status: AlgorithmStatus
+    #: Columns the stage returned (below the threshold).
+    new_columns: int
+    #: Time of the stage's search, in seconds.
+    seconds: float
+    #: Labels the search extended (:attr:`SolveResult.extended_labels`); ``None`` when the
+    #: run does not collect it.
+    extended_labels: int | None = None
+    #: A bidirectional search's half-way point and join; ``None`` from another search, or when
+    #: the run does not collect it.
+    bidirectional: BidirectionalStats | None = None
 
 
 @dataclass(eq=False, kw_only=True)
@@ -58,6 +81,10 @@ class PricingResult:
     #: Only an exact call that is Optimal or Infeasible, or a call answering NotApplicable,
     #: proves that no improving column exists.
     exact_stage: bool = False
+    #: The stages the call ran, in order, the last one the stage it ended with; filled when
+    #: :attr:`PricingRequest.search_details` asks for it, and empty from a pricer without
+    #: stages.
+    search_details: tuple[PricingStageInfo, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
