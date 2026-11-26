@@ -6,15 +6,19 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <format>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "rcspp/column_generation/pricer.hpp"
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp::column_generation {
 
@@ -52,6 +56,109 @@ auto timed(bool enabled, Timer& timer, Function&& function) {
     return value;
 }
 
+// The name of a status, as the Python layers spell it. Every status is listed, without a default,
+// so that a new value makes the compiler warn here.
+std::string_view status_name(ColumnGenerationStatus status) {
+    switch (status) {
+        case ColumnGenerationStatus::Optimal:
+            return "Optimal";
+        case ColumnGenerationStatus::NotProven:
+            return "NotProven";
+        case ColumnGenerationStatus::Infeasible:
+            return "Infeasible";
+        case ColumnGenerationStatus::RestrictedMasterInfeasible:
+            return "RestrictedMasterInfeasible";
+        case ColumnGenerationStatus::Unbounded:
+            return "Unbounded";
+        case ColumnGenerationStatus::TimeLimit:
+            return "TimeLimit";
+        case ColumnGenerationStatus::IterationLimit:
+            return "IterationLimit";
+        case ColumnGenerationStatus::Cutoff:
+            return "Cutoff";
+        case ColumnGenerationStatus::AbsoluteGapLimit:
+            return "AbsoluteGapLimit";
+        case ColumnGenerationStatus::RelativeGapLimit:
+            return "RelativeGapLimit";
+        case ColumnGenerationStatus::IntegerObjectiveGap:
+            return "IntegerObjectiveGap";
+        case ColumnGenerationStatus::SolverError:
+            return "SolverError";
+    }
+    return "Unknown";  // an out-of-range value
+}
+
+// A number of the log, or "-" when unknown.
+std::string logged(double value, bool known) {
+    return known ? std::format("{:.6g}", value) : std::string("-");
+}
+
+// A time of the log, or "-" when not measured.
+std::string logged_seconds(const std::optional<double>& seconds) {
+    return seconds.has_value() ? std::format("{:.3f} s", *seconds) : std::string("-");
+}
+
+// One line of the progress log.
+void log_iteration(const IterationInfo& info) {
+    const bool known = info.lower_bound > -infinity;
+    const double gap = info.objective - info.lower_bound;
+    const std::string relative =
+        info.objective != 0.0 ? std::format(" ({:.2f}%)", 100.0 * gap / std::abs(info.objective))
+                              : std::string();
+    LOG_INFO(std::format("iteration {}  {:.2f} s  LP {}  pricing {}  columns +{} / {}  LP value "
+                         "{:.6g}  bound {}  gap {}",
+                         info.iteration,
+                         info.elapsed_seconds,
+                         logged_seconds(info.relaxation_seconds),
+                         logged_seconds(info.pricing_seconds),
+                         info.new_columns,
+                         info.total_columns,
+                         info.objective,
+                         logged(info.lower_bound, known),
+                         known ? logged(gap, true) + relative : std::string("-")),
+             "\n");
+}
+
+// The last line of the progress log: how the run ended.
+void log_end(const ColumnGenerationResult& result) {
+    const Statistics& statistics = result.statistics;
+    LOG_INFO(std::format("{} after {} iterations, {:.2f} s (LP {:.2f} s, pricing {:.2f} s), {} "
+                         "columns generated, LP value {}, bound {}",
+                         status_name(result.status),
+                         result.iterations,
+                         statistics.total_seconds,
+                         statistics.relaxation_seconds,
+                         statistics.pricing_seconds,
+                         statistics.generated_columns,
+                         logged(result.objective, result.iterations > 0),
+                         logged(result.lower_bound, result.lower_bound > -infinity)),
+             "\n");
+}
+
+// What a pricer did, from its answer; the engine's counts dropped unless collected.
+PricerIterationInfo pricer_info(PricingResult& priced, double convexity_dual, double seconds,
+                                const StatisticsParams& statistics) {
+    PricerIterationInfo info{.status = priced.status,
+                             .new_columns = priced.columns.size(),
+                             .min_reduced_cost = std::nullopt,
+                             .seconds = seconds,
+                             .search_details = std::move(priced.search_details)};
+    if (!priced.columns.empty()) {
+        double best = infinity;
+        for (const Solution& column : priced.columns) {
+            best = std::min(best, column.cost);
+        }
+        info.min_reduced_cost = best - convexity_dual;
+    }
+    if (!statistics.search) {
+        for (PricingStageInfo& stage : info.search_details) {
+            stage.extended_labels.reset();
+            stage.bidirectional.reset();
+        }
+    }
+    return info;
+}
+
 }  // namespace
 
 ColumnGeneration::ColumnGeneration(MasterProblem& master, ColumnGenerationParams params)
@@ -72,6 +179,11 @@ ColumnGeneration::ColumnGeneration(MasterProblem& master, ColumnGenerationParams
     if (!(params_.relative_gap >= 0.0)) {
         throw std::invalid_argument("ColumnGeneration: relative_gap must be at least 0");
     }
+
+    // The counts sit in the pricers' details: alone, they would silently give nothing.
+    if (params_.statistics.search && !params_.statistics.pricers) {
+        throw std::invalid_argument("ColumnGeneration: the search statistics need the pricers'");
+    }
 }
 
 ColumnGenerationResult ColumnGeneration::run() {
@@ -91,7 +203,10 @@ ColumnGenerationResult ColumnGeneration::iterate() {
     Timer total_timer(true);
     Timer relaxation_timer;
     Timer pricing_timer;
-    const bool timers = params_.statistics.timers;
+    const StatisticsParams& statistics = params_.statistics;
+    const bool timers = statistics.timers;
+    const bool wants_info = params_.on_iteration || params_.log_frequency > 0;
+    std::optional<IterationInfo> last_info;
 
     initialize();
 
@@ -119,6 +234,7 @@ ColumnGenerationResult ColumnGeneration::iterate() {
         RelaxationParams relaxation = params_.relaxation;
         relaxation.timeout_s = std::min(relaxation.timeout_s, remaining);
 
+        const double relaxation_before = relaxation_timer.elapsed_seconds();
         const SolverStatus solver_status =
             timed(timers, relaxation_timer, [&] { return solver.solve_relaxation(relaxation); });
         if (solver_status != SolverStatus::Optimal) {
@@ -132,21 +248,54 @@ ColumnGenerationResult ColumnGeneration::iterate() {
         duals.resize(master_.number_of_rows());
         solver.duals(duals);
 
+        // The LP solution, read before the new columns change the model.
+        std::optional<std::pair<std::vector<ColumnId>, std::vector<double>>> master_values;
+        if (wants_info && statistics.master_values) {
+            master_values = nonzero_values();
+        }
+
         // Price the duals and add the columns found.
-        const auto [new_columns, proven, bound_terms] = timed(timers, pricing_timer, [&] {
-            return price(duals, total_timer, reduced_cost_tolerance, paths);
+        const size_t columns_before = master_.number_of_columns();
+        const double relaxation_seconds = relaxation_timer.elapsed_seconds() - relaxation_before;
+        const double pricing_before = pricing_timer.elapsed_seconds();
+        PricingRound round = timed(timers, pricing_timer, [&] {
+            return price(duals, total_timer, reduced_cost_tolerance, paths, wants_info);
         });
+        const size_t new_columns = round.new_columns;
+        const bool proven = round.proven;
         result.statistics.generated_columns += new_columns;
-        const double iteration_bound = result.objective + bound_terms;
+        const double iteration_bound = result.objective + round.bound_terms;
         result.lower_bound = std::max(result.lower_bound, iteration_bound);
 
-        if (params_.on_iteration) {
-            params_.on_iteration(IterationInfo{.iteration = result.iterations,
-                                               .objective = result.objective,
-                                               .lower_bound = iteration_bound,
-                                               .new_columns = new_columns,
-                                               .total_columns = master_.number_of_columns(),
-                                               .elapsed_seconds = total_timer.elapsed_seconds()});
+        if (wants_info) {
+            IterationInfo info{.iteration = result.iterations,
+                               .objective = result.objective,
+                               .lower_bound = iteration_bound,
+                               .new_columns = new_columns,
+                               .total_columns = master_.number_of_columns(),
+                               .elapsed_seconds = total_timer.elapsed_seconds()};
+            if (timers) {
+                info.relaxation_seconds = relaxation_seconds;
+                info.pricing_seconds = pricing_timer.elapsed_seconds() - pricing_before;
+            }
+            info.pricers = std::move(round.pricers);
+            if (statistics.duals) {
+                info.duals = duals;
+            }
+            info.master_values = std::move(master_values);
+            if (statistics.columns) {
+                const std::span<const MasterColumn> added =
+                    master_.columns().subspan(columns_before);
+                info.added_columns.emplace(added.begin(), added.end());
+            }
+
+            if (params_.log_frequency > 0 && result.iterations % params_.log_frequency == 0) {
+                log_iteration(info);
+            }
+            if (params_.on_iteration) {
+                params_.on_iteration(info);
+            }
+            last_info = std::move(info);
         }
 
         // New columns: solve again, unless the bound is already close enough.
@@ -199,6 +348,14 @@ ColumnGenerationResult ColumnGeneration::iterate() {
     result.statistics.total_seconds = total_timer.elapsed_seconds();
     result.statistics.relaxation_seconds = relaxation_timer.elapsed_seconds();
     result.statistics.pricing_seconds = pricing_timer.elapsed_seconds();
+
+    if (params_.log_frequency > 0) {
+        // The last iteration, unless its line is out already, then how the run ended.
+        if (last_info.has_value() && last_info->iteration % params_.log_frequency != 0) {
+            log_iteration(*last_info);
+        }
+        log_end(result);
+    }
     return result;
 }
 
@@ -221,18 +378,33 @@ void ColumnGeneration::initialize() {
 ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> duals,
                                                        const Timer& total_timer,
                                                        double reduced_cost_tolerance,
-                                                       std::span<const double> paths_allowed) {
-    PricingRound round{.new_columns = 0, .proven = true, .bound_terms = 0.0};
+                                                       std::span<const double> paths_allowed,
+                                                       bool wants_info) {
+    const StatisticsParams& statistics = params_.statistics;
+    const bool collect = wants_info && statistics.pricers;
+    PricingRound round{.new_columns = 0, .proven = true, .bound_terms = 0.0, .pricers = {}};
+    if (collect) {
+        round.pricers.emplace();
+    }
 
     for (size_t index = 0; index < master_.number_of_pricers(); ++index) {
         // A column improves when its reduced cost, convexity dual included, is negative.
         const std::optional<size_t> convexity = master_.convexity_row(index);
         const double convexity_dual = convexity.has_value() ? duals[*convexity] : 0.0;
+        const double pricing_start = total_timer.elapsed_seconds();
         const PricingRequest request{
             .reduced_cost_threshold = convexity_dual - reduced_cost_tolerance,
-            .timeout_s = std::max(0.0, params_.timeout_s - total_timer.elapsed_seconds())};
+            .timeout_s = std::max(0.0, params_.timeout_s - pricing_start),
+            .search_details = collect};
 
         PricingResult priced = master_.pricer(index).price(duals, request);
+
+        if (collect) {
+            round.pricers->push_back(pricer_info(priced,
+                                                 convexity_dual,
+                                                 total_timer.elapsed_seconds() - pricing_start,
+                                                 statistics));
+        }
 
         // Only an exact stage that finished proves there is no improving column. No path at all
         // (Infeasible) proves it too: no column of any cost exists. A pricer with nothing to
@@ -353,6 +525,18 @@ std::vector<double> ColumnGeneration::column_values() const {
     std::vector<double> values(ids.size());
     master_.solver().primal(ids, values);
     return values;
+}
+
+std::pair<std::vector<ColumnId>, std::vector<double>> ColumnGeneration::nonzero_values() const {
+    const std::vector<double> values = column_values();
+    std::pair<std::vector<ColumnId>, std::vector<double>> used;
+    for (size_t index = 0; index < values.size(); ++index) {
+        if (values[index] != 0.0) {
+            used.first.push_back(master_.columns()[index].id);
+            used.second.push_back(values[index]);
+        }
+    }
+    return used;
 }
 
 bool ColumnGeneration::uses_artificial_columns() const {

@@ -368,8 +368,9 @@ New features are summarised, with a pointer to where they are documented.
   stage (`search`), the duals (`duals`), the LP solution's nonzero values (`master_values`) and the
   columns added (`columns`). A pricer written in Python may fill `PricingResult.search_details`
   when `PricingRequest.search_details` asks. `ColumnGenerationParams.log_frequency` logs a line
-  every that many iterations to the logger `rcspp.column_generation`. See "What each iteration
-  did" in `docs/advanced/column-generation.md`.
+  every that many iterations to the logger `rcspp.column_generation`. The C++ column generation
+  example has the same, in C++ and through its bindings, its log through the engine's logger. See
+  "What each iteration did" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 

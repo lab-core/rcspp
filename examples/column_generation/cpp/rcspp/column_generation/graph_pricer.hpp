@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -59,7 +60,8 @@ class GraphPricer final : public Pricer {
               cost_index_(cost_index),
               preprocess_(preprocess) {}
 
-        /// @brief Prices the duals.
+        /// @brief Prices the duals. When the request asks for @c search_details, the result
+        ///        has one @c PricingStageInfo per stage run.
         ///
         /// @throws std::logic_error when the graph has no source or no sink.
         /// @throws std::out_of_range when the cost index is not a cost component of the graph,
@@ -81,22 +83,38 @@ class GraphPricer final : public Pricer {
             graph_.update_reduced_costs(duals_, cost_index_);
 
             const Timer timer(true);
+            std::vector<PricingStageInfo> details;
             strategy_.reset();
             while (true) {
+                const double stage_start = timer.elapsed_seconds();
                 const StageRequest stage_request{
                     .upper_bound = request.reduced_cost_threshold,
-                    .timeout_s = std::max(0.0, request.timeout_s - timer.elapsed_seconds()),
+                    .timeout_s = std::max(0.0, request.timeout_s - stage_start),
                     .preprocess = preprocess_,
                     .cost_index = cost_index_};
-                PricingResult result =
-                    to_pricing_result(strategy_.current().search(graph_, stage_request),
-                                      strategy_.is_exact(),
-                                      request.reduced_cost_threshold);
+                SolveResult searched = strategy_.current().search(graph_, stage_request);
+                const AlgorithmStatus search_status = searched.status;
+                const size_t extended_labels = searched.extended_labels;
+                std::optional<BidirectionalStats> bidirectional = std::move(searched.bidirectional);
+                PricingResult result = to_pricing_result(std::move(searched),
+                                                         strategy_.is_exact(),
+                                                         request.reduced_cost_threshold);
+
+                if (request.search_details) {
+                    details.push_back(
+                        PricingStageInfo{.stage = strategy_.current_index(),
+                                         .status = search_status,
+                                         .new_columns = result.columns.size(),
+                                         .seconds = timer.elapsed_seconds() - stage_start,
+                                         .extended_labels = extended_labels,
+                                         .bidirectional = std::move(bidirectional)});
+                }
 
                 // Only an exact stage that finished is optimal.
                 const bool proven = result.status == PricingStatus::Optimal;
                 const bool out_of_time = timer.elapsed_seconds() >= request.timeout_s;
                 if (!result.columns.empty() || proven || out_of_time || !strategy_.next_stage()) {
+                    result.search_details = std::move(details);
                     return result;
                 }
             }

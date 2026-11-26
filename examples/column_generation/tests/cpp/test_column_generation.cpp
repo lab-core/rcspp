@@ -15,4 +15,5 @@
 #include "test_column_generation_master_solver_support.hpp"
 #include "test_column_generation_pricing_strategy.hpp"
 #include "test_column_generation_self_test.hpp"
+#include "test_column_generation_statistics.hpp"
 #include "test_column_generation_tolerances.hpp"
