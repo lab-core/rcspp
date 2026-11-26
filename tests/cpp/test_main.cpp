@@ -33,6 +33,7 @@
 #include "test_half_way.hpp"
 #include "test_interleave.hpp"
 #include "test_label.hpp"
+#include "test_label_pool.hpp"
 #include "test_memory_limit.hpp"
 #include "test_policies.hpp"
 #include "test_preprocessor_coverage.hpp"

@@ -43,13 +43,22 @@ class LabelFactory {
         std::unique_ptr<Label<ResourceType>> make_label(
             size_t label_id, const Node<ResourceType>* end_node,
             const Arc<ResourceType>* in_arc = nullptr, const Arc<ResourceType>* out_arc = nullptr) {
-            auto resource = resource_factory_.copy_resource(*end_node);
-
             return std::make_unique<Label<ResourceType>>(label_id,
-                                                         std::move(resource),
+                                                         make_resource(*end_node),
                                                          end_node,
                                                          in_arc,
                                                          out_arc);
+        }
+
+        /// @brief The resource state of a new label at @p end_node: a copy of the node's
+        ///        resource, sharing its function objects.
+        ///
+        /// For a container that constructs its labels in place (@c LabelPool).
+        ///
+        /// @param end_node The node at the end of the new label's partial path.
+        /// @return An owning pointer to the new resource state.
+        std::unique_ptr<Resource<ResourceType>> make_resource(const Node<ResourceType>& end_node) {
+            return resource_factory_.copy_resource(end_node);
         }
 
         /// @brief Resets an existing label to a fresh state at the specified graph position.

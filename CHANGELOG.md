@@ -75,6 +75,20 @@ New features are summarised, with a pointer to where they are documented.
 - **`Label::get_resource()` on a const label returns a const resource**; a non-const label still
   returns a mutable one. Code that modified a label's resource through a const label no longer
   compiles. Reading a label through a const reference now leaves its kept cost valid.
+- **A new label costs fewer allocations.** `LabelPool` constructs its labels in place, in blocks
+  that never reallocate, instead of one heap object per label; a label still never moves. The
+  blocks grow: the first holds `LabelPool::kFirstBlockLabels` (16) labels and each next one twice
+  as many, up to `LabelPool::kMaxBlockLabels` (4096), so that a pool that makes a few labels takes
+  little memory; `LabelPool::get_label_capacity()` tells how many labels they hold. A new pool
+  reserves its free list for `DEFAULT_LABEL_POOL_SIZE` labels, now 16 instead of 10,000 (80 KB
+  per algorithm before any solve). `LabelPool::clear()` destroys the labels but keeps the blocks'
+  memory for the labels to come; `release()` frees it, as before. An algorithm with
+  `release_after_solve` false therefore keeps the blocks of its largest solve from one solve to the
+  next (`sizeof(Label)` per label; the labels' resources are freed). A composed resource reserves its
+  component vectors when it creates or copies itself, instead of growing them one component at a
+  time: a new label of a model with eight components of one type made six allocations for that
+  vector, and now makes one. `LabelFactory::make_resource(node)` gives a new label's resource
+  state alone, for a container that constructs its labels in place.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
