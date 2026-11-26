@@ -535,6 +535,14 @@ Code that treats `complete` as proof of optimality — a column-generation loop 
 converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
 *parameters*, and memory pressure is a property of the run.
 
+### How much a solve searched
+
+`result.extended_labels` counts the labels the solve extended: a measure of its work that,
+unlike its time, does not depend on the machine.  The labelling searches (`simple`, `astar`,
+`pushing`, `pulling`) count in every direction, and a bidirectional solve adds its two searches;
+the join's pairings are not extensions and do not count.  `greedy`, `tabu` and diversification do
+not count, and report 0.
+
 ## `Greedy`
 
 Extends labels greedily (best-cost-first) with limited backtracking.

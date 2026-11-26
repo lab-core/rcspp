@@ -306,6 +306,8 @@ New features are summarised, with a pointer to where they are documented.
   `complete` status does not rule out.
 - **`Algorithm::get_number_of_extended_labels()`**: the labels the last solve extended, a
   machine-independent measure of work.
+- **`SolveResult.extended_labels`** (C++ and Python): the same count on the result, so Python can
+  read it. A bidirectional solve adds its two searches; greedy, tabu and diversification report 0.
 - **The C++ pool classes have a public Python home**: `SolutionPool`, `FilteredSolutionPool`,
   `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.

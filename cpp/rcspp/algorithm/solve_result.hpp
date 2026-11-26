@@ -81,6 +81,14 @@ struct SolveResult {
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
+        /// @brief How many labels this solve extended, a machine-independent measure of work.
+        ///
+        /// Counted by the labelling searches, in every direction: a bidirectional solve adds the
+        /// two searches' extensions, not the join's pairs. 0 from the searches that do not count
+        /// (greedy, tabu, the dives, diversification). Same value as
+        /// @c Algorithm::get_number_of_extended_labels().
+        size_t extended_labels = 0;
+
         /// @brief The bidirectional search's half-way point and join; empty from every other
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
