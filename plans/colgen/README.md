@@ -330,6 +330,18 @@ Release, Python, tests, the example with HiGHS and Gurobi): the package's tests 
 holds an old unrelated entry (`dc946fe1`): do not pop it. `T-1.31` (parallel) also edits the benchmark's option blocks:
 expect a conflict in `options/blocks.py` and `OPTIONS.md` when the two meet. **Next:** the user commits these plan docs;
 CI and review on #124; then `T-2.5` on the main line (`D-307`; its open points in `phase-2-design.md` §3).
+`T-1.31` (parallel chat) designed 2026-11-25 (`D-350`-`D-359`): `graph.relaxation` `none` | `ng` | `elementary`,
+`ng_size` at least 2; flat bucket keys; `pricing.preprocess`; `cpp-native` templated over two graph types; several
+matrices (`[[matrix]]`) as commit 1; acceptance by hand, full on `package`, a subset on the C++ layers. Code in a
+third worktree `C:\dev\rcspp-options` (branch `feature/column-generation-benchmark-options` from #114 `71c13451`,
+its own test build and `.venv`); plans here, IDs `D-350`+, `F-150`+, `I-50`+. `T-2.3` also adds to the benchmark
+(`solution.json`'s `lower_bound`): the two branches meet at the stack's next rebase. Worktree, `.venv` and test build
+set up. Ten commits as built in `benchmark-options.md`: the eight planned (several matrices, the stage checks,
+the proof test, preprocessing, the native template, ng and elementary routes, buckets, the changelog), Copilot's two
+comments and the native program's own checks (`D-362`). Acceptance passed 2026-11-26: 276 runs, elementary on C101_10
+only (`D-360`, `F-153`). Rebased onto #124 (`D-361`); draft PR #125 on #124, 500 tests pass; findings `F-150`-`F-157`
+in `inventory.md`. CI does not start on #125 while it is in a GitHub stack with #124 (mergeability `UNKNOWN`): the
+user's. **Next:** CI once the stack is sorted, then the review.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -412,6 +424,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
 | `fold-review.md` | the read of the eight folded PRs: heads, findings `V.`, coverage, questions | before the fixups or the merge |
 | `benchmark-runner.md` | `T-1.10`'s runner: shape, TOML input, output folders, records, statistics, growth per task, coding steps | before coding the runner or a follow-up's option |
+| `benchmark-options.md` | `T-1.31`: what comes in, the worktree and build, the commit list, the acceptance runs and their record | working on `T-1.31` |
 | `benchmark-review.md` | the read of PR #97: checks run, blockers, should-fix, test gaps, docs, proposal | before fixing #97 |
 | `benchmark-solutions.md` | the runner's solutions: `--overwrite`, `solution.json`, the integer solve, the instance's resolved solution, per-iteration data | before step 5's fixup, the integer solve or per-iteration data |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
