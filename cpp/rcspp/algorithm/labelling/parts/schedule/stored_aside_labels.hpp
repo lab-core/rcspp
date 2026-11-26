@@ -55,12 +55,12 @@ class StoredAsideLabels {
         ///        dominance removed from its node since it was stored aside is only released,
         ///        as that erased the position it was stored with.
         ///
-        /// @param erase Callable `(const LabelIterator&)` erasing a label from its node.
+        /// @param erase Callable `(const StoredLabel&)` erasing a label from its node.
         template <typename EraseCallable>
         void release(LabelPool<ResourceType>* pool, const EraseCallable& erase) {
             for (const auto& stored : labels_) {
                 if (!stored.label->dominated) {
-                    erase(stored.position);
+                    erase(stored);
                 }
                 // A stored label pins a predecessor and may itself be pinned: releasing through
                 // the reference counts keeps the chain balanced.

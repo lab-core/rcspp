@@ -19,6 +19,10 @@ namespace rcspp::parts {
 
 /// @brief One label and where it is stored at its node.
 ///
+/// What a schedule holds, and what it erases a label by (a retention's @c erase, the erase callable
+/// of @c release_stored_aside and @c place_children): a container that keeps its labels in another
+/// order than a list's finds the label by @c label, and needs no @c position.
+///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
 struct StoredLabel {

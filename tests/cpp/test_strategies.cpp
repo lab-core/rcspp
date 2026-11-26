@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <type_traits>
@@ -71,6 +72,35 @@ struct NoExact {
                    const parts::AdmissionContext& /*context*/) const {
             return true;
         }
+};
+
+/// @brief First in, first out, with a release of the labels stored aside of its own: it erases
+///        each through the callable it is handed, by the stored label it holds, and counts them.
+template <typename ResourceType>
+class CountingReleaseFifo : public parts::FifoSchedule<ResourceType> {
+    public:
+        static inline size_t erased = 0;
+
+        template <typename EraseCallable>
+        void release_stored_aside(detail::SearchContext<ResourceType>& context,
+                                  const EraseCallable& erase) {
+            static_assert(
+                std::is_invocable_v<const EraseCallable&, const parts::StoredLabel<ResourceType>&>,
+                "an erase callable takes the stored label");
+            parts::FifoSchedule<ResourceType>::release_stored_aside(
+                context,
+                [&erase](const parts::StoredLabel<ResourceType>& stored) {
+                    ++erased;
+                    erase(stored);
+                });
+        }
+};
+
+/// @brief Simple's parts, with the schedule above; forward and backward only.
+struct SimpleCountingRelease {
+        template <typename ResourceType, typename Direction>
+        using schedule = CountingReleaseFifo<ResourceType>;
+        static constexpr bool bidirectional = false;
 };
 
 /// @brief A model with a usable clock, and the params of a solve on it: the clock and its
@@ -216,4 +246,27 @@ TEST(Strategies, ARefusedDirectionAndAnAdmissionOfOnesOwn) {
         EXPECT_GE(result.solutions.front().cost, exact.solutions.front().cost - 1e-9)
             << "an inexact rule never beats the exact optimum";
     }
+}
+
+/// @brief A schedule of one's own erases the labels it stored aside through the callable it is
+///        handed, by the stored label: under memory pressure from the second event on, as the
+///        library's schedules do, and the solve then reports the pressure.
+TEST(Strategies, AScheduleOfOnesOwnErasesByTheStoredLabel) {
+    namespace st = strategies_test;
+    static_assert(parts::LabelSchedule<st::CountingReleaseFifo<st::Composed>, st::Composed>);
+    st::CountingReleaseFifo<st::Composed>::erased = 0;
+    for (const uint32_t seed : {1U, 2U, 3U}) {
+        auto m = st::model(seed);
+        auto params = m.params;
+        constexpr double kHugeLimitGiB = 1e9;  // pressure on every check, never a stop
+        params.max_memory_gb = kHugeLimitGiB;
+        params.memory_pressure_fraction = 0.0;
+        params.memory_check_interval = 1;
+        params.memory_pressure_max_labels_per_node = 1;
+        auto algorithm = m.built.graph->create_algorithm<st::SimpleCountingRelease>(params);
+        const auto result = m.built.graph->solve(algorithm.get());
+        EXPECT_TRUE(result.memory_pressure_triggered) << "seed " << seed;
+    }
+    EXPECT_GT(st::CountingReleaseFifo<st::Composed>::erased, 0U)
+        << "the labels stored aside were erased through the callable";
 }

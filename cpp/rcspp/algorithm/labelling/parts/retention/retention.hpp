@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <list>
 
+#include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp::parts {
@@ -24,7 +25,8 @@ namespace rcspp::parts {
 ///   a copy of @p prototype;
 /// - @c node(pos), the view an admission rule reads and evicts through (@ref NodeView);
 /// - @c store(pos, label), which keeps a newly admitted label at its node and returns its position
-///   there, and @c erase(position), which takes a stored label out;
+///   there, and @c erase(stored), which takes a stored label out (@ref StoredLabel: the label and
+///   that position);
 /// - @c labels_at(pos), the labels stored at a node: the end nodes' are read as the solutions when
 ///   the loop ends (@c Search::labels_at_end_nodes);
 /// - @c containers(), every node's container (@c Search::print);
@@ -40,21 +42,21 @@ namespace rcspp::parts {
 /// @tparam ResourceType  The resource type carried by labels.
 /// @tparam ContainerType The per-node container of the params.
 template <typename RetentionType, typename ResourceType, typename ContainerType>
-concept Retention = requires(RetentionType retention, const RetentionType const_retention,
-                             size_t pos, Label<ResourceType>* label,
-                             const typename std::list<Label<ResourceType>*>::iterator& position,
-                             const ContainerType& prototype) {
-    retention.reset(pos, prototype);
-    retention.clear();
-    retention.node(pos);
-    {
-        retention.store(pos, label)
-    } -> std::same_as<typename std::list<Label<ResourceType>*>::iterator>;
-    retention.erase(position);
-    const_retention.labels_at(pos);
-    const_retention.containers();
-    { RetentionType::records_at_take } -> std::convertible_to<bool>;
-};
+concept Retention =
+    requires(RetentionType retention, const RetentionType const_retention, size_t pos,
+             Label<ResourceType>* label, const StoredLabel<ResourceType>& stored,
+             const ContainerType& prototype) {
+        retention.reset(pos, prototype);
+        retention.clear();
+        retention.node(pos);
+        {
+            retention.store(pos, label)
+        } -> std::same_as<typename std::list<Label<ResourceType>*>::iterator>;
+        retention.erase(stored);
+        const_retention.labels_at(pos);
+        const_retention.containers();
+        { RetentionType::records_at_take } -> std::convertible_to<bool>;
+    };
 
 /// @brief Whether @p RetentionType keeps nothing behind the search: a retention says so with
 ///        `static constexpr bool releases_taken_labels = true`; one that does not say keeps

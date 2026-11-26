@@ -19,9 +19,14 @@ namespace rcspp::parts {
 /// @brief An erase callable that erases nothing: the stand-in the @ref Schedule concept checks
 ///        @c release_stored_aside with. (The search passes its own, which erases through the
 ///        retention: @c Search::erase.)
+///
+/// An erase callable takes the label to erase as the schedule holds it, a @ref StoredLabel (the
+/// label and its position at its node), not the position alone: a retention finds the label's
+/// node through the label, and a container may find the label by the label rather than by a list
+/// position.
 template <typename ResourceType>
 struct IgnoreErase {
-        void operator()(const LabelIterator<ResourceType>& /*position*/) const {}
+        void operator()(const StoredLabel<ResourceType>& /*stored*/) const {}
 };
 
 /// @brief What every schedule provides: the order labels are taken in, the per-node quota
@@ -42,7 +47,8 @@ struct IgnoreErase {
 ///   node (@ref SweepSchedule, @ref PullSchedule), or to @p limit × the number of nodes in all
 ///   (@ref FifoSchedule, @ref BestFirstSchedule, @ref DepthFirstSchedule).
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
-///   It erases each label stored aside from its node, through @p erase, and releases it.
+///   It erases each label stored aside from its node, through @p erase (called with the
+///   @ref StoredLabel it holds), and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
 ///   new solve, and at each run of a driven search (@c Search::reset, @c Search::restart). A
 ///   schedule may keep the memory its queues used, for the labels to come; when the algorithm

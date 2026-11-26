@@ -84,6 +84,30 @@ struct RecordingSchedule {
 static_assert(parts::LabelSchedule<RecordingSchedule, Composed>);
 static_assert(parts::Observer<RecordingObserver, Composed>);
 
+/// @brief A list that erases a label by the stored label, as a container without list positions
+///        would (a cost-ordered one finds the label by the label), and counts those erasures.
+class ErasingByStoredLabel : public List {
+    public:
+        explicit ErasingByStoredLabel(size_t* erased) : erased_(erased) {}
+
+        [[nodiscard]] ErasingByStoredLabel copy() const { return ErasingByStoredLabel(erased_); }
+
+        using List::erase_label;
+        void erase_label(const Stored& stored) {
+            ++*erased_;
+            List::erase_label(stored.position);
+        }
+
+    private:
+        size_t* erased_;
+};
+
+/// @brief Whether @p ContainerType declares erase_label(const StoredLabel&), which KeepAtNodes
+///        then calls instead of erase_label(position).
+template <typename ContainerType>
+concept ErasesByStoredLabel =
+    requires(ContainerType& container, const Stored& stored) { container.erase_label(stored); };
+
 /// @brief A graph, a pool and a search of @p Direction on @p ContainerType, with the pushed labels
 ///        and the outcomes recorded.
 template <typename Direction, typename ContainerType>
@@ -243,11 +267,38 @@ TEST(Search, ApplyCarriesOutEachVerdict) {
     // Release: a label already out of its container (evicted as dominated) is released only.
     ASSERT_EQ(fixture.extend(start, 0), st::ExtensionOutcome::Accepted);
     const auto evicted = fixture.pushed().back();
-    fixture.search().erase(evicted.position);
+    fixture.search().erase(evicted);
     const size_t before = fixture.pool().get_nb_available_labels();
     fixture.search().apply(evicted, Verdict::Release, &fixture.pool());
     EXPECT_EQ(fixture.pool().get_nb_available_labels(), before + 1);
     EXPECT_EQ(start->ref_count, 0U);
+    EXPECT_TRUE(fixture.pool().check_ref_count_consistency());
+}
+
+/// @brief A container that declares erase_label(const StoredLabel&) is handed the stored label, by
+///        the take rule's erase and by the search's; a LabelList, which does not, is handed the
+///        position.
+TEST(Search, AContainerThatErasesByTheStoredLabelIsHandedIt) {
+    namespace st = search_test;
+    using detail::Verdict;
+    static_assert(!st::ErasesByStoredLabel<st::List>);
+    static_assert(st::ErasesByStoredLabel<st::ErasingByStoredLabel>);
+    size_t erased = 0;
+    st::Fixture<ForwardDirection, st::ErasingByStoredLabel> fixture(
+        std::numeric_limits<double>::infinity(),
+        st::ErasingByStoredLabel(&erased));
+    auto* start = fixture.pushed().front().label;
+
+    ASSERT_EQ(fixture.extend(start, 0), st::ExtensionOutcome::Accepted);
+    fixture.search().apply(fixture.pushed().back(), Verdict::EraseAndRelease, &fixture.pool());
+    EXPECT_EQ(erased, 1U);
+    EXPECT_EQ(fixture.stored_at(1), 0U);
+
+    ASSERT_EQ(fixture.extend(start, 0), st::ExtensionOutcome::Accepted);
+    fixture.search().erase(fixture.pushed().back());
+    EXPECT_EQ(erased, 2U);
+    EXPECT_EQ(fixture.stored_at(1), 0U);
+    fixture.search().apply(fixture.pushed().back(), Verdict::Release, &fixture.pool());
     EXPECT_TRUE(fixture.pool().check_ref_count_consistency());
 }
 

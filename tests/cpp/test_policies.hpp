@@ -234,13 +234,14 @@ TEST(Policies, KeepAtNodesStoresAndErasesAtEachNode) {
     EXPECT_EQ(kept.containers().size(), 3U);
 
     auto* label = f.label(1, 3.0);
-    const auto position = kept.store(f.pos(1), label);
+    const parts::StoredLabel<pt::Composed> stored{.label = label,
+                                                  .position = kept.store(f.pos(1), label)};
     ASSERT_EQ(kept.labels_at(f.pos(1)).size(), 1U);
     EXPECT_EQ(kept.labels_at(f.pos(1)).front(), label);
     EXPECT_EQ(kept.node(f.pos(1)).size(), 1U);
     EXPECT_TRUE(kept.labels_at(f.pos(0)).empty());
 
-    kept.erase(position);
+    kept.erase(stored);
     EXPECT_TRUE(kept.labels_at(f.pos(1)).empty());
 
     kept.clear();
@@ -277,7 +278,8 @@ TEST(Policies, KeepWhileWaitingStoresNothing) {
     Waiting waiting;
     waiting.reset(3, pt::List{});
     auto* label = f.label(1, 3.0);
-    waiting.erase(waiting.store(f.pos(1), label));
+    waiting.erase(parts::StoredLabel<pt::Composed>{.label = label,
+                                                   .position = waiting.store(f.pos(1), label)});
     EXPECT_TRUE(waiting.labels_at(f.pos(1)).empty());
     EXPECT_TRUE(waiting.containers().empty());
     auto view = waiting.node(f.pos(1));

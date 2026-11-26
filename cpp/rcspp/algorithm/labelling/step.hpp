@@ -128,9 +128,8 @@ bool step(SearchType& search, SearchContext<typename SearchType::resource_type>&
             count(search.extend_along(parent, arc, context));
         }
         if constexpr (parts::PlacesChildren<typename SearchType::schedule_type, ResourceType>) {
-            search.schedule.place_children(
-                context,
-                [&search](const LabelIterator<ResourceType>& position) { search.erase(position); });
+            search.schedule.place_children(context,
+                                           [&search](const auto& stored) { search.erase(stored); });
         }
         if constexpr (parts::releases_taken_labels_v<typename SearchType::retention_type>) {
             // Its children pin it: it lives on while one of them waits.

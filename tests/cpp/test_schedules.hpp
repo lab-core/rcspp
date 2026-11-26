@@ -106,7 +106,7 @@ class Fixture {
 /// @brief Counts the labels a schedule asks to erase from their containers.
 struct CountingErase {
         size_t* erased;
-        void operator()(const LabelIterator<Composed>& /*position*/) const { ++*erased; }
+        void operator()(const parts::StoredLabel<Composed>& /*stored*/) const { ++*erased; }
 };
 
 }  // namespace schedules_test
