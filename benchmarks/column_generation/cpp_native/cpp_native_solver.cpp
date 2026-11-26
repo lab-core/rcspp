@@ -426,23 +426,27 @@ double distance_between(const Customer& first, const Customer& second) {
     return std::hypot(second.x - first.x, second.y - first.y);
 }
 
-// As SolomonInstance.ng_neighborhoods: each customer's ng_size nearest customers, itself
-// included (ties by number); the depot and the sink none.
+// As SolomonInstance.ng_neighborhoods: each customer's ng_size nearest customers, itself first,
+// then the ng_size - 1 nearest others (ties by number); the depot and the sink none. The customer
+// takes its own place even when others share its spot: the engine adds it anyway.
 std::map<size_t, std::set<size_t>> ng_neighborhoods(const Instance& instance, size_t ng_size) {
     const Customer& depot = instance.customers.front();
     std::map<size_t, std::set<size_t>> neighborhoods{{depot.number, {}}, {instance.sink(), {}}};
     for (size_t index = 1; index < instance.customers.size(); ++index) {
         const Customer& customer = instance.customers[index];
-        std::vector<std::pair<double, size_t>> nearest;
+        std::vector<std::pair<double, size_t>> others;
         for (size_t other = 1; other < instance.customers.size(); ++other) {
-            nearest.emplace_back(distance_between(customer, instance.customers[other]),
-                                 instance.customers[other].number);
+            if (other != index) {
+                others.emplace_back(distance_between(customer, instance.customers[other]),
+                                    instance.customers[other].number);
+            }
         }
-        std::ranges::sort(nearest);
+        std::ranges::sort(others);
 
         std::set<size_t>& neighborhood = neighborhoods[customer.number];
-        for (size_t rank = 0; rank < std::min(ng_size, nearest.size()); ++rank) {
-            neighborhood.insert(nearest[rank].second);
+        neighborhood.insert(customer.number);
+        for (size_t rank = 0; rank + 1 < ng_size && rank < others.size(); ++rank) {
+            neighborhood.insert(others[rank].second);
         }
     }
     return neighborhoods;
@@ -674,6 +678,13 @@ cg::PricingStage<Resources...> make_stage_with(const std::string& algorithm,
         return Stage::template make<strategy::AStar, Labels>(params, true);
     }
     if (algorithm == "greedy" || algorithm == "tabu") {
+        // As the options check: each would fail at every pricing call, not at the start.
+        if (algorithm == "tabu" && params.max_iterations >= AlgorithmBaseParams{}.max_iterations) {
+            throw OptionsError("a tabu stage needs a finite max_iterations");
+        }
+        if (params.direction != SearchDirection::Forward) {
+            throw OptionsError(std::format("a {} stage searches forward only", algorithm));
+        }
         if constexpr (std::is_same_v<Labels, LabelList<ResourceTypeComposition<Resources...>>>) {
             if (algorithm == "greedy") {
                 return Stage::template make<strategy::Greedy, Labels>(params, false);

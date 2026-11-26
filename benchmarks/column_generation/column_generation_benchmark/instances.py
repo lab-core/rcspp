@@ -161,16 +161,23 @@ class SolomonInstance(Instance):
         return len(self.customers)
 
     def ng_neighborhoods(self, ng_size: int) -> dict[int, set[int]]:
-        """Each customer's `ng_size` nearest customers, itself included (ties by
-        number); the depot and the sink none."""
+        """Each customer's `ng_size` nearest customers: itself, then the `ng_size` - 1
+        nearest others (ties by number); the depot and the sink none.
+
+        The customer takes its own place even when others share its spot: the engine adds
+        it to its neighbourhood anyway, which would hold one customer too many.
+        """
         depot = self.customers[0]
         neighborhoods: dict[int, set[int]] = {depot.number: set(), self.sink: set()}
 
         for customer in self.customers[1:]:
-            nearest = sorted(
-                (distance_between(customer, other), other.number) for other in self.customers[1:]
+            others = sorted(
+                (distance_between(customer, other), other.number)
+                for other in self.customers[1:]
+                if other is not customer
             )
-            neighborhoods[customer.number] = {number for _, number in nearest[:ng_size]}
+            nearest = {number for _, number in others[: ng_size - 1]}
+            neighborhoods[customer.number] = {customer.number, *nearest}
 
         return neighborhoods
 

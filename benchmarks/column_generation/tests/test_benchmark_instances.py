@@ -128,6 +128,19 @@ def test_each_customer_remembers_its_nearest_customers(toy: SolomonInstance):
     assert toy.ng_neighborhoods(8)[1] == {1, 2, 3}
 
 
+def test_a_customer_keeps_its_place_among_customers_at_its_spot(tmp_path: Path):
+    path = tmp_path / "TOY_3.txt"
+    path.write_text(
+        TOY.replace("    1      3          4", "    1      6          8").replace(
+            "    2      0          5", "    2      6          8"
+        )
+    )
+    neighborhoods = SolomonInstance(path).ng_neighborhoods(2)
+
+    # 1, 2 and 3 share a spot: each holds itself and the first other by number.
+    assert neighborhoods == {0: set(), 1: {1, 2}, 2: {1, 2}, 3: {1, 3}, 4: set()}
+
+
 @pytest.mark.parametrize(
     ("options", "returns"),
     [

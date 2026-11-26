@@ -212,6 +212,16 @@ def test_the_graph_options_are_flags():
             ["--stage", "greedy", "--stage-param", "sort_resource", "time"],
             "a greedy stage keeps no label buckets",
         ),
+        (["--stage", "tabu"], "a tabu stage needs a finite max_iterations"),
+        (
+            ["--stage", "greedy", "--stage-param", "direction", "backward"],
+            "a greedy stage searches forward only",
+        ),
+        (
+            ["--stage", "tabu", "--stage-param", "max_iterations", "10"]
+            + ["--stage-param", "direction", "bidirectional"],
+            "a tabu stage searches forward only",
+        ),
     ],
 )
 def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):
