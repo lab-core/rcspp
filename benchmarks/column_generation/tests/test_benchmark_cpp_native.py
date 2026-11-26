@@ -222,6 +222,44 @@ def test_the_graph_options_are_flags():
             + ["--stage-param", "direction", "bidirectional"],
             "a tabu stage searches forward only",
         ),
+        # As the options check, for runs that call the program directly.
+        (["--timeout", "-5"], "--timeout must be 0 or more"),
+        (["--timeout", "nan"], "--timeout must be 0 or more"),
+        (["--absolute-gap", "-1"], "--absolute-gap must be 0 or more"),
+        (["--relative-gap", "nan"], "--relative-gap must be 0 or more"),
+        (["--integer-gap", "-0.1"], "--integer-gap must be 0 or more"),
+        (["--cutoff", "nan"], "--cutoff must be a number"),
+        (["--threads", "-1"], "--threads and --integer-threads must be 0 or more"),
+        (["--integer-threads", "-2"], "--threads and --integer-threads must be 0 or more"),
+        (["--vehicles", "0"], "--vehicles must be 1 or more"),
+        (["--integer-timeout", "0"], "--integer-timeout must be a positive, finite number"),
+        (["--integer-timeout", "inf"], "--integer-timeout must be a positive, finite number"),
+        (
+            ["--integer-column-type", "continuous"],
+            "--integer-column-type 'continuous' is not binary or integer",
+        ),
+        (
+            ["--start", "single-customer", "--artificial-cost-factor", "5"],
+            "--artificial-cost-factor is for --start artificial only",
+        ),
+        (
+            ["--tolerance", "reduced_cost", "1e-3"],
+            "--tolerance comes with --tolerances absolute or relative",
+        ),
+        (
+            ["--master-option", "threads", "int", "2"],
+            "master option threads is set by every solve, from the program's own flags: use "
+            "--threads",
+        ),
+        (
+            ["--master-option", "output_flag", "bool", "true"],
+            "master option output_flag is set by every solve, from the program's own flags",
+        ),
+        (
+            ["--master", "gurobi", "--master-option", "TimeLimit", "double", "5"],
+            "master option TimeLimit is set by every solve, from the program's own flags: use "
+            "--timeout",
+        ),
     ],
 )
 def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):

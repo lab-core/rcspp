@@ -44,6 +44,7 @@
 // error while solving.
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -262,6 +263,87 @@ bool to_bool(std::string_view what, const std::string& text) {
     throw OptionsError(std::format("{}: '{}' is not true or false", what, text));
 }
 
+// The solver parameters every master solve sets from the program's own flags, by master (Gurobi's
+// names in lower case: it ignores their case), and the flag that sets each, if any; as
+// SET_BY_EVERY_SOLVE in the benchmark's options.
+const std::map<std::string, std::map<std::string, std::string>>& set_by_every_solve() {
+    static const std::map<std::string, std::map<std::string, std::string>> names = {
+        {"highs",
+         {{"threads", "--threads"},
+          {"time_limit", "--timeout"},
+          {"output_flag", ""},
+          {"solve_relaxation", ""},
+          {"mip_rel_gap", "--integer-gap"}}},
+        {"gurobi",
+         {{"threads", "--threads"},
+          {"timelimit", "--timeout"},
+          {"outputflag", ""},
+          {"mipgap", "--integer-gap"}}},
+    };
+    return names;
+}
+
+// Refuses a master option that every solve sets from one of the program's flags.
+void check_master_options(const Options& options) {
+    const auto master = set_by_every_solve().find(options.master);
+    if (master == set_by_every_solve().end()) {
+        return;  // an unknown master is refused when the program makes it
+    }
+    for (const MasterOption& option : options.master_options) {
+        std::string key = option.name;
+        if (options.master == "gurobi") {
+            std::ranges::transform(key, key.begin(), [](unsigned char letter) {
+                return static_cast<char>(std::tolower(letter));
+            });
+        }
+        if (const auto found = master->second.find(key); found != master->second.end()) {
+            const std::string instead = found->second.empty() ? "" : ": use " + found->second;
+            throw OptionsError(std::format(
+                "master option {} is set by every solve, from the program's own flags{}",
+                option.name,
+                instead));
+        }
+    }
+}
+
+// Refuses what the benchmark's options check refuses, for runs that call the program directly:
+// the runner checks every run in Python first. Each would otherwise run something else than asked,
+// or fail once the run has started.
+void check_options(const Options& options) {
+    const auto at_least_zero = [](const char* flag, const std::optional<double>& value) {
+        if (value.has_value() && !(*value >= 0.0)) {  // NaN too
+            throw OptionsError(std::format("{} must be 0 or more", flag));
+        }
+    };
+    at_least_zero("--timeout", options.timeout_s);
+    at_least_zero("--absolute-gap", options.absolute_gap);
+    at_least_zero("--relative-gap", options.relative_gap);
+    at_least_zero("--integer-gap", options.integer_gap);
+    if (options.cutoff.has_value() && std::isnan(*options.cutoff)) {
+        throw OptionsError("--cutoff must be a number");
+    }
+    if (options.threads.value_or(0) < 0 || options.integer_threads.value_or(0) < 0) {
+        throw OptionsError("--threads and --integer-threads must be 0 or more");
+    }
+    if (options.vehicles.has_value() && *options.vehicles < 1) {
+        throw OptionsError("--vehicles must be 1 or more");
+    }
+    if (options.integer_timeout_s <= 0.0 || !std::isfinite(options.integer_timeout_s)) {
+        throw OptionsError("--integer-timeout must be a positive, finite number");
+    }
+    if (options.integer_column_type != "binary" && options.integer_column_type != "integer") {
+        throw OptionsError(std::format("--integer-column-type '{}' is not binary or integer",
+                                       options.integer_column_type));
+    }
+    if (options.artificial_cost_factor.has_value() && options.start != "artificial") {
+        throw OptionsError("--artificial-cost-factor is for --start artificial only");
+    }
+    if (!options.tolerance_values.empty() && !options.tolerances.has_value()) {
+        throw OptionsError("--tolerance comes with --tolerances absolute or relative");
+    }
+    check_master_options(options);
+}
+
 Options parse_options(const std::vector<std::string>& arguments) {
     Options options;
     size_t index = 0;
@@ -341,6 +423,7 @@ Options parse_options(const std::vector<std::string>& arguments) {
     if (options.stages.empty()) {
         options.stages.push_back(StageOptions{.algorithm = "simple", .params = {}});
     }
+    check_options(options);
     return options;
 }
 
