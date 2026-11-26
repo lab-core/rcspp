@@ -12,6 +12,7 @@
 #include "rcspp/algorithm/labelling/parts/schedule/split_off_excess.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/stored_aside_labels.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
+#include "rcspp/utils/spare_nodes.hpp"
 
 namespace rcspp::parts {
 
@@ -22,6 +23,9 @@ namespace rcspp::parts {
 /// A label that comes up while dominated is released, and one over its node's quota is stored
 /// aside for the next phase, until a later memory-pressure event releases it
 /// (@ref StoredAsideLabels). Neither is handed out: @ref next goes on to the next label.
+///
+/// The queue keeps the list node of every label taken off it, for the labels queued next
+/// (@c detail::SpareNodes), this solve and the next ones.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -37,7 +41,7 @@ class FifoSchedule {
         StoredLabel<ResourceType> next(detail::SearchContext<ResourceType>& context) {
             while (!queue_.empty()) {
                 const StoredLabel<ResourceType> stored = queue_.front();
-                queue_.pop_front();
+                spare_.erase(&queue_, queue_.begin());
 
                 // A dequeued label still pins the predecessor it was extended from: release it
                 // through the reference counts, or that predecessor leaks.
@@ -59,7 +63,7 @@ class FifoSchedule {
         [[nodiscard]] size_t size() const { return queue_.size(); }
 
         /// @brief Queues a newly kept label.
-        void push(const StoredLabel<ResourceType>& stored) { queue_.push_back(stored); }
+        void push(const StoredLabel<ResourceType>& stored) { spare_.push_back(&queue_, stored); }
 
         /// @brief Resets the per-node counts and queues again what the quota stored aside.
         void prepare_next_phase(detail::SearchContext<ResourceType>& /*context*/) {
@@ -86,6 +90,7 @@ class FifoSchedule {
                     stored_aside_.store_aside(context, *it);
                 }
             }
+            spare_.take_all(&excess);
         }
 
         /// @brief Erases (through @p erase) and releases what the cuts stored aside.
@@ -96,8 +101,9 @@ class FifoSchedule {
         }
 
         /// @brief Forgets every label, releasing none (the pool owns them), and resets the counts.
+        ///        The queue's nodes are kept for the labels to come.
         void clear() {
-            queue_.clear();
+            spare_.take_all(&queue_);
             stored_aside_.clear();
             taken_.restart();
         }
@@ -106,6 +112,8 @@ class FifoSchedule {
         std::list<StoredLabel<ResourceType>> queue_;
         StoredAsideLabels<ResourceType> stored_aside_;
         PerNodeQuota taken_;
+        /// The nodes the queue no longer uses.
+        detail::SpareNodes<StoredLabel<ResourceType>> spare_;
 };
 
 }  // namespace rcspp::parts

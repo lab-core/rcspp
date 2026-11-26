@@ -14,5 +14,6 @@
 #include "test_label_recycling.hpp"
 #include "test_rcspp.hpp"
 #include "test_search_direction.hpp"
+#include "test_search_memory.hpp"
 #include "test_solve_limit_params.hpp"
 #include "test_solve_status.hpp"

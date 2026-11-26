@@ -44,7 +44,10 @@ struct IgnoreErase {
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
 ///   It erases each label stored aside from its node, through @p erase, and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
-///   new solve, and at each run of a driven search (@c Search::reset, @c Search::restart).
+///   new solve, and at each run of a driven search (@c Search::reset, @c Search::restart). A
+///   schedule may keep the memory its queues used, for the labels to come; when the algorithm
+///   releases its labels (@c release_after_solve), the search replaces its schedule with a new one
+///   (@c Search::clear), which frees that memory.
 ///
 /// A schedule loses no label without a trace. Every label pushed is one of these:
 /// - handed out (@c next, or @c current for a pulling schedule);

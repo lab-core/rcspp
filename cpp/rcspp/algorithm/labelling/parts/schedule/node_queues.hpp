@@ -13,6 +13,7 @@
 #include "rcspp/algorithm/labelling/parts/schedule/stored_aside_labels.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/utils/spare_nodes.hpp"
 
 namespace rcspp::parts {
 
@@ -28,6 +29,10 @@ namespace rcspp::parts {
 /// Both kinds of schedule keep their labels in it: @ref SweepSchedule takes them off node by
 /// node, @ref PullSchedule pulls from them.
 ///
+/// The queues keep the list node of every label taken off them, for the labels queued next
+/// (@c detail::SpareNodes), this solve and the next ones: a schedule kept from solve to solve
+/// allocates a node only when it holds more labels than it ever did.
+///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.
 template <typename ResourceType, typename Direction>
@@ -37,8 +42,8 @@ class NodeQueues {
 
         /// @brief Empties every queue and sizes them for @p number_of_nodes nodes, for a new solve.
         ///
-        /// An earlier solve's queues point to labels the pool is about to hand out again. The
-        /// visit starts at the sweep's first node.
+        /// An earlier solve's queues point to labels the pool is about to hand out again. Their
+        /// nodes are kept for the new labels. The visit starts at the sweep's first node.
         void reset(size_t number_of_nodes) {
             clear();
             waiting_.resize(number_of_nodes);
@@ -49,11 +54,7 @@ class NodeQueues {
         ///        node being visited.
         void push(const StoredLabel<ResourceType>& stored) {
             const size_t pos = stored.label->get_end_node()->pos();
-            if (pos == position_) {
-                current_.push_back(stored);
-            } else {
-                waiting_.at(pos).push_back(stored);
-            }
+            spare_.push_back(pos == position_ ? &current_ : &waiting_.at(pos), stored);
             ++number_of_labels_;
         }
 
@@ -101,13 +102,13 @@ class NodeQueues {
         /// @return The position after it.
         typename queue_type::iterator remove_current(typename queue_type::iterator position) {
             --number_of_labels_;
-            return current_.erase(position);
+            return spare_.erase(&current_, position);
         }
 
         /// @brief Drops the current labels, releasing none: they have been pulled from.
         void drop_current() {
             number_of_labels_ -= current_.size();
-            current_.clear();
+            spare_.take_all(&current_);
         }
 
         /// @brief Cuts the current labels to the @p limit best.
@@ -127,7 +128,7 @@ class NodeQueues {
         ///        sweep at its first node.
         void restore_stored_aside() {
             stored_aside_.restore_into([this](const StoredLabel<ResourceType>& stored) {
-                waiting_.at(stored.label->get_end_node()->pos()).push_back(stored);
+                spare_.push_back(&waiting_.at(stored.label->get_end_node()->pos()), stored);
                 ++number_of_labels_;
             });
             restart();
@@ -139,11 +140,12 @@ class NodeQueues {
             stored_aside_.release(pool, erase);
         }
 
-        /// @brief Forgets every label, releasing none (the pool owns them).
+        /// @brief Forgets every label, releasing none (the pool owns them). The queues' nodes are
+        ///        kept for the labels to come.
         void clear() {
-            current_.clear();
+            spare_.take_all(&current_);
             for (auto& queue : waiting_) {
-                queue.clear();
+                spare_.take_all(&queue);
             }
             stored_aside_.clear();
             number_of_labels_ = 0;
@@ -166,6 +168,9 @@ class NodeQueues {
         ///        released and a non-dominated one is stored aside (@ref StoredAsideLabels).
         void cut_queue(detail::SearchContext<ResourceType>& context, queue_type* queue,
                        size_t limit) {
+            if (queue->size() <= limit) {
+                return;  // nothing to cut, the usual case: no list to make
+            }
             auto excess = detail::split_off_excess(queue, limit);
             for (const auto& stored : excess) {
                 if (stored.label->dominated) {
@@ -175,6 +180,7 @@ class NodeQueues {
                 }
             }
             number_of_labels_ -= excess.size();
+            spare_.take_all(&excess);
         }
 
         std::vector<queue_type> waiting_;
@@ -182,6 +188,7 @@ class NodeQueues {
         size_t position_ = 0;
         size_t number_of_labels_ = 0;
         StoredAsideLabels<ResourceType> stored_aside_;
+        detail::SpareNodes<StoredLabel<ResourceType>> spare_;  ///< the nodes no queue uses
 };
 
 }  // namespace rcspp::parts

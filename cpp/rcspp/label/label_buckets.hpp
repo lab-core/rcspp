@@ -116,6 +116,22 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
             return LabelBuckets(bucket_width_, bucket_resource_index_, sort_resource_index_);
         }
 
+        /// @brief Removes every label and every bucket, and starts the statistics again: the
+        ///        container is then as @ref copy makes it. It keeps its configuration.
+        ///
+        /// Unlike @c LabelList::clear, which it overrides, it frees the list's nodes: the buckets
+        /// insert into the list directly, and would never reuse them.
+        void clear() override {
+            this->labels_.clear();
+            buckets_.clear();
+            begin_label_to_bucket_idx_.clear();
+            num_rm_labels_ = 0;
+            num_rm_visited_ = 0;
+            num_dom_labels_ = 0;
+            num_dom_visited_ = 0;
+            max_live_buckets_ = 0;
+        }
+
         /// @brief Returns an empty container with the same configuration that compares labels in
         ///        direction @p TargetDirection.
         ///

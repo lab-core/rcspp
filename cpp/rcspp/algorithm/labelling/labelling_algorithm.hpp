@@ -159,6 +159,15 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return search_.labels_at_end_nodes(*this->graph_);
         }
 
+        /// @brief Records the paths the labels at the end nodes hold, reading them where they are
+        ///        stored: copying them into a list, as @ref labels_at_end_nodes does, would cost an
+        ///        allocation per label at every solve.
+        void record_remaining_solutions() override {
+            search_.for_each_label_at_end_nodes(
+                *this->graph_,
+                [this](const Label<ResourceType>* label) { this->record_solution(*label); });
+        }
+
         void print_labels() const override { search_.print(*this->graph_); }
 
         /// @brief Queues again what the schedule's cuts stored aside, and resets its per-node
