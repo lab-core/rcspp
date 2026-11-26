@@ -335,8 +335,13 @@ New features are summarised, with a pointer to where they are documented.
   the C++ example through its bindings, and the same example in a C++ program of the benchmark,
   `cpp-native-solver`, with HiGHS or Gurobi from C++) does one run from options or a TOML file and
   writes its folder: the options, a record of the source, build, versions and machine, the result
-  and the solution. `benchmark.py` makes many runs from a benchmark file (named blocks, a matrix,
-  rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
+  and the solution. A run picks its routes (`graph.relaxation`: none, ng-routes with `ng_size`,
+  or elementary), its pricing stages, with label buckets by resource name (`bucket_width`,
+  `bucket_resource`, `sort_resource`), and whether the searches preprocess the graph
+  (`pricing.preprocess`); the options check refuses, before any run, a stage the search cannot run
+  (a `tabu` stage without `max_iterations`, `greedy` or `tabu` in another direction than forward or
+  with buckets). `benchmark.py` makes many runs from a benchmark file (named blocks, one or several
+  matrices, rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
   summarises a benchmark folder, and `compare.py` compares two runs with an optional time rule.
   See `benchmarks/column_generation/README.md`.
 - **A Python VRP example with several vehicle types** (`examples/python/solve_vehicle_types.py`):
