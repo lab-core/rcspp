@@ -266,6 +266,7 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 | `relative_gap` | stop (`RelativeGapLimit`) when the LP value minus the lower bound is at most this times the LP value's magnitude; 0 or more | 0: off |
 | `cutoff` | the cost of a known solution: stop (`Cutoff`) when the lower bound reaches it | `inf`: off |
 | `integer_objective` | `true`: costs are integers, the lower bound rounds up, for the cutoff and for a stop (`IntegerObjectiveGap`) when it reaches the LP value rounded up | `false` |
+| `log_frequency` | a line every that many iterations, the last one and how the run ended, in the run's output (`log.txt` under a benchmark): time, LP and pricing times, columns, LP value, bound, gap; 0 or more | 0: none |
 
 The lower bound is the Lagrangian bound of each iteration (`result.json`'s `lower_bound`, the best of the run); the
 stops are checked after an iteration that added columns and has a bound, in the order of the table, the first reached
@@ -298,12 +299,28 @@ their LP values are equal. A run that sets these as its instance type does is na
 
 ### `statistics`
 
-No type. One parameter per statistic, on or off:
+No type. One parameter per statistic, on or off, and `iterations`:
 
 | parameter | what it adds to `result.json` | costs the run | default |
 |---|---|---|---|
 | `process` | the process's peak memory and processor time | two system calls once the run is over | on |
 | `solution` | `solution_columns`; writes `solution.json`, the last LP solution and the integer one (see the README) | the LP's values and duals, read once the run is over; one more LP solve when a limit stopped the run after pricing | on |
+| `iterations` | nothing; writes `iterations.jsonl`, one line per iteration, flushed as it is written, with the groups listed (below) | a line per iteration; each group its own cost | `[]`: no file |
+
+`iterations` lists groups by name, in any order (`iterations = ["times", "duals"]`). A line always has `iteration`,
+`objective`, `lower_bound` (null when unknown), `new_columns`, `total_columns` and `elapsed_seconds`; each group adds:
+
+| group | fields | costs each iteration |
+|---|---|---|
+| `times` | `relaxation_seconds`, `pricing_seconds` (adding the columns to the master included) | nothing more |
+| `pricers` | `pricers`: per pricer its `status`, `new_columns`, `min_reduced_cost` (its convexity dual included; null without a column), `seconds`, and `stages`, each stage it ran: `stage`, `status` (the search's), `new_columns`, `seconds` | a clock read per pricer and stage |
+| `search` | in each stage, `extended_labels` and `bidirectional` (`half_way_used`, `half_way_off_reason`, `number_of_joined_paths`; null from another search); needs `pricers` | nothing more |
+| `duals` | `duals`, one per master row | a copy |
+| `master_values` | `master_values`: `[id, value]` of each column the LP solution uses, read before the new columns go in | a read of every column's value |
+| `columns` | `added_columns`: each new column's `id`, `cost`, `path` and `rows`, as `solution.json` lists them | a copy of each column; large with many columns per iteration |
+
+Recording costs the loop time: the summary flags the cells whose runs record, as their times do not compare with
+runs that do not.
 
 ## A benchmark file
 

@@ -4,7 +4,8 @@
 // One column generation run of the benchmark's cpp-native layer: the C++ column generation example
 // (examples/column_generation) in a C++ program, without Python. runners/cpp_native_runner.py
 // expands a run's options into this program's flags, starts it, reads the line
-// "RESULT <json>" it prints and writes the run's folder; the program writes nothing else.
+// "RESULT <json>" it prints and writes the run's folder; the program writes nothing else but the
+// iterations' file it is given, and prints nothing else but its log.
 //
 // It builds the instance as the benchmark's SolomonInstance does
 // (column_generation_benchmark/instances.py), so that every layer solves the same model: the
@@ -38,6 +39,11 @@
 //                                   --integer-timeout S, --integer-gap G,
 //                                   --integer-column-type binary|integer, --integer-threads N
 //   --solution                      read the last LP's solution
+//   --log-frequency N               log a line every N iterations, the last one and the end
+//   --iterations GROUPS             what each iteration records: a comma list of times, pricers,
+//                                   search (needs pricers), duals, master_values, columns
+//   --iterations-file PATH          where: one JSON line per iteration, flushed as it is written
+//                                   (the runner's iterations.jsonl); needs --iterations
 //   --check                         build everything, solve nothing
 //
 // Exit codes: 0; 2 for wrong flags or a model that cannot be built (message on stderr); 1 for an
@@ -215,8 +221,15 @@ struct Options {
         std::string integer_column_type = "binary";
         std::optional<int> integer_threads;
         bool solution = false;
+        std::optional<size_t> log_frequency;
+        std::set<std::string> iterations;
+        std::string iterations_file;
         bool check = false;
 };
+
+// The groups --iterations may list, as the benchmark's statistics.iterations.
+const std::set<std::string> iteration_groups = {
+    "times", "pricers", "search", "duals", "master_values", "columns"};
 
 double to_double(std::string_view what, const std::string& text) {
     if (text == "inf") {
@@ -341,6 +354,20 @@ void check_options(const Options& options) {
     if (!options.tolerance_values.empty() && !options.tolerances.has_value()) {
         throw OptionsError("--tolerance comes with --tolerances absolute or relative");
     }
+    for (const std::string& group : options.iterations) {
+        if (!iteration_groups.contains(group)) {
+            throw OptionsError(std::format(
+                "--iterations: '{}' is not one of times, pricers, search, duals, master_values, "
+                "columns",
+                group));
+        }
+    }
+    if (options.iterations.contains("search") && !options.iterations.contains("pricers")) {
+        throw OptionsError("--iterations: search needs pricers");
+    }
+    if (!options.iterations_file.empty() && options.iterations.empty()) {
+        throw OptionsError("--iterations-file comes with --iterations");
+    }
     check_master_options(options);
 }
 
@@ -405,6 +432,16 @@ Options parse_options(const std::vector<std::string>& arguments) {
         {"--integer-threads",
          [&] { options.integer_threads = static_cast<int>(to_integer(flag, value())); }},
         {"--solution", [&] { options.solution = true; }},
+        {"--log-frequency", [&] { options.log_frequency = to_count(flag, value()); }},
+        {"--iterations",
+         [&] {
+             std::istringstream items(value());
+             std::string item;
+             while (std::getline(items, item, ',')) {
+                 options.iterations.insert(item);
+             }
+         }},
+        {"--iterations-file", [&] { options.iterations_file = value(); }},
         {"--check", [&] { options.check = true; }},
     };
 
@@ -542,8 +579,7 @@ using MemoryResource = SizeTBitsetResource;
 // the windows, load within the capacity; then, in a graph with a MemoryResource after the three
 // real ones, the customers a route remembers, as options.relaxation says.
 template <typename... Resources>
-void add_resources(const Instance& instance,
-                   const Options& options,
+void add_resources(const Instance& instance, const Options& options,
                    ResourceGraph<Resources...>& graph) {
     std::map<size_t, std::pair<double, double>> windows;
     for (const Customer& customer : instance.customers) {
@@ -586,8 +622,7 @@ void add_resources(const Instance& instance,
 // As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
 // route (depot to sink) is left out.
 template <typename... Resources>
-void build_graph(const Instance& instance,
-                 const Options& options,
+void build_graph(const Instance& instance, const Options& options,
                  ResourceGraph<Resources...>& graph) {
     constexpr bool remembers = sizeof...(Resources) > 1;
     add_resources(instance, options, graph);
@@ -777,8 +812,9 @@ cg::PricingStage<Resources...> make_stage_with(const std::string& algorithm,
             throw OptionsError(std::format("a {} stage keeps no label buckets", algorithm));
         }
     }
-    throw OptionsError(std::format(
-        "algorithm '{}' is not one of simple, pushing, pulling, astar, greedy, tabu", algorithm));
+    throw OptionsError(
+        std::format("algorithm '{}' is not one of simple, pushing, pulling, astar, greedy, tabu",
+                    algorithm));
 }
 
 // As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
@@ -817,7 +853,8 @@ cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
             AlgorithmParams<Buckets>(params, Buckets(bucket_width, bucket_index, sort_index)));
     }
     return make_stage_with<LabelList<Composition>, Resources...>(
-        stage.algorithm, AlgorithmParams<LabelList<Composition>>(params));
+        stage.algorithm,
+        AlgorithmParams<LabelList<Composition>>(params));
 }
 
 // MARK: Masters
@@ -972,6 +1009,142 @@ std::string status_name(cg::SolverStatus status) {
     return "Other";
 }
 
+std::string status_name(cg::PricingStatus status) {
+    switch (status) {
+        case cg::PricingStatus::Optimal:
+            return "Optimal";
+        case cg::PricingStatus::SolverLimit:
+            return "SolverLimit";
+        case cg::PricingStatus::Infeasible:
+            return "Infeasible";
+        case cg::PricingStatus::NotApplicable:
+            return "NotApplicable";
+        case cg::PricingStatus::Unknown:
+            return "Unknown";
+    }
+    return "Unknown";
+}
+
+// A search's status as Python names it (AlgorithmStatus.Complete...).
+std::string status_name(AlgorithmStatus status) {
+    switch (status) {
+        case AlgorithmStatus::Complete:
+            return "Complete";
+        case AlgorithmStatus::Timeout:
+            return "Timeout";
+        case AlgorithmStatus::MaxSolutions:
+            return "MaxSolutions";
+        case AlgorithmStatus::Truncated:
+            return "Truncated";
+        case AlgorithmStatus::Interrupted:
+            return "Interrupted";
+        case AlgorithmStatus::MemoryLimit:
+            return "MemoryLimit";
+    }
+    return "Complete";
+}
+
+// A number a run did not measure, written as null.
+constexpr double unknown = std::numeric_limits<double>::quiet_NaN();
+
+std::string json_bool(bool value) {
+    return value ? "true" : "false";
+}
+
+// What one stage of a pricing call did; with the engine's counts when `search`.
+std::string stage_json(const cg::PricingStageInfo& stage, bool search) {
+    JsonObject record;
+    record.add("stage", std::to_string(stage.stage))
+        .add("status", json_string(status_name(stage.status)))
+        .add("new_columns", std::to_string(stage.new_columns))
+        .add("seconds", json_number(stage.seconds));
+    if (search) {
+        record.add(
+            "extended_labels",
+            stage.extended_labels.has_value() ? std::to_string(*stage.extended_labels) : "null");
+        std::string bidirectional = "null";
+        if (stage.bidirectional.has_value()) {
+            bidirectional = JsonObject()
+                                .add("half_way_used", json_bool(stage.bidirectional->half_way_used))
+                                .add("half_way_off_reason",
+                                     json_string(stage.bidirectional->half_way_off_reason))
+                                .add("number_of_joined_paths",
+                                     std::to_string(stage.bidirectional->number_of_joined_paths))
+                                .str();
+        }
+        record.add("bidirectional", bidirectional);
+    }
+    return record.str();
+}
+
+// One line of the iterations' file, with the same keys as the Python runners' lines
+// (column_generation_benchmark/iterations.py).
+std::string iteration_json(const cg::IterationInfo& info, const std::set<std::string>& groups) {
+    JsonObject record;
+    record.add("iteration", std::to_string(info.iteration))
+        .add("objective", json_number(info.objective))
+        .add("lower_bound", json_number(info.lower_bound))
+        .add("new_columns", std::to_string(info.new_columns))
+        .add("total_columns", std::to_string(info.total_columns))
+        .add("elapsed_seconds", json_number(info.elapsed_seconds));
+    if (groups.contains("times")) {
+        record.add("relaxation_seconds", json_number(info.relaxation_seconds.value_or(unknown)))
+            .add("pricing_seconds", json_number(info.pricing_seconds.value_or(unknown)));
+    }
+    if (groups.contains("pricers") && info.pricers.has_value()) {
+        const bool search = groups.contains("search");
+        record.add("pricers",
+                   json_list(*info.pricers, [search](const cg::PricerIterationInfo& pricer) {
+                       return JsonObject()
+                           .add("status", json_string(status_name(pricer.status)))
+                           .add("new_columns", std::to_string(pricer.new_columns))
+                           .add("min_reduced_cost",
+                                json_number(pricer.min_reduced_cost.value_or(unknown)))
+                           .add("seconds", json_number(pricer.seconds))
+                           .add("stages",
+                                json_list(pricer.search_details,
+                                          [search](const cg::PricingStageInfo& stage) {
+                                              return stage_json(stage, search);
+                                          }))
+                           .str();
+                   }));
+    }
+    if (groups.contains("duals") && info.duals.has_value()) {
+        record.add("duals", json_list(*info.duals, json_number));
+    }
+    if (groups.contains("master_values") && info.master_values.has_value()) {
+        const auto& [ids, values] = *info.master_values;
+        std::vector<std::string> pairs;
+        for (size_t index = 0; index < ids.size(); ++index) {
+            pairs.push_back(std::format("[{}, {}]", ids[index], json_number(values[index])));
+        }
+        record.add("master_values", json_list(pairs, [](const std::string& pair) { return pair; }));
+    }
+    if (groups.contains("columns") && info.added_columns.has_value()) {
+        record.add("added_columns",
+                   json_list(*info.added_columns, [](const cg::MasterColumn& column) {
+                       const Solution& solution = column.solution;
+                       return JsonObject()
+                           .add("id", std::to_string(column.id))
+                           .add("cost", json_number(solution.column.cost))
+                           .add("path",
+                                json_list(solution.path_node_ids,
+                                          [](size_t node) { return std::to_string(node); }))
+                           .add(
+                               "rows",
+                               json_list(solution.column.rows,
+                                         [](const Row& row) {
+                                             return std::format(
+                                                 "[{}, {}]",
+                                                 row.index,
+                                                 json_number(static_cast<double>(row.coefficient)));
+                                         }))
+                           .str();
+                   }));
+    }
+    return record.str();
+}
+
 // Everything a run needs, built in place: the loop holds the master, the master its solver and
 // pricer, the pricer the graph, whose resources are Resources.
 template <typename... Resources>
@@ -997,7 +1170,9 @@ struct Model {
             for (const StageOptions& stage : options.stages) {
                 stages.push_back(make_stage<Resources...>(stage));
             }
-            pricer.emplace(graph, cg::PricingStrategy<Resources...>(std::move(stages)), 0,
+            pricer.emplace(graph,
+                           cg::PricingStrategy<Resources...>(std::move(stages)),
+                           0,
                            options.preprocess);
             // The fleet row, when the run sets one: the pricer's convexity row.
             cg::ConvexityRow convexity;
@@ -1036,6 +1211,24 @@ struct Model {
             params.relative_gap = options.relative_gap.value_or(params.relative_gap);
             params.cutoff = options.cutoff.value_or(params.cutoff);
             params.integer_objective = options.integer_objective;
+            params.log_frequency = options.log_frequency.value_or(0);
+
+            // Each iteration's line is written and flushed as it comes, once the file is given.
+            const std::set<std::string>& groups = options.iterations;
+            params.statistics.pricers = groups.contains("pricers");
+            params.statistics.search = groups.contains("search");
+            params.statistics.duals = groups.contains("duals");
+            params.statistics.master_values = groups.contains("master_values");
+            params.statistics.columns = groups.contains("columns");
+            if (!options.iterations_file.empty() && !options.check) {
+                iterations_file.open(options.iterations_file);
+                if (!iterations_file) {
+                    throw std::runtime_error("cannot write " + options.iterations_file);
+                }
+                params.on_iteration = [this, groups](const cg::IterationInfo& info) {
+                    iterations_file << iteration_json(info, groups) << '\n' << std::flush;
+                };
+            }
             loop.emplace(problem, params);
         }
 
@@ -1070,6 +1263,7 @@ struct Model {
         std::shared_ptr<cg::MasterSolver> solver;
         cg::MasterProblem problem;
         std::optional<cg::GraphPricer<Resources...>> pricer;
+        std::ofstream iterations_file;
         std::optional<cg::ColumnGeneration> loop;
 };
 
@@ -1132,9 +1326,7 @@ std::vector<double> column_values(const cg::MasterProblem& problem, cg::MasterSo
 }
 
 // The last LP's solution: its objective, the columns with a value and the duals.
-std::string read_lp(const cg::MasterProblem& problem,
-                    cg::MasterSolver& solver,
-                    double objective,
+std::string read_lp(const cg::MasterProblem& problem, cg::MasterSolver& solver, double objective,
                     bool solved_again) {
     const auto [used, artificial] = describe_columns(problem, column_values(problem, solver));
     std::vector<double> duals(problem.number_of_rows());
@@ -1149,10 +1341,8 @@ std::string read_lp(const cg::MasterProblem& problem,
 }
 
 // The integer master over the generated columns: status, seconds, objective, columns.
-std::string solve_integer(cg::ColumnGeneration& loop,
-                          const cg::MasterProblem& problem,
-                          cg::MasterSolver& solver,
-                          const Options& options) {
+std::string solve_integer(cg::ColumnGeneration& loop, const cg::MasterProblem& problem,
+                          cg::MasterSolver& solver, const Options& options) {
     cg::IntegerParams params;
     params.timeout_s = options.integer_timeout_s;
     if (options.integer_gap.has_value()) {

@@ -73,7 +73,7 @@ def test_the_presets_expand_to_one_run():
         "graph": {},
         "column_generation": {},
         "integer": {"solve": True, "timeout_s": 60.0, "column_type": "binary"},
-        "statistics": {"process": True, "solution": True},
+        "statistics": {"process": True, "solution": True, "iterations": []},
     }
 
 
@@ -966,6 +966,11 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         (RUN + 'graph = { relaxation = "ng", ng_size = 1 }\n', "ng_size must be at least 2"),
         (RUN + 'graph = { relaxation = "ng", ng_size = 8.5 }\n', "8.5 is not a whole number"),
         (RUN + "statistics = { process = 3 }\n", "3 is not true or false"),
+        (RUN + 'statistics = { iterations = "duals" }\n', "iterations is a list of group names"),
+        (RUN + 'statistics = { iterations = ["labels"] }\n', "'labels' is not one of times"),
+        (RUN + 'statistics = { iterations = ["search"] }\n', "search needs pricers"),
+        (RUN + "column_generation = { log_frequency = -1 }\n", "log_frequency must be 0 or more"),
+        (RUN + "column_generation = { log_frequency = 2.5 }\n", "2.5 is not a whole number"),
         (RUN + "pricing = { stages = [] }\n", "non-empty list"),
         (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
         (RUN + '"pricing.preprocess" = "no"\n', "'no' is not true or false"),
@@ -1103,3 +1108,17 @@ def test_a_malformed_file_is_refused(tmp_path: Path):
 
     with pytest.raises(OptionsError, match="benchmark.toml"):
         options.read_toml(path)
+
+
+def test_the_iterations_groups_keep_one_order_whatever_the_table_gives():
+    given = options.expand_run(
+        {"instance": "C101_25", "statistics": {"iterations": ["duals", "times"]}}
+    )
+    ordered = options.expand_run(
+        {"instance": "C101_25", "statistics": {"iterations": ["times", "duals"]}}
+    )
+
+    assert given.statistics.iterations == ("times", "duals")
+    assert given == ordered
+    assert given.to_table()["statistics"]["iterations"] == ["times", "duals"]
+    assert options.expand_run({"instance": "C101_25"}).statistics.iterations == ()

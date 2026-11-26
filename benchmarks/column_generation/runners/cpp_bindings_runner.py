@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from column_generation_benchmark import runner, source_tree  # noqa: E402
 from column_generation_benchmark.instances import Instance, make_instance  # noqa: E402
+from column_generation_benchmark.iterations import (  # noqa: E402
+    IterationFile,
+    statistics_switches,
+)
 from column_generation_benchmark.options import (  # noqa: E402
     OptionsError,
     Run,
@@ -39,6 +44,7 @@ from column_generation_benchmark.options import (  # noqa: E402
 if TYPE_CHECKING:
     from cpp_column_generation import (
         ColumnGeneration,
+        IterationInfo,
         MasterColumn,
         MasterProblem,
         MasterSolver,
@@ -95,9 +101,11 @@ def make_master_solver(run: Run, lower: list[float], upper: list[float]) -> Mast
     return solver
 
 
-def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
+def build(
+    run: Run, on_iteration: Callable[[IterationInfo], None] | None = None
+) -> tuple[Instance, MasterProblem, ColumnGeneration]:
     """The instance, the master and its loop, ready to run: graph, master, pricer and
-    start built.
+    start built; `on_iteration` the loop's hook, with the statistics the run records.
 
     Raises:
         SourceTreeError: When the build has not the example, or not the part a master needs.
@@ -114,6 +122,7 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
         NoInitialization,
         PricingStage,
         RelaxationParams,
+        StatisticsParams,
         make_tolerances,
     )
 
@@ -161,6 +170,12 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
         if getattr(settings, name) is not None:
             setattr(params, name, getattr(settings, name))
 
+    # The example logs through the engine's logger: its lines go to the run's output.
+    if settings.log_frequency:
+        params.log_frequency = settings.log_frequency
+
+    params.statistics = StatisticsParams(**statistics_switches(run.statistics.iterations))
+    params.on_iteration = on_iteration
     return instance, master, ColumnGeneration(master, params)
 
 
@@ -333,15 +348,26 @@ def main(arguments: list[str] | None = None) -> int:
     try:
         run, build_folder = runner.read_run(parsed, LAYER)
 
-        # Built first: wrong options stop the runner before its folder is touched.
-        instance, master, loop = build(run)
+        # Built first: wrong options stop the runner before its folder is touched. The
+        # iterations' file opens once the folder exists.
+        iterations = IterationFile(run.statistics.iterations)
+        hook = iterations.write if run.statistics.iterations else None
+        instance, master, loop = build(run, hook)
 
         if parsed.check:
             print(f"{run.name}: built")
             return 0
 
         folder = runner.start_folder(parsed, run, [str(script.resolve()), *arguments])
-        result = solve(loop)
+
+        if hook is not None:
+            iterations.open(folder)
+
+        try:
+            result = solve(loop)
+        finally:
+            iterations.close()
+
         result["lp_solved_again_seconds"] = None
         solution = None
 

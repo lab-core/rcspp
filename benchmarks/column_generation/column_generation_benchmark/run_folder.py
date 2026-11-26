@@ -7,6 +7,8 @@
 - ``metadata.json``: start, end and the record of the run (:mod:`.record`); the benchmark adds
   the exit code and the load.
 - ``solution.json``: the last LP solution, when the ``solution`` statistic is on.
+- ``iterations.jsonl``: one line per iteration, written as the run goes, when the
+  ``iterations`` statistic lists groups (:mod:`.iterations`).
 - ``result.json``: the fields of :data:`RESULT_FIELDS`, and those of the collectors that ran.
   Infinite numbers are written as JSON's ``Infinity``, which Python reads back. For a run the
   benchmark killed at its timeout, the benchmark writes it: status ``timeout``
@@ -37,6 +39,7 @@ COMMAND_FILE = "command.txt"
 METADATA_FILE = "metadata.json"
 RESULT_FILE = "result.json"
 SOLUTION_FILE = "solution.json"
+ITERATIONS_FILE = "iterations.jsonl"
 LOG_FILE = "log.txt"
 
 #: How often, and how far apart, a file is put in place before giving up.
@@ -59,7 +62,7 @@ NOT_STARTED = "not started"
 INTERRUPTED = "interrupted"
 
 #: The files a runner writes: a folder with any of them holds a run.
-RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
+RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, ITERATIONS_FILE, RESULT_FILE)
 
 #: The fields of every ``result.json``, with their kinds; ``objective`` is null when no master
 #: LP was solved, ``lower_bound`` when no bound is known, the integer solve's fields when it is

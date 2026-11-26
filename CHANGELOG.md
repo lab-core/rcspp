@@ -369,8 +369,11 @@ New features are summarised, with a pointer to where they are documented.
   columns added (`columns`). A pricer written in Python may fill `PricingResult.search_details`
   when `PricingRequest.search_details` asks. `ColumnGenerationParams.log_frequency` logs a line
   every that many iterations to the logger `rcspp.column_generation`. The C++ column generation
-  example has the same, in C++ and through its bindings, its log through the engine's logger. See
-  "What each iteration did" in `docs/advanced/column-generation.md`.
+  example has the same, in C++ and through its bindings, its log through the engine's logger. The
+  column generation benchmark records them in `iterations.jsonl`, one line per iteration written as
+  the run goes, with the groups `statistics.iterations` lists, and takes
+  `column_generation.log_frequency`. See "What each iteration did" in
+  `docs/advanced/column-generation.md`.
 
 ### Fixed
 

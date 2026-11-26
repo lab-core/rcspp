@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess  # nosec B404: this tree's own program, with arguments built here
 import sys
 from datetime import UTC, datetime
@@ -36,6 +37,7 @@ from column_generation_benchmark.options import (  # noqa: E402
     Run,
     make_algorithm_params,
 )
+from column_generation_benchmark.run_folder import ITERATIONS_FILE  # noqa: E402
 
 LAYER = "cpp-native"
 
@@ -53,6 +55,11 @@ RESULT_FIELDS = (
     "solve_seconds",
     "lp_solved_again_seconds",
 )
+
+
+#: The color codes of the engine's logger, which the program's log lines carry; the reset that
+#: ends a line comes at the start of the next one.
+COLORS = re.compile(r"\x1b\[[0-9;]*m")
 
 
 class ProgramError(Exception):
@@ -155,6 +162,13 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
     if settings.integer_objective:
         arguments += ["--integer-objective"]
 
+    if settings.log_frequency:
+        arguments += ["--log-frequency", str(settings.log_frequency)]
+
+    # The file itself is given once the run's folder exists (main).
+    if run.statistics.iterations:
+        arguments += ["--iterations", ",".join(run.statistics.iterations)]
+
     integer = run.integer
 
     if integer.solve:
@@ -179,15 +193,18 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
 
 def execute(program: Path, arguments: list[str]) -> tuple[int, dict[str, Any] | None, str]:
     """Runs the program: its exit code, its result (None without a ``RESULT`` line) and
-    what it wrote on its error stream."""
+    what it wrote on its error stream. The other lines of its output (its log) are printed
+    again, into the run's output."""
     completed = subprocess.run(  # nosec B603: this tree's own program, arguments built here
         [str(program), *arguments], capture_output=True, text=True
     )
     found = None
 
-    for line in completed.stdout.splitlines():
+    for line in COLORS.sub("", completed.stdout).splitlines():
         if line.startswith("RESULT "):
             found = json.loads(line.removeprefix("RESULT "))
+        else:
+            print(line)
 
     return completed.returncode, found, completed.stderr.strip()
 
@@ -281,6 +298,10 @@ def main(arguments: list[str] | None = None) -> int:
             return 0
 
         folder = runner.start_folder(parsed, run, [str(script.resolve()), *arguments])
+
+        if run.statistics.iterations:
+            program_flags += ["--iterations-file", str(folder / ITERATIONS_FILE)]
+
         found = solve(program, program_flags)
         result = {name: found[name] for name in RESULT_FIELDS}
         solution: dict[str, Any] | None = found["solution"]

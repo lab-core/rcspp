@@ -306,7 +306,8 @@ class ColumnGeneration(Block):
 
     `tolerances` is a table with a ``type``, or a name alone, read as the type. `threads`
     goes to every master solve; 0 lets the solver choose. `absolute_gap`, `relative_gap`,
-    `cutoff` and `integer_objective` stop the run early on its lower bound.
+    `cutoff` and `integer_objective` stop the run early on its lower bound. `log_frequency`
+    prints a line every that many iterations into the run's output; 0 prints none.
     """
 
     max_iterations: int | None = None
@@ -317,6 +318,7 @@ class ColumnGeneration(Block):
     relative_gap: float | None = None
     cutoff: float | None = None
     integer_objective: bool | None = None
+    log_frequency: int | None = None
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
@@ -329,6 +331,7 @@ class ColumnGeneration(Block):
             "relative_gap",
             "cutoff",
             "integer_objective",
+            "log_frequency",
         )
         only_keys(given, names, "column_generation", where)
         max_iterations = integer(given.get("max_iterations"), where)
@@ -338,6 +341,7 @@ class ColumnGeneration(Block):
         relative_gap = number(given.get("relative_gap"), where)
         cutoff = number(given.get("cutoff"), where)
         integer_objective = boolean(given.get("integer_objective"), where)
+        log_frequency = integer(given.get("log_frequency"), where)
 
         if max_iterations is not None and max_iterations < 0:
             raise OptionsError(f"{where}: column_generation.max_iterations must be 0 or more")
@@ -348,6 +352,9 @@ class ColumnGeneration(Block):
 
         if threads is not None and threads < 0:
             raise OptionsError(f"{where}: column_generation.threads must be 0 or more")
+
+        if log_frequency is not None and log_frequency < 0:
+            raise OptionsError(f"{where}: column_generation.log_frequency must be 0 or more")
 
         for name, gap in (("absolute_gap", absolute_gap), ("relative_gap", relative_gap)):
             if gap is not None and not gap >= 0:
@@ -375,6 +382,7 @@ class ColumnGeneration(Block):
             relative_gap,
             cutoff,
             integer_objective,
+            log_frequency,
         )
 
 
@@ -441,17 +449,48 @@ class Integer(Block):
 
 @dataclass(frozen=True)
 class Statistics(Block):
-    """What a run measures besides its totals: one parameter per collector."""
+    """What a run measures besides its totals: one parameter per collector, and the groups
+    ``iterations.jsonl`` records at each iteration (none: no file), kept in the order of
+    ``ITERATION_GROUPS`` whatever order the table gives."""
 
     process: bool = True
     solution: bool = True
+    iterations: tuple[str, ...] = ()
+
+    #: The groups ``iterations`` may list (``iterations.GROUPS``).
+    ITERATION_GROUPS: ClassVar = ("times", "pricers", "search", "duals", "master_values", "columns")
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("process", "solution"), "statistics", where)
+        only_keys(given, ("process", "solution", "iterations"), "statistics", where)
         process = boolean(given.get("process"), where)
         solution = boolean(given.get("solution"), where)
-        return cls(True if process is None else process, True if solution is None else solution)
+        listed = given.get("iterations", [])
+
+        if not isinstance(listed, list):
+            raise OptionsError(f"{where}: statistics.iterations is a list of group names")
+
+        for group in cast(list[Any], listed):
+            if group not in cls.ITERATION_GROUPS:
+                raise OptionsError(
+                    f"{where}: statistics.iterations: {group!r} is not one of "
+                    f"{', '.join(cls.ITERATION_GROUPS)}"
+                )
+
+        # The engine's counts are part of each pricer's record.
+        if "search" in listed and "pricers" not in listed:
+            raise OptionsError(f"{where}: statistics.iterations: search needs pricers")
+
+        return cls(
+            True if process is None else process,
+            True if solution is None else solution,
+            tuple(group for group in cls.ITERATION_GROUPS if group in listed),
+        )
+
+    def to_table(self) -> dict[str, Any]:
+        table = super().to_table()
+        table["iterations"] = list(self.iterations)
+        return table
 
 
 #: The block of each option.
