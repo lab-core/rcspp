@@ -1,0 +1,33 @@
+layer = "package"
+
+[instance]
+type = "solomon"
+name = "C101_25"
+
+[master]
+type = "highspy"
+
+[master.parameters]
+
+[[pricing.stages]]
+algorithm = "pushing"
+direction = "bidirectional"
+bucket_width = 20
+bucket_resource = "time"
+
+[start]
+type = "single-customer"
+
+[graph]
+
+[column_generation]
+threads = 1
+
+[integer]
+solve = false
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true

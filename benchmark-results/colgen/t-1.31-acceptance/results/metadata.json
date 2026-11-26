@@ -1,0 +1,105 @@
+{
+  "record": {
+    "source": {
+      "commit": "0b37aeebb6995862e2390eb2a4211b361f749377",
+      "uncommitted_changes": false,
+      "changes_digest": null,
+      "branch": "feature/column-generation-benchmark-options"
+    },
+    "code": {
+      "rcspp": "C:\\dev\\rcspp-options\\build-tests\\python\\rcspp\\__init__.py",
+      "core": "C:\\dev\\rcspp-options\\build-tests\\python\\rcspp\\_core.cp314-win_amd64.pyd",
+      "core_file": {
+        "bytes": 9709056,
+        "modified": "2026-11-25T20:42:06.081727+00:00"
+      },
+      "build": "C:\\dev\\rcspp-options\\build-tests",
+      "generator": "Visual Studio 18 2026",
+      "build_type": "Release",
+      "compiler": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+      "compiler_id": "MSVC",
+      "compiler_version": "19.51.36260.0",
+      "options": {
+        "USE_COLUMN_GENERATION_EXAMPLE": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_GUROBI": "ON",
+        "USE_COLUMN_GENERATION_EXAMPLE_HIGHS": "ON",
+        "USE_COVERAGE": "OFF",
+        "USE_DOTNET_STD_21": "ON",
+        "USE_PYTHON": "ON",
+        "USE_TESTS": "ON"
+      }
+    },
+    "versions": {
+      "python": "3.14.0",
+      "rcspp": "0.0.2.dev1",
+      "numpy": "2.5.3",
+      "highspy": "1.15.1",
+      "highspy_highs": "1.15.1",
+      "highs": "1.15.1"
+    },
+    "machine": {
+      "label": null,
+      "system": "Windows-11-10.0.26300-SP0",
+      "processor": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+      "physical_cores": 4,
+      "logical_cores": 8,
+      "memory_bytes": 12606803968
+    },
+    "benchmark": {
+      "processes": 4,
+      "solver_threads": null,
+      "integer_threads": null
+    }
+  },
+  "events": [
+    {
+      "time": "2026-11-26T14:00:53.399+00:00",
+      "event": "started",
+      "total": 276,
+      "finished": 0,
+      "to_run": 276,
+      "unfinished": 0,
+      "timeouts_to_run_again": 0,
+      "crashes_to_run_again": 0
+    },
+    {
+      "time": "2026-11-26T14:24:52.014+00:00",
+      "event": "finished",
+      "total": 276,
+      "finished": 276,
+      "timeouts": 3,
+      "failed_checks": 0,
+      "crashed": 0
+    },
+    {
+      "time": "2026-11-26T14:25:35.826+00:00",
+      "event": "resumed",
+      "total": 276,
+      "finished": 273,
+      "to_run": 3,
+      "unfinished": 0,
+      "timeouts_to_run_again": 3,
+      "crashes_to_run_again": 0,
+      "retry_timeouts": true,
+      "changed": {
+        "timeout": [
+          300.0,
+          900.0
+        ]
+      }
+    },
+    {
+      "time": "2026-11-26T14:33:32.457+00:00",
+      "event": "finished",
+      "total": 276,
+      "finished": 276,
+      "timeouts": 0,
+      "failed_checks": 0,
+      "crashed": 0
+    }
+  ],
+  "processes": 4,
+  "runs": 276,
+  "rounds": 1,
+  "dropped": []
+}

@@ -1,0 +1,1 @@
+C101_10-cpp-bindings-highs-exact-single-customer-column_generation_c9520b-integer_4af6c6: Optimal, objective 58.32595327336471

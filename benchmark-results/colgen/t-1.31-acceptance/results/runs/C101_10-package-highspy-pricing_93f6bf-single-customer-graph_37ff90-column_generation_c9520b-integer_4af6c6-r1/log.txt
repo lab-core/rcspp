@@ -1,0 +1,2 @@
+[33m[2026-11-26 09:24:44.014][WARN ] BidirectionalLabellingAlgorithm: the half-way point is off because no half_way_point was given; set it to about half the critical resource's range. The solve stays correct, but it runs a full forward search, a full backward search and a join -- more work than a forward algorithm on the same model. (Reported once per process; later solves log it at DEBUG.)
+[0mC101_10-package-highspy-pricing_93f6bf-single-customer-graph_37ff90-column_generation_c9520b-integer_4af6c6: Optimal, objective 58.32595327336465

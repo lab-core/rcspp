@@ -75,7 +75,7 @@ Backups: `backup/benchmark-options-before-rebase` (`0b37aeeb`, on #114), `backup
 
 ## Acceptance runs (`D-356`, as run: `D-360`)
 
-`benchmark-results/colgen/t-1.31-acceptance/` (not committed): `acceptance.toml` (seven `[[matrix]]`, 276 runs),
+`benchmark-results/colgen/t-1.31-acceptance/` (committed): `acceptance.toml` (seven `[[matrix]]`, 276 runs),
 `check.py` (the rules below, then the median solve times), `results/`, `benchmark.log`, `retry.log`. LP only, the
 single-customer start, 4 processes, a 300 s limit (900 s for the three reruns).
 

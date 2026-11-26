@@ -95,7 +95,7 @@ repos:
       - id: markdownlint
         files: .*\.md$
         # Builds, and benchmark folders copied as the benchmark wrote them (generated output).
-        exclude: ^((build|build_[^/]+)/|benchmark-results/colgen/home-server/)
+        exclude: ^((build|build_[^/]+)/|benchmark-results/colgen/(home-server|t-1\.31-acceptance/results)/)
         args: ["--fix"]
 
   # -------------------------

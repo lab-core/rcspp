@@ -1,0 +1,1 @@
+RC201_12-cpp-native-highs-pricing_dd5101-single-customer-graph_220e4d-column_generation_c9520b-integer_4af6c6: Optimal, objective 446.01348049272934

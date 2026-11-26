@@ -1,0 +1,118 @@
+# T-1.31's acceptance (D-356, adjusted by F-153): every layer, algorithm, direction, label
+# buckets and preprocessing give the same LP per instance and relaxation. LP only, single-customer
+# start (the artificial start makes ng routes very slow). Elementary on C101_10 only: on 20+
+# customers it does not finish (F-153).
+#
+#   python benchmark.py acceptance.toml --build build-tests --output <this folder>/results
+
+[benchmark]
+processes = 4
+timeout = 300
+
+[defaults]
+start = { type = "single-customer" }
+integer = { solve = false }
+
+# full: the package, every exact algorithm in every direction, plain and with buckets.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+  [{ algorithm = "simple", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "simple", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+]
+
+# full: the package, the plain searches without preprocessing.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+]
+
+# subset: the C++ layers, simple forward: plain, buckets, preprocessing off.
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.stages" = [[{ algorithm = "simple" }], [{ algorithm = "simple", bucket_width = 20, bucket_resource = "time" }]]
+
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+
+# small: C101_10 (ten customers), every layer: none <= ng 8 <= ng 10 = elementary.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_10"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }, { relaxation = "ng", ng_size = 10 }, { relaxation = "elementary" }]
+
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+instance = ["C101_10"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }, { relaxation = "ng", ng_size = 10 }, { relaxation = "elementary" }]
+
+# small: elementary routes through every exact algorithm and direction, on the package.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_10"]
+graph = [{ relaxation = "elementary" }]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+]

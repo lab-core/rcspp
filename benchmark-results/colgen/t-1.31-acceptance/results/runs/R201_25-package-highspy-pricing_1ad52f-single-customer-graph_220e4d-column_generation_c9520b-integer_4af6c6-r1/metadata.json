@@ -1,0 +1,70 @@
+{
+  "start": "2026-11-26T14:21:58.693+00:00",
+  "end": "2026-11-26T14:22:02.807+00:00",
+  "processor_seconds": 4.640625,
+  "source": {
+    "commit": "0b37aeebb6995862e2390eb2a4211b361f749377",
+    "uncommitted_changes": false,
+    "changes_digest": null,
+    "branch": "feature/column-generation-benchmark-options"
+  },
+  "code": {
+    "rcspp": "C:\\dev\\rcspp-options\\build-tests\\python\\rcspp\\__init__.py",
+    "core": "C:\\dev\\rcspp-options\\build-tests\\python\\rcspp\\_core.cp314-win_amd64.pyd",
+    "core_file": {
+      "bytes": 9709056,
+      "modified": "2026-11-25T20:42:06.081727+00:00"
+    },
+    "build": "C:\\dev\\rcspp-options\\build-tests",
+    "generator": "Visual Studio 18 2026",
+    "build_type": "Release",
+    "compiler": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+    "compiler_id": "MSVC",
+    "compiler_version": "19.51.36260.0",
+    "options": {
+      "USE_COLUMN_GENERATION_EXAMPLE": "ON",
+      "USE_COLUMN_GENERATION_EXAMPLE_GUROBI": "ON",
+      "USE_COLUMN_GENERATION_EXAMPLE_HIGHS": "ON",
+      "USE_COVERAGE": "OFF",
+      "USE_DOTNET_STD_21": "ON",
+      "USE_PYTHON": "ON",
+      "USE_TESTS": "ON"
+    }
+  },
+  "versions": {
+    "python": "3.14.0",
+    "rcspp": "0.0.2.dev1",
+    "numpy": "2.5.3",
+    "highspy": "1.15.1",
+    "highspy_highs": "1.15.1",
+    "highs": "1.15.1"
+  },
+  "machine": {
+    "label": null,
+    "system": "Windows-11-10.0.26300-SP0",
+    "processor": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "physical_cores": 4,
+    "logical_cores": 8,
+    "memory_bytes": 12606803968
+  },
+  "benchmark": {
+    "processes": 4,
+    "solver_threads": 1,
+    "integer_threads": 1
+  },
+  "exit_code": 0,
+  "outcome": "finished",
+  "started": "2026-11-26T14:21:57.094+00:00",
+  "wall_seconds": 5.929170199960936,
+  "load": {
+    "interval_seconds": 1.0,
+    "samples": 8,
+    "other_processor_percent_mean": 52.568270481144346,
+    "other_processor_percent_max": 66.0377358490566,
+    "memory_used_bytes_mean": 10316226048,
+    "memory_used_bytes_max": 10410397696,
+    "frequency_mhz_mean": 2402.5,
+    "frequency_mhz_min": 1201.0,
+    "on_battery": false
+  }
+}

@@ -1,0 +1,34 @@
+layer = "cpp-bindings"
+
+[instance]
+type = "solomon"
+name = "RC201_12"
+
+[master]
+type = "highs"
+
+[master.parameters]
+
+[pricing]
+stages = [
+    { algorithm = "simple" },
+]
+
+[start]
+type = "single-customer"
+
+[graph]
+relaxation = "ng"
+ng_size = 8
+
+[column_generation]
+threads = 1
+
+[integer]
+solve = false
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true

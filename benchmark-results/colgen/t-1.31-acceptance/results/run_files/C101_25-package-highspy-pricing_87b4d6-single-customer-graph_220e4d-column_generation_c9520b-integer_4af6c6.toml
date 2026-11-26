@@ -1,0 +1,34 @@
+layer = "package"
+
+[instance]
+type = "solomon"
+name = "C101_25"
+
+[master]
+type = "highspy"
+
+[master.parameters]
+
+[pricing]
+stages = [
+    { algorithm = "pushing", direction = "backward" },
+]
+
+[start]
+type = "single-customer"
+
+[graph]
+relaxation = "ng"
+ng_size = 8
+
+[column_generation]
+threads = 1
+
+[integer]
+solve = false
+timeout_s = 60.0
+column_type = "binary"
+
+[statistics]
+process = true
+solution = true

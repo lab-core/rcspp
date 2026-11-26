@@ -1,0 +1,1 @@
+C101_25-package-highspy-pricing_a32a57-single-customer-graph_220e4d-column_generation_c9520b-integer_4af6c6: Optimal, objective 191.8136197786562
