@@ -44,6 +44,18 @@ class ResourceFactory {
                                                             std::move(cost_function))),
               extension_function_(std::move(extension_function)) {}
 
+        /// @brief Virtual: @ref clone hands out a composed factory (@c ResourceCompositionFactory)
+        ///        as a @c ResourceFactory, and its owner destroys it through this base.
+        virtual ~ResourceFactory() = default;
+
+        // The user-declared destructor suppresses the implicit moves: they are defaulted, so that
+        // a factory (and ResourceCompositionFactory's defaulted moves) still moves. A factory owns
+        // its function objects and is not copied; clone() copies it.
+        ResourceFactory(const ResourceFactory&) = delete;
+        auto operator=(const ResourceFactory&) -> ResourceFactory& = delete;
+        ResourceFactory(ResourceFactory&&) noexcept = default;
+        auto operator=(ResourceFactory&&) noexcept -> ResourceFactory& = default;
+
         // Make a resource from the prototype.
         virtual auto create_resource() -> std::unique_ptr<ResourceClass> {
             return resource_prototype_->clone();
