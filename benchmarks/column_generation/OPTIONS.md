@@ -217,7 +217,31 @@ alone merges into the default start and keeps its factor.
 
 ### `graph`
 
-No type, no parameters yet: `{}`.
+No type; the routes pricing searches.
+
+| parameter | what | absent |
+|---|---|---|
+| `relaxation` | `none`: a route may visit a customer again; `ng`: ng-routes, no return to a customer the route still remembers; `elementary`: no customer twice | `none` |
+| `ng_size` | with `ng` only, and required there: each customer remembers its `ng_size` nearest customers, itself included (ties by number), and a route keeps a customer in memory while the customers it visits next remember it; at least 2 | none |
+
+```toml
+graph = { relaxation = "ng", ng_size = 8 }
+```
+
+The LP can only rise from `none` to `ng` to `elementary`. A larger `ng_size` remembers more and searches longer;
+one at least the customer count gives the elementary LP. Elementary routes, and ng with a large `ng_size`, can make
+pricing very slow: on the 20 or 25 customers of RC201_12, R201_25 or C101_25 an elementary run did not finish in two
+minutes, where `none` and ng 8 take under a second. Avoid them with the artificial start, whose large duals make
+every customer worth a visit.
+
+The parameters merge as a block's do: over `{ relaxation = "ng", ng_size = 8 }` in `[defaults]`, a run's
+`"graph.relaxation" = "elementary"` keeps the `ng_size` and is refused, and so is a whole table. Leave `graph` out of
+`[defaults]` and give each run its own, as in a matrix:
+
+```toml
+[matrix]
+graph = [{}, { relaxation = "ng", ng_size = 8 }, { relaxation = "elementary" }]
+```
 
 ### `column_generation`
 

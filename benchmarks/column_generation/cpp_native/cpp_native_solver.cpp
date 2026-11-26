@@ -9,7 +9,8 @@
 // It builds the instance as the benchmark's SolomonInstance does
 // (column_generation_benchmark/instances.py), so that every layer solves the same model: the
 // nodes, the arcs and their order, three real resources (distance, time within the windows, load
-// within the capacity), row 0 free and row i covered by the arcs out of customer i.
+// within the capacity) and for ng-routes or elementary routes a memory of the customers, row 0
+// free and row i covered by the arcs out of customer i.
 //
 //   cpp-native-solver --instance instances/C101_25.txt --master highs --stage simple
 //       --start single-customer --integer --solution
@@ -23,6 +24,8 @@
 //   --stage-param NAME VALUE        a field of the last stage's AlgorithmParams; a set as a comma
 //                                   list ("" for none); repeated
 //   --no-preprocess                 the searches do not reduce the graph first
+//   --relaxation none|ng|elementary the routes searched (default none), with --ng-size N (at
+//                                   least 2) for ng
 //   --start single-customer|artificial  with --artificial-cost-factor F for artificial
 //   --vehicles N                    the master row "at most N routes" (default: none)
 //   --max-iterations N, --timeout S, --threads N
@@ -185,6 +188,8 @@ struct Options {
         std::vector<MasterOption> master_options;
         std::vector<StageOptions> stages;
         bool preprocess = true;
+        std::string relaxation = "none";
+        std::optional<size_t> ng_size;
         std::string start = "artificial";
         std::optional<double> artificial_cost_factor;
         std::optional<size_t> max_iterations;
@@ -286,6 +291,8 @@ Options parse_options(const std::vector<std::string>& arguments) {
              options.stages.back().params.emplace_back(std::move(name), value());
          }},
         {"--no-preprocess", [&] { options.preprocess = false; }},
+        {"--relaxation", [&] { options.relaxation = value(); }},
+        {"--ng-size", [&] { options.ng_size = to_count(flag, value()); }},
         {"--start", [&] { options.start = value(); }},
         {"--artificial-cost-factor",
          [&] { options.artificial_cost_factor = to_double(flag, value()); }},
@@ -413,9 +420,38 @@ double distance_between(const Customer& first, const Customer& second) {
     return std::hypot(second.x - first.x, second.y - first.y);
 }
 
-// As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
-// route (depot to sink) is left out.
-void build_graph(const Instance& instance, ResourceGraph<RealResource>& graph) {
+// As SolomonInstance.ng_neighborhoods: each customer's ng_size nearest customers, itself
+// included (ties by number); the depot and the sink none.
+std::map<size_t, std::set<size_t>> ng_neighborhoods(const Instance& instance, size_t ng_size) {
+    const Customer& depot = instance.customers.front();
+    std::map<size_t, std::set<size_t>> neighborhoods{{depot.number, {}}, {instance.sink(), {}}};
+    for (size_t index = 1; index < instance.customers.size(); ++index) {
+        const Customer& customer = instance.customers[index];
+        std::vector<std::pair<double, size_t>> nearest;
+        for (size_t other = 1; other < instance.customers.size(); ++other) {
+            nearest.emplace_back(distance_between(customer, instance.customers[other]),
+                                 instance.customers[other].number);
+        }
+        std::ranges::sort(nearest);
+
+        std::set<size_t>& neighborhood = neighborhoods[customer.number];
+        for (size_t rank = 0; rank < std::min(ng_size, nearest.size()); ++rank) {
+            neighborhood.insert(nearest[rank].second);
+        }
+    }
+    return neighborhoods;
+}
+
+// The resource that remembers customers, for ng-routes and elementary routes.
+using MemoryResource = SizeTBitsetResource;
+
+// The graph's resources, as SolomonInstance.build_graph adds them: distance (the cost), time within
+// the windows, load within the capacity; then, in a graph with a MemoryResource after the three
+// real ones, the customers a route remembers, as options.relaxation says.
+template <typename... Resources>
+void add_resources(const Instance& instance,
+                   const Options& options,
+                   ResourceGraph<Resources...>& graph) {
     std::map<size_t, std::pair<double, double>> windows;
     for (const Customer& customer : instance.customers) {
         windows[customer.number] = {customer.ready_time, customer.due_time};
@@ -423,20 +459,45 @@ void build_graph(const Instance& instance, ResourceGraph<RealResource>& graph) {
     // The sink is the depot again: a route is back before it closes.
     windows[instance.sink()] = windows[instance.customers.front().number];
 
-    graph.add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
-                                     std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-                                     std::make_unique<ValueCostFunction<RealResource>>(),
-                                     std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph.add_resource<RealResource>(
+    graph.template add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph.template add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
         std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph.add_resource<RealResource>(
+    graph.template add_resource<RealResource>(
         std::make_unique<AdditionExtensionFunction<RealResource>>(),
         std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, instance.capacity),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
+
+    if constexpr (sizeof...(Resources) > 1) {
+        if (options.relaxation == "ng") {
+            presets::add_ng_path_resource<MemoryResource>(
+                graph,
+                ng_neighborhoods(instance, *options.ng_size));
+        } else {
+            std::vector<size_t> nodes;
+            for (size_t node = 0; node <= instance.sink(); ++node) {
+                nodes.push_back(node);
+            }
+            presets::add_elementary_resource<MemoryResource>(graph, nodes);
+        }
+    }
+}
+
+// As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
+// route (depot to sink) is left out.
+template <typename... Resources>
+void build_graph(const Instance& instance,
+                 const Options& options,
+                 ResourceGraph<Resources...>& graph) {
+    constexpr bool remembers = sizeof...(Resources) > 1;
+    add_resources(instance, options, graph);
 
     const Customer& depot = instance.customers.front();
     for (const Customer& customer : instance.customers) {
@@ -466,12 +527,26 @@ void build_graph(const Instance& instance, ResourceGraph<RealResource>& graph) {
                 continue;
             }
             const double length = distance_between(origin, *destination);
-            graph.add_arc<RealResource, RealResource, RealResource>(
-                {length, origin.service_time + length, destination->demand},
-                origin.number,
-                node,
-                length,
-                rows);
+            const double time = origin.service_time + length;
+            if constexpr (remembers) {
+                // The memory's arc value is empty: it reads the customers off the arc's ends.
+                graph.template add_arc<RealResource, RealResource, RealResource, MemoryResource>(
+                    std::make_tuple(std::make_tuple(length),
+                                    std::make_tuple(time),
+                                    std::make_tuple(destination->demand),
+                                    std::make_tuple(std::set<size_t>{})),
+                    origin.number,
+                    node,
+                    length,
+                    rows);
+            } else {
+                graph.template add_arc<RealResource, RealResource, RealResource>(
+                    {length, time, destination->demand},
+                    origin.number,
+                    node,
+                    length,
+                    rows);
+            }
         }
     }
 }
@@ -757,7 +832,7 @@ struct Model {
             : instance(read_solomon(options.instance)),
               solver(make_master_solver(options.master, instance.customers.size())),
               problem(*solver) {
-            build_graph(instance, graph);
+            build_graph(instance, options, graph);
             for (const MasterOption& option : options.master_options) {
                 try {
                     solver->set_option(option.name, to_option_value(option));
@@ -1119,9 +1194,23 @@ std::string run_on(const Options& options) {
         .str();
 }
 
-// The run, on the graph its options need: the three real resources.
+// The run, on the graph its options need: the three real resources, and a memory of the
+// customers for ng-routes and elementary routes.
 std::string run(const Options& options) {
-    return run_on<RealResource>(options);
+    if (options.relaxation != "ng" && options.ng_size.has_value()) {
+        throw OptionsError("--ng-size is for --relaxation ng only");
+    }
+    if (options.relaxation == "none") {
+        return run_on<RealResource>(options);
+    }
+    if (options.relaxation == "ng" && options.ng_size.value_or(0) < 2) {
+        throw OptionsError("--relaxation ng needs --ng-size, at least 2");
+    }
+    if (options.relaxation == "ng" || options.relaxation == "elementary") {
+        return run_on<RealResource, MemoryResource>(options);
+    }
+    throw OptionsError(
+        std::format("relaxation '{}' is not none, ng or elementary", options.relaxation));
 }
 
 }  // namespace

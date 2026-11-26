@@ -173,6 +173,40 @@ def test_preprocessing_off_is_one_flag():
         assert arguments.count("--no-preprocess") == flags
 
 
+@pytest.mark.usefixtures("build")
+def test_the_graph_options_are_flags():
+    given = {"instance": "C101_5", "layer": "cpp-native", "master": "highs"}
+
+    for graph, flags in [
+        ({}, ""),
+        ({"relaxation": "ng", "ng_size": 8}, "--relaxation ng --ng-size 8"),
+        ({"relaxation": "elementary"}, "--relaxation elementary"),
+    ]:
+        run = options.expand_run({**given, "graph": graph})
+        arguments = cpp_native_runner.program_arguments(run, make_instance(run.instance.to_table()))
+        assert flags in " ".join(arguments)
+        assert ("--relaxation" in arguments) == bool(flags)
+
+
+@pytest.mark.parametrize(
+    ("flags", "message"),
+    [
+        (["--relaxation", "ng"], "--relaxation ng needs --ng-size, at least 2"),
+        (["--relaxation", "ng", "--ng-size", "1"], "--relaxation ng needs --ng-size, at least 2"),
+        (["--ng-size", "8"], "--ng-size is for --relaxation ng only"),
+        (["--relaxation", "full"], "relaxation 'full' is not none, ng or elementary"),
+    ],
+)
+def test_the_program_refuses_wrong_graph_flags(program: Path, flags: list[str], message: str):
+    instance = str(source_tree.TREE / "instances" / "C101_5.txt")
+    code, _, error = cpp_native_runner.execute(
+        program, ["--instance", instance, "--master", "highs", *flags, "--check"]
+    )
+
+    assert code == 2
+    assert message in error
+
+
 def test_the_flags_write_values_as_the_program_reads_them():
     assert cpp_native_runner.flag_value(True) == "true"
     assert cpp_native_runner.flag_value(float("inf")) == "inf"

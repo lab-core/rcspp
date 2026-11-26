@@ -160,7 +160,22 @@ class SolomonInstance(Instance):
         """The sink's node: the number after the last customer."""
         return len(self.customers)
 
+    def ng_neighborhoods(self, ng_size: int) -> dict[int, set[int]]:
+        """Each customer's `ng_size` nearest customers, itself included (ties by
+        number); the depot and the sink none."""
+        depot = self.customers[0]
+        neighborhoods: dict[int, set[int]] = {depot.number: set(), self.sink: set()}
+
+        for customer in self.customers[1:]:
+            nearest = sorted(
+                (distance_between(customer, other), other.number) for other in self.customers[1:]
+            )
+            neighborhoods[customer.number] = {number for _, number in nearest[:ng_size]}
+
+        return neighborhoods
+
     def build_graph(self, options: Mapping[str, Any]) -> ResourceGraph:
+        from rcspp import presets
         from rcspp._core.graph import Row
         from rcspp.graph import ResourceGraph
         from rcspp.resource import (
@@ -201,6 +216,14 @@ class SolomonInstance(Instance):
             ValueDominanceFunction(),
         )
 
+        # The route's memory, if any: the customers it may not visit again.
+        relaxation = options.get("relaxation", "none")
+
+        if relaxation == "ng":
+            presets.add_ng_path_resource(graph, "bitset", self.ng_neighborhoods(options["ng_size"]))
+        elif relaxation == "elementary":
+            presets.add_elementary_resource(graph, "bitset", range(self.sink + 1))
+
         depot = self.customers[0]
 
         for customer in self.customers:
@@ -221,7 +244,16 @@ class SolomonInstance(Instance):
                     continue
 
                 length = distance_between(origin, destination)
-                consumption = (length, origin.service_time + length, destination.demand)
+                consumption: tuple[Any, ...] = (
+                    length,
+                    origin.service_time + length,
+                    destination.demand,
+                )
+
+                # The memory's arc value is empty: it reads the customers off the arc's ends.
+                if relaxation != "none":
+                    consumption += (set[int](),)
+
                 graph.add_arc(consumption, origin.number, node, length, rows)
 
         return graph

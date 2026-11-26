@@ -261,12 +261,43 @@ class Start(Block):
 
 @dataclass(frozen=True)
 class Graph(Block):
-    """The pricing graph's options: none yet."""
+    """The routes pricing searches.
+
+    `relaxation`: ``none`` (None too: routes may visit a customer again), ``ng``
+    (ng-routes: no return to a customer the route still remembers, each customer's
+    `ng_size` nearest remembered) or ``elementary`` (no customer twice).
+    """
+
+    relaxation: str | None = None
+    ng_size: int | None = None
+
+    RELAXATIONS: ClassVar = ("none", "ng", "elementary")
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, (), "graph", where)
-        return cls()
+        only_keys(given, ("relaxation", "ng_size"), "graph", where)
+        relaxation = string(given.get("relaxation"), where)
+        ng_size = integer(given.get("ng_size"), where)
+
+        if relaxation is not None and relaxation not in cls.RELAXATIONS:
+            raise OptionsError(
+                f"{where}: relaxation {relaxation!r} is not one of {', '.join(cls.RELAXATIONS)}"
+            )
+
+        if relaxation == "ng" and ng_size is None:
+            raise OptionsError(f"{where}: relaxation ng needs graph.ng_size")
+
+        if relaxation != "ng" and ng_size is not None:
+            raise OptionsError(f"{where}: graph.ng_size is for relaxation ng only")
+
+        # A neighbourhood of the customer alone forgets it as soon as the route leaves it.
+        if ng_size is not None and ng_size < 2:
+            raise OptionsError(
+                f"{where}: graph.ng_size must be at least 2 (1 gives the routes of "
+                'relaxation = "none")'
+            )
+
+        return cls(relaxation, ng_size)
 
 
 @dataclass(frozen=True)
