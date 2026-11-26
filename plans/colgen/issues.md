@@ -25,6 +25,7 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-18 | `docs(python): ResourceGraph.solve's docstring omits the tabu search` | documentation | created: #106 (2026-11-23) | the roadmap pass's engine sweep |
 | I-19 | `docs: pages that disagree with the code, and features with no docs` | documentation | created: #109 (2026-11-23; checked on `main` @ `ef4532d7`) | `T-1.21` (`features-and-options.md` K) |
 | I-20 | `feat(python): a typed exception for a refused model; the resource functions Python cannot reach` | enhancement | created: #110 (2026-11-23; checked on `main` @ `ef4532d7`) | `T-1.21` (H.6; F.2-F.5, low priority) |
+| I-60 | comment on #105: `the color reset is written after the line break` | — | draft (2026-11-26) | `F-160`, `F-111` |
 
 ## Files
 
@@ -53,6 +54,7 @@ the heading into the title field and the rest into the body. Checked on `main` @
 | I-18 | `issues/I-18-solve-docstring-tabu.md` |
 | I-19 | `issues/I-19-docs-disagree-with-code.md` |
 | I-20 | `issues/I-20-python-model-refused-and-functions.md` |
+| I-60 | `issues/I-60-logger-reset-after-newline.md` |
 
 Batch of 2026-11-23, created at once: #100-#106. Also: #99 removes
 `benchmark_common.hpp`, so its description can say "Closes #54".

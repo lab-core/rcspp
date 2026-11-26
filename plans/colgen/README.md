@@ -358,6 +358,20 @@ benchmark 520. Done when checked (`F-113`): no measurable cost when off. The pla
 `8d410193` as the old base and its own head as the new one. Pushed 2026-11-26 (the plan branch force-pushed,
 `ab5c91df`); draft PR #127 (base #125's branch, assigned to the user, description written with the user, no plan IDs).
 **Next:** CI and review on #127; `T-2.7` next on the main line.
+`T-1.29` (parallel chat) designed 2026-11-26 (`all-features.md`, `D-370`-`D-372`; this chat's IDs `D-370`+, `F-160`+,
+`I-60`+): a pytest test runs a benchmark file and checks its runs against each other and known LPs; a quick file
+(`ci-full`), a large one by hand (Gurobi), a package test of its own. Plan branch rebased onto #125 `566e4094`
+2026-11-26 (it was on #114; backup `backup/colgen-plan-before-125-rebase`); the layout as a rule (`D-370`, agent
+protocol). Branch `feature/column-generation-all-features` from `566e4094` in `C:\dev\rcspp-options`; commit 1 (the
+benchmark's test), reviewed: quick test 8 passed (103 runs, about 2 min), checked by mutation; found `F-160`
+(`cpp-native` lost its result after an engine warning; `T-2.5`'s commit 4 has the same fix, keep only the test when
+moving onto it), `F-161` (a half-way point needs `critical_resource_index = 1`; `OPTIONS.md`), `F-162`, `F-163`. Large
+run passed 2026-11-26 (664 runs, 44 min, every master with Gurobi). Commit 2 (the package test). Both rebased onto
+`T-2.5`'s head `8d410193` 2026-11-26 (its PR open): `aeea750f`, `0baf6bcd`; `F-160`'s runner part dropped; package 705,
+benchmark 521, quick 8 passed (`F-164`); the plan branch on `0baf6bcd`. Pushed, draft PR #128 on #127 (2026-11-26,
+assigned to the user; no plan IDs in it). Draft comment on #105 (`I-60`, not filed). Rebasing onto another chat's work
+is asked first (`D-373`). `T-1.29` done 2026-11-26 (both commits reviewed). **Next:** CI on #128 once the GitHub stack
+lets it start.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -393,6 +407,17 @@ Task:
     C++ CSR (`D-16`);
   - any new name: full words (`D-12`).
 - These files are not shipped docs. User-facing docs go in `docs/` once the code exists.
+- **This branch's layout (`D-370`):** `feature/column-generation` = the code stack's head, then every plan commit on
+  top (`plans/`, `benchmark-results/`, the markdownlint excludes in `.pre-commit-config.yaml`); never interleaved,
+  never mixed in one commit. Code is written and committed on its PR branch (own worktree). Commit the plan docs as
+  you go. Whenever the PR branch moves (new commit, fixup, rebase), move the plan block onto its head:
+  `git rebase --autostash --onto <new code head> <old code head> feature/column-generation`, after checking that
+  `git log --oneline <old code head>..feature/column-generation -- . ':!plans' ':!benchmark-results'
+  ':!.pre-commit-config.yaml'` prints nothing. Sibling code branches (parallel chats on the same base): the one
+  finishing second rebases onto the other, so the plan branch sits on one stack. The user force-pushes. Rebasing onto
+  another chat's branch or head: propose it to the user first, with what it keeps and drops (`D-373`).
+- **A new feature adds itself to the all-features test (`D-372`):** its runs in the benchmark's two all-features
+  files and its check in their test; a package-only feature in the package's all-features test.
 
 ## Goal
 
@@ -450,6 +475,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
 | `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
 | `statistics-design.md` | `T-2.5`'s whole design: groups and switches, duals and master values, a pricer's details, the label count, the log, the benchmark's records, commits, checks, as built | working on `T-2.5` |
+| `all-features.md` | `T-1.29`: the all-features test's files, runs, checks and commits | working on `T-1.29` or adding a feature |
 | `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
