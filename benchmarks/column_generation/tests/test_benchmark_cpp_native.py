@@ -13,7 +13,7 @@ from typing import Any
 import cpp_native_runner
 import pytest
 from column_generation_benchmark import options, run_folder, source_tree
-from column_generation_benchmark.instances import make_instance
+from column_generation_benchmark.instances import SolomonInstance, make_instance
 from test_benchmark_runners import has_gurobi, rerun_command, same
 
 
@@ -33,6 +33,14 @@ def gurobi(program: Path) -> None:
 
     if code != 0 or not has_gurobi():
         pytest.skip("the program has no Gurobi master, or Gurobi has no licence")
+
+
+def flags_of(table: dict[str, Any]) -> list[str]:
+    """The program's flags for the run `table` expands to."""
+    run = options.expand_run(table)
+    instance = make_instance(run.instance.to_table())
+    assert isinstance(instance, SolomonInstance)
+    return cpp_native_runner.program_arguments(run, instance)
 
 
 def run(build: Path, folder: Path, *arguments: str) -> dict[str, Any]:
@@ -168,9 +176,7 @@ def test_preprocessing_off_is_one_flag():
 
     for preprocess, flags in [(None, 0), (True, 0), (False, 1)]:
         table = given if preprocess is None else {**given, "pricing.preprocess": preprocess}
-        run = options.expand_run(table)
-        arguments = cpp_native_runner.program_arguments(run, make_instance(run.instance.to_table()))
-        assert arguments.count("--no-preprocess") == flags
+        assert flags_of(table).count("--no-preprocess") == flags
 
 
 @pytest.mark.usefixtures("build")
@@ -182,8 +188,7 @@ def test_the_graph_options_are_flags():
         ({"relaxation": "ng", "ng_size": 8}, "--relaxation ng --ng-size 8"),
         ({"relaxation": "elementary"}, "--relaxation elementary"),
     ]:
-        run = options.expand_run({**given, "graph": graph})
-        arguments = cpp_native_runner.program_arguments(run, make_instance(run.instance.to_table()))
+        arguments = flags_of({**given, "graph": graph})
         assert flags in " ".join(arguments)
         assert ("--relaxation" in arguments) == bool(flags)
 
@@ -195,9 +200,21 @@ def test_the_graph_options_are_flags():
         (["--relaxation", "ng", "--ng-size", "1"], "--relaxation ng needs --ng-size, at least 2"),
         (["--ng-size", "8"], "--ng-size is for --relaxation ng only"),
         (["--relaxation", "full"], "relaxation 'full' is not none, ng or elementary"),
+        (
+            ["--stage", "simple", "--stage-param", "bucket_resource", "x"],
+            "bucket_resource 'x' is not cost, time or load",
+        ),
+        (
+            ["--stage", "simple", "--stage-param", "bucket_width", "0"],
+            "bucket_width must be at least 1",
+        ),
+        (
+            ["--stage", "greedy", "--stage-param", "sort_resource", "time"],
+            "a greedy stage keeps no label buckets",
+        ),
     ],
 )
-def test_the_program_refuses_wrong_graph_flags(program: Path, flags: list[str], message: str):
+def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):
     instance = str(source_tree.TREE / "instances" / "C101_5.txt")
     code, _, error = cpp_native_runner.execute(
         program, ["--instance", instance, "--master", "highs", *flags, "--check"]

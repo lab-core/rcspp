@@ -835,6 +835,24 @@ def test_stages_take_any_algorithm_params_field():
         options.make_algorithm_params({"algorithm": "simple", "direction": "up"})
 
 
+def test_a_bucket_key_makes_a_bucket_stage():
+    from rcspp.graph import BucketAlgorithmParams
+
+    stage = {"algorithm": "pulling", "sort_resource": "load", "max_solutions": 5}
+    _, params = options.make_algorithm_params(stage)
+    # The graph's resources as the instance adds them: cost, time, load, then the memory.
+    resolved = params._to_cpp(["real", "real", "real", "bitset"])  # pyright: ignore
+
+    assert isinstance(params, BucketAlgorithmParams)
+    assert (params.bucket_width, params.max_solutions) == (100, 5)
+    assert (resolved.bucket_resource_type, resolved.bucket_resource_index) == ("real", 0)
+    assert resolved.sort_resource_index == 2
+    assert "sort_resource" in stage
+
+    _, plain = options.make_algorithm_params({"algorithm": "pulling"})
+    assert not isinstance(plain, BucketAlgorithmParams)
+
+
 def test_tolerances_by_name_or_table():
     text = """
 [[runs]]
@@ -964,6 +982,31 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
             RUN + 'pricing = { stages = [{ algorithm = "tabu", max_iterations = 10, '
             'direction = "bidirectional" }] }\n',
             "a tabu stage searches forward only",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", bucket_resource = "x" }] }\n',
+            "bucket_resource: 'x' is not one of cost, time, load",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", sort_resource = 1 }] }\n',
+            "sort_resource: 1 is not one of cost, time, load",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", bucket_width = 0 }] }\n',
+            "bucket_width must be at least 1",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "astar", bucket_width = 2.5 }] }\n',
+            "bucket_width: 2.5 is not a whole number",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "greedy", bucket_width = 10 }] }\n',
+            "a greedy stage keeps no label buckets",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu", max_iterations = 10, '
+            'sort_resource = "time" }] }\n',
+            "a tabu stage keeps no label buckets",
         ),
         (
             RUN + 'pricing = { stages = [{ algorithm = "simple", max_solution = 5 }] }\n',

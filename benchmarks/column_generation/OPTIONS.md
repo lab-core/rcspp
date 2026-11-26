@@ -194,10 +194,19 @@ is `algorithm` and any field of `rcspp.graph.AlgorithmParams`:
 | `timeout_s` | the stage's time limit, in seconds | none |
 | `direction` | `forward`, `backward`, `bidirectional` (by name); `greedy` and `tabu` refuse any but `forward` | `forward` |
 | any other field | as `AlgorithmParams` documents it; a set is written as a list (`tabu_exempt_node_ids = [0]`) | the engine's |
+| `bucket_width` | label buckets: the width of a bucket, a whole number of at least 1 | 100 |
+| `bucket_resource` | label buckets: the resource that splits the labels, `cost`, `time` or `load` | `cost` |
+| `sort_resource` | label buckets: the resource that orders the labels in a bucket, `cost`, `time` or `load` | `cost` |
 
 A heuristic stage should be followed by an exact one: without it, no iteration ends with a proof. Without a cap,
 `greedy` can enumerate every path; give it `max_solutions` and `timeout_s`. On the command line, `--stage` writes a
 stage as `algorithm:key=value,key=value`, a list as `key=[0,26]` (see [the command line](#the-command-line)).
+
+Any of the three bucket keys makes the stage keep its labels in buckets (`BucketAlgorithmParams`) instead of a
+list: an exact stage only, since `greedy` and `tabu` keep their own path and never read the labels' container. The
+LP is the list's; only the time changes. For example
+`{ algorithm = "simple", bucket_width = 20, bucket_resource = "time" }`, on the command line
+`--stage simple:bucket_width=20,bucket_resource=time`.
 
 Beside `stages`, `preprocess` (true or false, absent: true) is the pricer's, for every stage: whether each search
 reduces the graph first. `"pricing.preprocess" = false` turns it off and keeps the stages; on the command line,

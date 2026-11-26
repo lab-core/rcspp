@@ -469,16 +469,29 @@ BLOCKS: dict[str, Any] = {
 
 # MARK: Checks with rcspp
 
+# The graph's real resources, in the order the instance adds them: a bucket key names one.
+BUCKET_RESOURCES = ("cost", "time", "load")
+
+
+def bucket_resource(value: Any, where: str) -> int:
+    """The position of the resource a bucket key names."""
+    if value not in BUCKET_RESOURCES:
+        raise OptionsError(f"{where}: {value!r} is not one of {', '.join(BUCKET_RESOURCES)}")
+
+    return BUCKET_RESOURCES.index(value)
+
 
 def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[str, Any]:
     """The algorithm's name and the ``AlgorithmParams`` of a pricing stage;
-    ``direction`` by name, a set as a list.
+    ``direction`` by name, a set as a list. A stage with ``bucket_width``,
+    ``bucket_resource`` or ``sort_resource`` keeps its labels in buckets
+    (``BucketAlgorithmParams``), the resources by name.
 
     Raises:
         OptionsError: For an unknown algorithm or field, or a value the field refuses.
     """
     from rcspp._core.graph import AlgorithmParams, SearchDirection
-    from rcspp.graph import ALGORITHMS
+    from rcspp.graph import ALGORITHMS, BucketAlgorithmParams
 
     algorithm = stage.get("algorithm")
 
@@ -487,7 +500,31 @@ def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[
             f"{where}: algorithm {algorithm!r} is not one of {', '.join(ALGORITHMS)}"
         )
 
-    params = AlgorithmParams()
+    stage = dict(stage)
+    buckets = {
+        name: stage.pop(name)
+        for name in ("bucket_width", "bucket_resource", "sort_resource")
+        if name in stage
+    }
+    params: Any = AlgorithmParams()
+
+    if buckets:
+        # The heuristics keep their own path and never read the label container.
+        if algorithm in ("greedy", "tabu"):
+            raise OptionsError(f"{where}: a {algorithm} stage keeps no label buckets")
+
+        width = integer(buckets.get("bucket_width", 100), f"{where}: bucket_width")
+        assert width is not None
+
+        if width < 1:
+            raise OptionsError(f"{where}: bucket_width must be at least 1")
+
+        params = BucketAlgorithmParams(
+            width,
+            bucket_resource(buckets.get("bucket_resource", "cost"), f"{where}: bucket_resource"),
+            bucket_resource(buckets.get("sort_resource", "cost"), f"{where}: sort_resource"),
+        )
+
     settable = {
         name
         for name, member in vars(AlgorithmParams).items()

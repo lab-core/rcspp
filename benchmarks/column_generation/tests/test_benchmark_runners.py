@@ -842,6 +842,46 @@ def test_every_layer_gives_the_same_lp_per_relaxation(
         assert first == pytest.approx(second, rel=1e-9)
 
 
+@pytest.mark.parametrize(
+    ("stage", "graph"),
+    [
+        ("simple:bucket_width=10", "{}"),
+        ("pulling:bucket_width=20,bucket_resource=time,sort_resource=load", "{}"),
+        (
+            "simple:bucket_resource=load,sort_resource=time",
+            "{ relaxation = 'ng', ng_size = 8 }",
+        ),
+    ],
+)
+def test_every_layer_gives_the_lp_of_the_list_with_label_buckets(
+    build: Path, tmp_path: Path, stage: str, graph: str
+):
+    """Buckets change how labels are kept, not the LP: each layer's equals the plain
+    simple search's."""
+    runs = [("package", "highspy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "highs"))
+
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
+    objectives = {
+        (layer, searched): run_layer(
+            layer,
+            build,
+            tmp_path / f"{layer}-{index}",
+            *("--instance", "C101_25", "--master", master, "--start", "single-customer"),
+            *("--graph", graph, "--integer.solve", "false", "--stage", searched),
+        )["objective"]
+        for layer, master in runs
+        for index, searched in enumerate(["simple", stage])
+    }
+
+    for objective in objectives.values():
+        assert objective == pytest.approx(objectives["package", "simple"], rel=1e-9)
+
+
 @pytest.mark.usefixtures("gurobi")
 @pytest.mark.parametrize("start", ["artificial", "single-customer"])
 def test_every_layer_gives_the_same_run_over_gurobi(build: Path, tmp_path: Path, start: str):

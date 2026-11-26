@@ -22,7 +22,9 @@
 //   --stage ALGORITHM               a pricing stage: simple, pushing, pulling, astar, greedy,
 //                                   tabu; repeated, in order (default: one simple)
 //   --stage-param NAME VALUE        a field of the last stage's AlgorithmParams; a set as a comma
-//                                   list ("" for none); repeated
+//                                   list ("" for none); bucket_width, bucket_resource and
+//                                   sort_resource (cost, time, load) keep its labels in buckets;
+//                                   repeated
 //   --no-preprocess                 the searches do not reduce the graph first
 //   --relaxation none|ng|elementary the routes searched (default none), with --ng-size N (at
 //                                   least 2) for ng
@@ -60,6 +62,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -178,6 +181,9 @@ struct MasterOption {
         std::string kind;
         std::string value;
 };
+
+// A bucket stage's width when the run gives none, as Python's BucketAlgorithmParams.
+constexpr size_t default_bucket_width = 100;
 
 // The integer solve's time limit when the runner gives none, in seconds.
 constexpr double default_integer_timeout_s = 60.0;
@@ -637,19 +643,24 @@ void set_param(Params& params, const std::string& name, const std::string& value
     setter->second();
 }
 
-// As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
-// greedy and tabu heuristic, the others exact.
-template <typename... Resources>
-cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
-    using Stage = cg::PricingStage<Resources...>;
-    using Labels = LabelList<ResourceTypeComposition<Resources...>>;
-
-    AlgorithmParams<Labels> params;
-    for (const auto& [name, value] : stage.params) {
-        set_param(params, name, value);
+// The position of the real resource a bucket key names, in the order build_graph adds them.
+size_t bucket_resource(const std::string& what, const std::string& name) {
+    const std::vector<std::string> names = {"cost", "time", "load"};
+    const auto found = std::ranges::find(names, name);
+    if (found == names.end()) {
+        throw OptionsError(std::format("{} '{}' is not cost, time or load", what, name));
     }
+    return static_cast<size_t>(found - names.begin());
+}
 
-    const std::string& algorithm = stage.algorithm;
+// A stage of the algorithm named, with its labels in `Labels`; greedy and tabu heuristic, the
+// others exact. The heuristics keep their own path and never read the labels' container, so they
+// take only a list.
+template <typename Labels, typename... Resources>
+cg::PricingStage<Resources...> make_stage_with(const std::string& algorithm,
+                                               AlgorithmParams<Labels> params) {
+    using Stage = cg::PricingStage<Resources...>;
+
     if (algorithm == "simple") {
         return Stage::template make<strategy::Simple, Labels>(params, true);
     }
@@ -662,14 +673,57 @@ cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
     if (algorithm == "astar") {
         return Stage::template make<strategy::AStar, Labels>(params, true);
     }
-    if (algorithm == "greedy") {
-        return Stage::template make<strategy::Greedy, Labels>(params, false);
-    }
-    if (algorithm == "tabu") {
-        return Stage::template make<strategy::Tabu, Labels>(params, false);
+    if (algorithm == "greedy" || algorithm == "tabu") {
+        if constexpr (std::is_same_v<Labels, LabelList<ResourceTypeComposition<Resources...>>>) {
+            if (algorithm == "greedy") {
+                return Stage::template make<strategy::Greedy, Labels>(params, false);
+            }
+            return Stage::template make<strategy::Tabu, Labels>(params, false);
+        } else {
+            throw OptionsError(std::format("a {} stage keeps no label buckets", algorithm));
+        }
     }
     throw OptionsError(std::format(
         "algorithm '{}' is not one of simple, pushing, pulling, astar, greedy, tabu", algorithm));
+}
+
+// As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
+// its labels in a list, or in buckets when the stage has bucket_width, bucket_resource or
+// sort_resource (the resources by name, cost by default, width 100 as Python's).
+template <typename... Resources>
+cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
+    using Composition = ResourceTypeComposition<Resources...>;
+    using Buckets = LabelBuckets<RealResource, RealResource, Composition>;
+
+    AlgorithmBaseParams params;
+    bool buckets = false;
+    size_t bucket_width = default_bucket_width;
+    size_t bucket_index = 0;
+    size_t sort_index = 0;
+    for (const auto& [name, value] : stage.params) {
+        if (name == "bucket_width") {
+            bucket_width = to_count("stage parameter bucket_width", value);
+            if (bucket_width < 1) {
+                throw OptionsError("stage parameter bucket_width must be at least 1");
+            }
+        } else if (name == "bucket_resource") {
+            bucket_index = bucket_resource("stage parameter bucket_resource", value);
+        } else if (name == "sort_resource") {
+            sort_index = bucket_resource("stage parameter sort_resource", value);
+        } else {
+            set_param(params, name, value);
+            continue;
+        }
+        buckets = true;
+    }
+
+    if (buckets) {
+        return make_stage_with<Buckets, Resources...>(
+            stage.algorithm,
+            AlgorithmParams<Buckets>(params, Buckets(bucket_width, bucket_index, sort_index)));
+    }
+    return make_stage_with<LabelList<Composition>, Resources...>(
+        stage.algorithm, AlgorithmParams<LabelList<Composition>>(params));
 }
 
 // MARK: Masters
