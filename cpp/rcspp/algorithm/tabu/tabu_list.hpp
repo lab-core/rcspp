@@ -31,7 +31,7 @@ namespace rcspp {
  */
 class TabuList {
     public:
-        explicit TabuList(int seed) : rnd_(seed) {}
+        explicit TabuList(int seed) : seed_(seed), rnd_(seed) {}
 
         /// True iff @p arc_id is currently in the tabu set with positive tenure.
         [[nodiscard]] bool is_tabu(size_t arc_id) const {
@@ -91,9 +91,12 @@ class TabuList {
         /// only @ref grow_extra is also a valid policy.
         void shrink_extra() { extra_ = extra_ > 0 ? extra_ - 1 : 0; }
 
+        /// Forgets every tabu arc and restarts the tenure jitter from the seed: the list is then
+        /// as a new one, so a solve of a kept algorithm repeats a new algorithm's.
         void clear() {
             tenure_.clear();
             extra_ = 0;
+            rnd_.seed(seed_);
         }
 
         [[nodiscard]] bool empty() const { return tenure_.empty(); }
@@ -102,6 +105,7 @@ class TabuList {
     private:
         std::map<size_t, size_t> tenure_;  // arc_id -> remaining tenure
         size_t extra_{0};
+        int seed_;
         std::mt19937_64 rnd_;
 };
 

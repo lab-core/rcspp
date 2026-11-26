@@ -89,6 +89,20 @@ New features are summarised, with a pointer to where they are documented.
   time: a new label of a model with eight components of one type made six allocations for that
   vector, and now makes one. `LabelFactory::make_resource(node)` gives a new label's resource
   state alone, for a container that constructs its labels in place.
+- **An algorithm with `release_after_solve` false reuses its labels at the next solve.** Before,
+  the next solve destroyed the labels the last one kept and allocated new ones; now it hands them
+  out again (`LabelPool::recycle`), unless the graph's resources have another number of components
+  of some type, when they are destroyed as before. A pricing problem solved again and again, as in
+  column generation, keeps one algorithm with `release_after_solve` false and stops allocating its
+  labels at every solve. The labels a search stores at its nodes stay readable in its containers
+  until the next solve, as before. New `AlgorithmBaseParams::max_retained_labels` (default: no limit): a solve
+  that ends with more labels releases them all, as `release_after_solve` true does, which bounds
+  the memory an algorithm holds between solves. The tabu searches and `Diversification`, which
+  empty their tabu list at every solve, now also restart its random tenure jitter from
+  `params.seed` (`TabuList::clear`): a kept tabu algorithm finds what a new one would, where it
+  used to carry its generator on. `Diversification` over a tabu search keeps its inner algorithm,
+  so each of its inner solves now draws the same jitter; the arcs it makes tabu still change from
+  one inner solve to the next.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

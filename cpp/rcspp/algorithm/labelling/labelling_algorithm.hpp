@@ -108,10 +108,10 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
         void initialize_labels() override {
-            // At the start of a solve the pool is already empty (Algorithm::initialize clears it).
-            // This matters when a driver starts another run (Driven::reseed): every label of the
-            // previous run goes back to the pool, those waiting for a successor's release
-            // (pending_release) included.
+            // At the start of a solve, Algorithm::initialize has already made every pooled label
+            // reusable (or destroyed them all), so this changes nothing then. It matters when a
+            // driver starts another run (Driven::reseed): every label of the previous run goes back
+            // to the pool, those waiting for a successor's release (pending_release) included.
             this->label_pool_.release_all_labels();
             search_.create_start_labels(*this->graph_, &this->label_pool_);
         }

@@ -13,6 +13,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -32,6 +33,7 @@
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_list.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/resource/composition/composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
@@ -44,6 +46,38 @@ template <typename ResourceType>
 using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 
 namespace detail {
+
+/// @brief The number of components of each resource type of @p graph's resources, read off any
+///        node's resource; empty for a resource that is not a composition, or a graph without
+///        one. Two graphs with the same shape can share pooled labels (@c LabelPool::recycle).
+template <typename ResourceType>
+[[nodiscard]] std::vector<size_t> resource_shape(const Graph<ResourceType>& graph) {
+    std::vector<size_t> shape;
+    const auto read = [&graph, &shape](size_t node_id) {
+        const auto* node = graph.get_node(node_id);
+        if (node == nullptr || node->resource == nullptr) {
+            return false;
+        }
+        if constexpr (IsComposition<Resource<ResourceType>>) {
+            std::apply(
+                [&shape](const auto&... components) { (shape.push_back(components.size()), ...); },
+                std::as_const(*node->resource).get_components());
+        }
+        return true;
+    };
+    // A source first: every solve reads the shape, and listing the node ids sorts them all.
+    for (const size_t node_id : graph.get_source_node_ids()) {
+        if (read(node_id)) {
+            return shape;
+        }
+    }
+    for (const size_t node_id : graph.get_node_ids()) {
+        if (read(node_id)) {
+            break;
+        }
+    }
+    return shape;
+}
 
 template <typename ResourceType>
 struct SearchContext;
@@ -95,8 +129,9 @@ class Algorithm {
         /// follows (the next phase, or a driver's next run). It then puts back the labels still
         /// stored aside (@ref prepare_next_phase), sets the status (@ref AlgorithmStatus) and
         /// whether the result is a proof (@c SolveResult::proven), and releases the label memory
-        /// unless @c release_after_solve is false. Each solve starts afresh: nothing of one
-        /// solve's labels is reused by the next.
+        /// unless @c release_after_solve is false and the pool holds no more than
+        /// @c max_retained_labels. Each solve starts afresh: the labels a solve kept are handed
+        /// out again by the next, reset first, so that it finds what a new algorithm would.
         ///
         /// @param graph            The graph; it must not change during the solve.
         /// @param cost_upper_bound Only paths cheaper than this are returned; +infinity for no
@@ -211,8 +246,10 @@ class Algorithm {
             const bool complete = status == AlgorithmStatus::Complete;
             last_solve_proven_ = complete && proof_.is_intact();
 
-            // Optionally release label memory so RAM is reclaimed when the caller returns.
-            if (params_.release_after_solve) {
+            // Optionally release label memory so RAM is reclaimed when the caller returns; a pool
+            // past max_retained_labels is released too.
+            if (params_.release_after_solve ||
+                label_pool_.get_nb_total_labels() > params_.max_retained_labels) {
                 release_label_memory();
             }
 
@@ -298,11 +335,12 @@ class Algorithm {
         [[nodiscard]] bool is_graph_unchanged() const { return graph_unchanged_; }
 
         /// @brief Starts a solve: stores the graph and the upper bound, sets the incumbent to
-        ///        the upper bound, clears the pool and the solutions, resets the counters, the
-        ///        quota, the pressure flag and the proof record, records the proof losses known
-        ///        at the start (an arc mask, an incumbent prune with no valid completion bound,
-        ///        @ref refresh_completion_bound_validity), and builds the relaxed rule's mask
-        ///        (@ref admission_mask).
+        ///        the upper bound, makes every pooled label reusable (or destroys them all when
+        ///        the graph's resources have another shape), clears the solutions, resets the
+        ///        counters, the quota, the pressure flag and the proof record, records the proof
+        ///        losses known at the start (an arc mask, an incumbent prune with no valid
+        ///        completion bound, @ref refresh_completion_bound_validity), and builds the relaxed
+        ///        rule's mask (@ref admission_mask).
         ///
         /// An override calls this first, then sets up its own search(es).
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
@@ -318,7 +356,9 @@ class Algorithm {
             graph_ = graph;
             upper_bound_ = cost_upper_bound;
             incumbent_ = cost_upper_bound;
-            label_pool_.clear();
+            // The labels a previous solve kept (release_after_solve false) are reused, unless
+            // this graph's resources have another shape.
+            label_pool_.recycle(detail::resource_shape(*graph));
             solutions_.clear();
             number_of_extended_labels_ = 0;
             quota_ = params_.max_extended_labels_per_node;
