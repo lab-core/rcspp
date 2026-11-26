@@ -16,6 +16,7 @@ wheel does not have it.
 | `summary.py`                   | the summary of a benchmark folder                                  |
 | `compare.py`                   | the comparison of two runs                                         |
 | `example.toml`                 | an example benchmark file                                          |
+| `all_features.toml`            | every feature, by hand; see [Tests](#tests)                        |
 | `runners/`                     | the runners: one run of a layer each                               |
 | `cpp_native/`                  | the `cpp-native` layer's C++ program, built with the example       |
 | `column_generation_benchmark/` | the code the runners and the benchmark share                       |
@@ -383,3 +384,17 @@ test checks that every layer the build has gives the same objective on C101_25, 
 where the LP solver is the same HiGHS build: the example's two masters. The package's highspy wheel and the example's
 HiGHS can return duals a rounding error apart, and on a degenerate LP that is enough to change the path (the same
 objective in other iterations). The Gurobi tests skip without gurobipy or its licence.
+
+`test_benchmark_all_features.py` runs every feature of the column generation through the benchmark, on every layer,
+and checks the runs against each other: each run ends with the status its options give, every proven LP equals the
+package's forward simple search's on the same instance and route relaxation and a value recorded in the test, the
+relaxations order their LPs, a stop ends within its gap, an integer solution passes its check. It runs
+`tests/all_features_quick.toml` (HiGHS only, about two minutes). [`all_features.toml`](all_features.toml) is the
+large version, with Gurobi, run by hand (an hour or more):
+
+```bash
+pytest benchmarks/column_generation/tests/test_benchmark_all_features.py \
+    --all-features-file benchmarks/column_generation/all_features.toml
+```
+
+A new feature adds its runs to both files, and its check to the test when its runs need a rule of their own.

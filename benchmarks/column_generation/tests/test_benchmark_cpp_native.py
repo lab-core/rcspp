@@ -97,6 +97,21 @@ def test_the_run_options_reach_the_program(build: Path, tmp_path: Path):
 
 
 @pytest.mark.usefixtures("program")
+def test_a_run_whose_search_logs_a_warning_still_gives_its_result(build: Path, tmp_path: Path):
+    # Without a half-way point, the bidirectional search warns; the log's colour code then
+    # starts the result's line.
+    result = run(
+        build,
+        tmp_path,
+        *("--instance", "C101_10", "--start", "single-customer"),
+        *("--stage", "simple:direction=bidirectional"),
+    )
+
+    assert result["status"] == "Optimal"
+    assert result["objective"] == pytest.approx(58.32595327336471, rel=1e-9)
+
+
+@pytest.mark.usefixtures("program")
 def test_a_run_stopped_at_its_iteration_limit_solves_the_lp_again(build: Path, tmp_path: Path):
     result = run(
         build, tmp_path, "--instance", "C101_10", "--column_generation.max_iterations", "1"
