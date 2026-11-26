@@ -130,7 +130,7 @@ for an LP of 58.326.
 
 | task | ready? | open |
 |---|---|---|
-| `T-2.5` statistics | ready (`T-2.3` done) | which candidates ship and each one's switch and cost; `IterationInfo` grows or a record type; the benchmark's per-iteration file (`D-239`) |
+| `T-2.5` statistics | designed 2026-11-26: `statistics-design.md` (`D-320`-`D-330`) | none |
 | `T-2.1` budget, schedule | no | where the schedule sits (stages inside `GraphPricer` today, the loop's `for` over pricers); the `Pricer` contract; a per-solve stop from Python (missing); a graph per thread (`F-06`); a deterministic mode; a read of #49's `pricing_budget.hpp` (open PR, `feature/pricing-budget`) |
 | `T-2.2` pool, removal | no | a column delete in `MasterSolver` (self-test, highspy, gurobipy, the C++ masters) and the column records in step; artificial columns protected (`D-29`); the pool's form: core `SolutionPool` or Python; pricing stored columns is a sparse product: **`D-16` for the user** (numpy, `scipy.sparse`, C++ CSR); its "done when" names the retired baseline file |
 | `T-2.4` stabilization | no | after `T-2.3` and `T-2.1`'s proof rule: where the component plugs in (the duals before pricing), mispricing with a heuristic first stage, proof only at the LP's own duals, `LB` at the true duals (`D-25`) |

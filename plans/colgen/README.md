@@ -342,6 +342,22 @@ comments and the native program's own checks (`D-362`). Acceptance passed 2026-1
 only (`D-360`, `F-153`). Rebased onto #124 (`D-361`); draft PR #125 on #124, 500 tests pass; findings `F-150`-`F-157`
 in `inventory.md`. CI does not start on #125 while it is in a GitHub stack with #124 (mergeability `UNKNOWN`): the
 user's. **Next:** CI once the stack is sorted, then the review.
+`T-2.5` designed 2026-11-26 (main line, `D-307`): everything in `statistics-design.md` (`D-320`-`D-330`; its IDs
+`D-320`-`D-349`, `F-110`-`F-149`, `I-21`-`I-49`). Groups `times`, `pricers`, `search`, `duals`, `master_values`,
+`columns`, each a switch; `IterationInfo` grows (`PricerIterationInfo`, `PricingResult.search_details`);
+`log_frequency`; the benchmark's `statistics.iterations` list and `iterations.jsonl`; `SolveResult.extended_labels`
+in the engine; the debug checks moved to a new `T-2.7` (`D-329`). The package first, then the C++ example layer and
+the benchmark. Branch `feature/column-generation-statistics` from #124's head `26b67ed2` in `../rcspp-dev`;
+`T-1.31`'s #125 also sits on #124 and edits the benchmark's option blocks and `OPTIONS.md`.
+Rebased onto #125's head `566e4094` (`D-331`; the PR's base is #125's branch). Commit 1 `455736e8`
+(`SolveResult.extended_labels`; `F-110`: only the labelling searches count), commit 2 `66548527` (the package;
+the `columns` field is `added_columns`), commit 3 `fd996d43` (the C++ example layer), commit 4 `8d410193` (the
+benchmark) (as built: `statistics-design.md` §10; `F-111`, `F-112`). ctest 879, package 703, the example's Python 115,
+benchmark 520. Done when checked (`F-113`): no measurable cost when off. The plan branch rebased onto `8d410193`
+2026-11-26 (first; 135 plan commits, nothing else had moved it): the `T-1.29` chat rebases its plan commits with
+`8d410193` as the old base and its own head as the new one. Pushed 2026-11-26 (the plan branch force-pushed,
+`ab5c91df`); draft PR #127 (base #125's branch, assigned to the user, description written with the user, no plan IDs).
+**Next:** CI and review on #127; `T-2.7` next on the main line.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -433,6 +449,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
 | `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
 | `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
+| `statistics-design.md` | `T-2.5`'s whole design: groups and switches, duals and master values, a pricer's details, the label count, the log, the benchmark's records, commits, checks, as built | working on `T-2.5` |
 | `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
