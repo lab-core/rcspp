@@ -103,6 +103,15 @@ New features are summarised, with a pointer to where they are documented.
   used to carry its generator on. `Diversification` over a tabu search keeps its inner algorithm,
   so each of its inner solves now draws the same jitter; the arcs it makes tabu still change from
   one inner solve to the next.
+- **`Algorithm::solve` takes a third argument, `const SolveLimitParams&`** (default: none), which
+  sets that solve's `timeout_s` and `max_solutions` in place of the params'. A class that
+  overrode `solve(graph, upper_bound)` must take it too. The library's algorithms read the
+  solve's limits, `Algorithm::max_solutions_` and `timeout_s_`, rather than the params'; an
+  algorithm of one's own that reads `params_.max_solutions` or `params_.timeout_s`, or a driver of
+  one's own that reads `params().max_solutions`, does not see a solve's own limits. `Diversification`
+  gives each solve of its inner algorithm the time its own solve has left; before, each inner solve
+  could take all of `timeout_s`. An inner solve that runs out of it without a path ends the solve
+  with status `Timeout`.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -355,6 +364,15 @@ New features are summarised, with a pointer to where they are documented.
   from a source or not to a sink, an arc the look-ahead refuses, an infeasible label, node ids or
   a cost that disagree with the path. It checks what any search returns, a heuristic's included.
   See "Checking a path" in `docs/cpp/beginner_api.md`.
+- **One solver per pricing problem.** `SolveLimitParams` gives one solve of a kept algorithm its own
+  time limit or number of solutions (`Algorithm::solve`, and `ResourceGraph::solve` with an
+  algorithm, as its last argument). In Python, `ResourceGraph.solver(algorithm, params,
+  direction)` returns a `Solver` that keeps its algorithm, and its labels, across solves:
+  `solver.solve(upper_bound, preprocess, cost_index, timeout_s, max_solutions)` returns what
+  `ResourceGraph.solve` would, and `number_of_created_labels`, `number_of_retained_labels` and
+  `number_of_extended_labels` report its labels. A solver keeps its labels whatever
+  `release_after_solve` says; `AlgorithmParams.max_retained_labels`, now in Python too, bounds
+  them. See "One solver per pricing problem" in `docs/advanced/column-generation.md`.
 - **A strategy of one's own**: a descriptor that names its schedule, and optionally its
   admission rule, retention, observer and interleave, from `rcspp::parts` or of one's own, solves
   as a built-in strategy does, in every direction it does not refuse (`backward = false`,

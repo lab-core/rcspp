@@ -9,6 +9,7 @@ construction, resource registration, buffered node/arc insertion, and
 NetworkX integration.
 """
 
+import contextlib
 import math
 
 import networkx as nx
@@ -593,6 +594,45 @@ class ResourceGraph:
         if cost_index < 0:
             raise ValueError(f"cost_index must be non-negative, got {cost_index}")
         _ext.graph.check_interrupted()
+        algorithm, params = self._algorithm_and_params(algorithm, params)
+        with self._params_for_call(params, direction):
+            return self._graph.solve(algorithm, upper_bound, params, preprocess, cost_index)
+
+    def solver(self, algorithm="simple", params=None, direction=None) -> "Solver":
+        """Build a :class:`Solver`: one algorithm that solves this graph repeatedly.
+
+        Each :meth:`solve` does what one :meth:`solve` of the graph does, but the
+        algorithm is built once, and each solve reuses the labels of the solves
+        before it instead of allocating new ones. Use it for a problem solved many
+        times, such as the pricing problem of a column generation, between
+        changes of the reduced costs (:meth:`update_reduced_costs`).
+
+        Args:
+            algorithm: As in :meth:`solve`.
+            params: As in :meth:`solve`, read once, here. A solver keeps its labels
+                for its next solve whatever ``params.release_after_solve`` says;
+                ``params.max_retained_labels`` bounds how many (0 releases them
+                after every solve). Each solve may take its own ``timeout_s`` and
+                ``max_solutions``.
+            direction: As in :meth:`solve`.
+
+        Returns:
+            A :class:`Solver` of this graph. It keeps the graph alive.
+
+        Raises:
+            ValueError: for an unknown algorithm or direction, or a direction the
+                algorithm does not search.
+        """
+        algorithm, params = self._algorithm_and_params(algorithm, params)
+        with self._params_for_call(params, direction):
+            return Solver(self, self._graph._make_solver(algorithm, params))
+
+    def _algorithm_and_params(self, algorithm, params):
+        """The C++ algorithm enum and params that *algorithm* and *params* name.
+
+        Flushes the buffers first: bucket params are resolved against the
+        registered resources.
+        """
         if params is None:
             params = _ext.graph.AlgorithmParams()
         self._flush()
@@ -605,19 +645,28 @@ class ResourceGraph:
                     f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
                 )
             algorithm = factory()
+        return algorithm, params
+
+    @contextlib.contextmanager
+    def _params_for_call(self, params, direction):
+        """Set two fields of *params* for the block, and restore them afterwards.
+
+        The two fields: the direction (None keeps ``params.direction``), and
+        dominance_ignored_components, which the caller gives as registration positions
+        and C++ reads as component indices (type slot, then registration order: see
+        _component_index). The positions are translated before either field changes,
+        so a position the graph does not have raises ValueError with the caller's
+        params untouched. A solve reads them during the call; a solver, when it is
+        built.
+        """
         chosen = params.direction if direction is None else _search_direction(direction)
-        # Two fields are changed for this call only, and restored in `finally`: the direction, and
-        # dominance_ignored_components, which the caller gives as registration positions and C++
-        # reads as component indices (type slot, then registration order: see _component_index).
-        # The positions are translated before either field changes, so a position the graph does
-        # not have raises ValueError with the caller's params untouched.
         previous = params.direction
         previous_ignored = params.dominance_ignored_components
         ignored = {self._component_index(position) for position in previous_ignored}
         params.direction = chosen
         params.dominance_ignored_components = ignored
         try:
-            return self._graph.solve(algorithm, upper_bound, params, preprocess, cost_index)
+            yield
         finally:
             params.direction = previous
             params.dominance_ignored_components = previous_ignored
@@ -844,6 +893,85 @@ class ResourceGraph:
 
         # Update the graph once everything is buffered
         self.update()
+
+
+# ── Solver ────────────────────────────────────────────────────────────────────
+
+
+class Solver:
+    """One algorithm that solves one graph again and again, reusing its labels.
+
+    Built by :meth:`ResourceGraph.solver`. Each :meth:`solve` returns what
+    :meth:`ResourceGraph.solve` would with the same algorithm and params, but the
+    labels of a solve are kept for the next one instead of being released and
+    allocated again: in column generation, keep one solver per pricing problem
+    across the iterations.
+
+    A solver solves the graph it was built for, as it stands at each solve: nodes
+    and arcs added since, and reduced costs updated since, are taken into account.
+    It keeps the graph alive. It is not thread-safe: do not solve its graph from
+    two threads at once.
+    """
+
+    def __init__(self, graph: ResourceGraph, cpp_solver):
+        """Wrap the C++ solver that :meth:`ResourceGraph.solver` built for *graph*."""
+        self._graph = graph
+        self._cpp = cpp_solver
+
+    @property
+    def graph(self) -> ResourceGraph:
+        """The graph this solver solves."""
+        return self._graph
+
+    def solve(
+        self,
+        upper_bound: float = math.inf,
+        preprocess: bool = True,
+        cost_index: int = 0,
+        timeout_s: float | None = None,
+        max_solutions: int | None = None,
+    ):
+        """Solve the graph, reusing the labels of the solves before.
+
+        Args:
+            upper_bound: As in :meth:`ResourceGraph.solve`.
+            preprocess: As in :meth:`ResourceGraph.solve`.
+            cost_index: As in :meth:`ResourceGraph.solve`.
+            timeout_s: This solve's time limit in seconds, in place of
+                ``params.timeout_s``; None keeps the params'.
+            max_solutions: This solve's number of solutions, in place of
+                ``params.max_solutions``; None keeps the params'.
+
+        Returns:
+            :class:`SolveResult`, as :meth:`ResourceGraph.solve` returns.
+        """
+        if cost_index < 0:
+            raise ValueError(f"cost_index must be non-negative, got {cost_index}")
+        _ext.graph.check_interrupted()
+        self._graph._flush()
+        return self._cpp.solve(upper_bound, preprocess, cost_index, timeout_s, max_solutions)
+
+    @property
+    def number_of_extended_labels(self) -> int:
+        """How many labels the last solve extended: a machine-independent work measure."""
+        return self._cpp.number_of_extended_labels
+
+    @property
+    def number_of_retained_labels(self) -> int:
+        """How many labels the solver holds for its next solve."""
+        return self._cpp.number_of_retained_labels
+
+    @property
+    def number_of_created_labels(self) -> int:
+        """How many labels the solver has allocated since it was built.
+
+        A solve that needs no more labels than one before it allocates none.
+        """
+        return self._cpp.number_of_created_labels
+
+    def __repr__(self) -> str:
+        """Return a one-line summary of the solver."""
+        return f"<Solver: {self.number_of_retained_labels} labels retained>"
 
 
 # ── Generate add_<type>_resource methods ─────────────────────────────────────

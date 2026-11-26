@@ -172,7 +172,14 @@ rg.update_reduced_costs(duals, cost_index=0)
 
 # Find negative-RC columns only
 result = rg.solve(upper_bound=-1e-9)
+
+# Or keep one solver for the pricing problem: each solve reuses the labels of the
+# solves before it (params.max_retained_labels bounds them), and may set its own limits
+pricing = rg.solver("pulling", params=AlgorithmParams())   # once
+result = pricing.solve(upper_bound=-1e-9, timeout_s=10.0)  # every iteration
 ```
+
+See "One solver per pricing problem" in `docs/advanced/column-generation.md`.
 
 ### Arc manipulation
 
@@ -297,6 +304,11 @@ graph.add_arc(…, origin, dest, cost, {Row{constraint_idx, 1.0}});
 // CG loop
 graph.update_reduced_costs(duals, /*cost_index=*/0);
 auto result = graph.solve(/*upper_bound=*/-1e-9);
+
+// Or keep one algorithm for the pricing problem (params.release_after_solve = false): each
+// solve reuses its labels, and a SolveLimitParams gives that solve its own limits
+auto pricing = graph.create_algorithm<strategy::Pulling>(params);
+auto next = graph.solve(pricing.get(), -1e-9, true, 0, SolveLimitParams{.timeout_s = 10.0});
 ```
 
 ---

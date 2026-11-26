@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <set>
 #include <utility>
 
@@ -427,5 +428,21 @@ AlgorithmParams<LabelContainerType> AlgorithmBaseParams::with_container(
     LabelContainerType container) const {
     return AlgorithmParams<LabelContainerType>(*this, std::move(container));
 }
+
+/// @brief Limits that one solve takes in place of its algorithm's params
+///        (@c Algorithm::solve, @c ResourceGraph::solve with an algorithm).
+///
+/// An algorithm's params are fixed when it is built. An algorithm kept across solves, as a pricing
+/// problem's is in column generation, can still be given each solve's own time limit or
+/// number of solutions. A limit left empty is the params'. @c AlgorithmBaseParams::check and
+/// @c AlgorithmBaseParams::could_be_non_optimal read the params only: read a solve's status.
+struct SolveLimitParams {
+        /// @brief This solve's wall-clock limit in seconds, in place of
+        ///        @c AlgorithmBaseParams::timeout_s.
+        std::optional<double> timeout_s;
+        /// @brief This solve's number of solutions, in place of
+        ///        @c AlgorithmBaseParams::max_solutions.
+        std::optional<size_t> max_solutions;
+};
 
 }  // namespace rcspp

@@ -127,13 +127,22 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             while (!this->should_end_loop(i)) {
                 ++i;
 
-                // solve, the tabu arcs hard in the inner algorithm's mask
-                std::vector<Solution> sols =
-                    algo_->solve(this->graph_, this->upper_bound_).solutions;
+                // solve, the tabu arcs hard in the inner algorithm's mask, within the time this
+                // solve has left
+                SolveResult inner =
+                    algo_->solve(this->graph_,
+                                 this->upper_bound_,
+                                 SolveLimitParams{.timeout_s = this->remaining_time_s()});
                 algo_->set_graph_unchanged(true);
-                if (sols.empty()) {
+                if (inner.solutions.empty()) {
+                    // An inner solve that ran out of the time this solve had left ends this one
+                    // by its time limit: record it, so that the status is Timeout, not Truncated.
+                    if (inner.status == AlgorithmStatus::Timeout) {
+                        this->is_time_out();
+                    }
                     break;
                 }
+                std::vector<Solution> sols = std::move(inner.solutions);
 
                 // process solutions
                 bool added = false;

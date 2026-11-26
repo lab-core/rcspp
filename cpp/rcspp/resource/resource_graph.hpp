@@ -392,11 +392,25 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 cost_index);
         }
 
+        /// @brief Solves the graph with @p algorithm, which may have solved before.
+        ///
+        /// An algorithm kept across solves (@c create_algorithm, with @c release_after_solve
+        /// false) reuses its labels: the way to solve one pricing problem again and again.
+        ///
+        /// @param algorithm   The algorithm, built for this graph's resources.
+        /// @param upper_bound Cost upper bound; solutions above it are discarded.
+        /// @param preprocess  Whether to reduce the graph before solving.
+        /// @param cost_index  Index of the cost component to use.
+        /// @param limits      This solve's limits, in place of the algorithm's params
+        ///                    (@c timeout_s, @c max_solutions).
+        /// @return The solutions found and the search's status; empty if the graph has no source
+        ///         or no sink, or another solve is running.
+        /// @throws ModelRefused when the model checks find a problem; the graph is left unchanged.
         template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(  // NOLINT(readability-function-cognitive-complexity)
             AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
-            bool preprocess = true, size_t cost_index = 0) {
+            bool preprocess = true, size_t cost_index = 0, const SolveLimitParams& limits = {}) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -433,7 +447,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             this->build_csr();
 
             // solve the rcspp
-            SolveResult result = algorithm->solve(this, upper_bound);
+            SolveResult result = algorithm->solve(this, upper_bound, limits);
 
             // restore the removed arcs for the next resolution
             stages.undo();
