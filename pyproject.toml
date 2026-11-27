@@ -30,7 +30,14 @@ classifiers = [
 ]
 dependencies = [
   "networkx>=3,<4",
+  # rcspp.pricing_pool imports numpy, and column generation works on numpy arrays.
+  "numpy>=1.24",
 ]
+
+[project.optional-dependencies]
+# The master solvers over a model the user builds with these packages.
+highspy = ["highspy>=1.15"]
+gurobipy = ["gurobipy>=13"]
 
 [project.urls]
 Homepage = "https://github.com/lab-core/rcspp"
