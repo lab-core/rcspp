@@ -87,25 +87,71 @@ struct AlgorithmBaseParams {
         bool return_dominated_solutions = false;
 
         /// @brief Whether a search drops a label that cannot lead to a path cheaper than the
-        ///        incumbent (the cheapest path found so far in this solve, or the solve's upper
-        ///        bound until one is found): its cost plus its completion bound is at or above the
         ///        incumbent (default false).
         ///
-        /// Exact when the completion bound is valid: one Bellman–Ford run per solve computes it. It
-        /// is valid when the cost is additive (@c Resource::is_cost_additive, false under a
-        /// declared clamp such as @c AdditionExtensionFunction's floor) and no arc adds less than
-        /// its share of the cost, whatever the label it extends, which the solve tests at the start
-        /// by running the extension on the model's arcs (an undeclared floor or ceiling, or a
-        /// maximum, in a priced extension fails it). Otherwise the label's cost alone is compared,
-        /// which may drop the cheapest path when an arc lowers the cost; the result is then not a
-        /// proof (@c ProofLoss::IncumbentPrune).
+        /// The incumbent is the cheapest path found so far in this solve, or the solve's upper
+        /// bound until one is found. A label is dropped when its cost plus its completion bound is
+        /// at or above the incumbent. The completion bound is computed once per solve, by one
+        /// Bellman–Ford run.
+        ///
+        /// The prune never drops the cheapest path when the completion bound is valid, that is
+        /// when both hold:
+        /// - the cost is additive (@c Resource::is_cost_additive). A declared clamp, such as
+        ///   @c AdditionExtensionFunction's floor, makes it not additive;
+        /// - no arc adds less than its share of the cost, whatever the label it extends. The solve
+        ///   tests this when it starts, by running the extension on the model's arcs. An
+        ///   undeclared floor or ceiling, or a maximum, in a priced extension fails the test.
+        ///
+        /// If the bound is not valid, the prune compares the label's cost alone. That may drop the
+        /// cheapest path when an arc lowers the cost, so the result is then not a proof
+        /// (@c ProofLoss::IncumbentPrune).
+        ///
+        /// See @ref prune_by_threshold for a prune against the upper bound alone.
         bool prune_by_incumbent = false;
+
+        /// @brief Whether a labelling search drops a label that cannot lead to a path cheaper
+        ///        than the solve's upper bound (default false).
+        ///
+        /// It saves work when the solve is given an upper bound: the paths returned are the same
+        /// as without it, and fewer labels are extended. Every labelling search reads it, Greedy
+        /// and the tabu searches included, in every direction, and so do both sides of a
+        /// bidirectional search, each against its own end nodes.
+        ///
+        /// When a label is taken, its cost plus its completion bound (a lower bound on the cost
+        /// still to pay from its node) is compared with the upper bound. If it is at or above,
+        /// no path through the label can be returned, and the label is dropped. A margin of
+        /// `tolerance × max(1, |upper bound|)` keeps rounding errors from dropping a path that
+        /// would be returned; a negative tolerance counts as 0. With no upper bound, only labels
+        /// that cannot reach an end node are dropped. With a negative-cost cycle there is no
+        /// finite bound, and nothing is dropped.
+        ///
+        /// The completion bound is computed at the start of each solve, by a Bellman–Ford run
+        /// over the arcs' shares of the cost, from the end nodes. It is kept from the previous
+        /// solve when the graph is promised unchanged (@c Algorithm::set_graph_unchanged).
+        ///
+        /// Both prunes run when a label is taken. This one compares with the upper bound the
+        /// solve was given, which never changes, and allows the margin. @ref prune_by_incumbent
+        /// compares with the incumbent, which falls as paths are found. With both on, the
+        /// incumbent prune drops every label this one drops, except within the margin.
+        ///
+        /// The solve throws `std::invalid_argument` when it starts if the bound is not valid,
+        /// that is unless both hold:
+        /// - the cost is additive: every component the cost reads has a zero cost, or a value
+        ///   cost under an @c Accumulate extension that does not clamp
+        ///   (@c Resource::is_cost_additive; @c AdditionExtensionFunction's floor clamps);
+        /// - every arc adds at least its share of the cost, whatever the label it extends. The
+        ///   solve tests this by running the extension on pairs of the model's arcs. A floor or a
+        ///   ceiling the extension does not declare (@c ExtensionFunction::is_clamped), or a
+        ///   maximum, in a priced extension fails the test. The pairs are only a sample, so
+        ///   declare a clamp rather than rely on the test.
+        bool prune_by_threshold = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each
         ///        phase (no limit by default, @ref kNoLimit).
         ///
         /// Pushing and Pulling apply it per visit of a node rather than per phase
         /// (@c parts::PerNodeQuota).
+        ///
         /// A non-dominated label over its node's quota is not lost: a single-direction search
         /// stores it aside and extends it in the next phase (@ref max_phases). A bidirectional
         /// search, which runs one phase, abandons it: it stays in its node's container, never

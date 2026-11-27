@@ -239,6 +239,14 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Threshold pruning**: `AlgorithmBaseParams::prune_by_threshold` (default off; in Python too)
+  has a labelling search drop a label whose cost plus its completion bound (a Bellman–Ford run
+  over the arcs' shares of the cost, from the end nodes) is at or above the solve's upper bound,
+  with a margin of `tolerance`. The paths returned are unchanged; fewer labels are extended. Every
+  labelling search reads it, the dives included, in every direction. It needs an additive cost (a
+  floored addition is not one) on which every arc adds at least its share, as the solve tests on
+  pairs of the model's arcs; another throws `std::invalid_argument` (`ValueError`) when the solve
+  starts.
 - **Relaxed and k-best admission**: `AlgorithmBaseParams::admission_rule` (`AdmissionRule` in
   Python) chooses how a labelling search keeps a new label at its node: `Exact` (dominance, the
   default), `Relaxed` (dominance over the components not in `dominance_ignored_components`) or
@@ -424,10 +432,11 @@ New features are summarised, with a pointer to where they are documented.
   The bound measures each arc's share of the cost once, from the start value, so it holds only if
   no arc ever adds less than that. A floor (`AdditionExtensionFunction` with a `min_value`), a
   ceiling or a maximum in a priced extension breaks this, though it declares an accumulation:
-  the bound then overestimated, and `prune_by_incumbent` could drop the cheapest path and report
-  the result as a proof. The solve now runs the extension on pairs of the model's arcs before the
-  prune reads the bound. Where an arc adds less than its share, the prune compares the cost alone
-  and the result is not a proof (`incumbent_prune`).
+  the bound then overestimated, and `prune_by_incumbent` and `prune_by_threshold` could drop the
+  cheapest path and report the result as a proof. The solve now runs the extension on pairs of
+  the model's arcs before a prune reads the bound. Where an arc adds less than its share, the
+  incumbent prune compares the cost alone and the result is not a proof (`incumbent_prune`), and
+  the threshold prune raises `ValueError` (`std::invalid_argument`) naming the arcs.
 - **A backward search refuses a cost that totals a path differently from its two ends.** A floor
   or a ceiling on an addition is met at the start of a forward label and at the end of a backward
   one, so a backward search returned a path at the wrong cost, or lost it, with a `complete`

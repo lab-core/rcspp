@@ -62,10 +62,13 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
     protected:
-        /// @brief Starts the solve: an empty search and its context, and the completion bound
-        ///        when the schedule's order or the incumbent prune reads it
-        ///        (@ref compute_completion_bound). An admission rule that is not exact loses the
-        ///        proof (@c ProofLoss::RelaxedAdmission).
+        /// @brief Starts a solve: builds an empty search and its context, and computes the
+        ///        completion bound if something reads it.
+        ///
+        /// The bound is read by the schedule's order (A*), by the threshold prune, and by the
+        /// incumbent prune when the bound is valid (@ref compute_completion_bound). If the
+        /// admission rule is not exact, the result is marked as not a proof
+        /// (@c ProofLoss::RelaxedAdmission).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
             memory_steps_ = 0;
@@ -73,11 +76,12 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
             // The incumbent prune adds the completion bound whenever it is valid, so the bound is
-            // computed then, as well as for an order that reads it (A*).
+            // computed then, as well as for an order that reads it (A*) and for the threshold
+            // prune.
             refresh_completion_bound(
                 *graph,
                 parts::reads_completion_bound_v<typename search_type::schedule_type> ||
-                    context_.prune_adds_completion_bound);
+                    context_.prune_adds_completion_bound || this->params_.prune_by_threshold);
             if (!decltype(search_.admission)::is_exact(context_.admission)) {
                 this->proof_.record(ProofLoss::RelaxedAdmission);
             }

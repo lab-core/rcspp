@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/label/label.hpp"
@@ -108,7 +109,9 @@ struct TakeRule {
         ///    nodes. After the caller records a label, it asks
         ///    @ref SearchContext::should_end_run whether to stop the run.
         /// 2. A label of infinite cost is erased and released.
-        /// 3. On a bidirectional side, a label past the half-way point stays stored, unextended
+        /// 3. With @c prune_by_threshold, a label whose cost plus its completion bound reaches the
+        ///    upper bound is erased and released (@ref is_out_of_reach).
+        /// 4. On a bidirectional side, a label past the half-way point stays stored, unextended
         ///    (@c Verdict::Keep), for the join to pair.
         ///
         /// @return Extend when the label passes; otherwise what to do with it.
@@ -127,11 +130,50 @@ struct TakeRule {
             if (std::isinf(label.get_cost())) {
                 return {.verdict = Verdict::EraseAndRelease};
             }
+            if (context.params->prune_by_threshold && is_out_of_reach(label, context)) {
+                return {.verdict = Verdict::EraseAndRelease};
+            }
             if (context.half_way != nullptr &&
                 context.half_way->template is_past<Direction>(label)) {
                 return {.verdict = Verdict::Keep};
             }
             return {};
+        }
+
+        /// @brief True if no path through @p label can cost less than the upper bound, so that
+        ///        the threshold prune (@c prune_by_threshold) may drop it.
+        ///
+        /// The test: the label's cost plus its completion bound is at or above the upper bound
+        /// plus a margin. The margin is the params' @c tolerance (0 if negative) times the larger
+        /// of 1 and the upper bound's magnitude. The margin only makes the prune more cautious:
+        /// it never drops a path that costs less than the upper bound.
+        ///
+        /// Why dropping such a label loses no path below the upper bound:
+        /// - the completion bound is a lower bound on the cost still to pay. The solve refuses
+        ///   the prune when it is not (@c Algorithm::require_valid_completion_bound);
+        /// - the bound is consistent: at each arc, the bound at the tail is at most the arc's
+        ///   share plus the bound at the head. So every label extended from this one would be
+        ///   out of reach too;
+        /// - under the exact admission rule, each label this one evicted when it was admitted
+        ///   cost at least as much at the same node, so it was out of reach too. Under another
+        ///   rule the result is not a proof anyway.
+        ///
+        /// Infinite values:
+        /// - a completion bound of -infinity (a negative-cost cycle) puts nothing out of reach;
+        /// - a completion bound of +infinity (no end node can be reached) puts the label out of
+        ///   reach of any upper bound;
+        /// - with no finite upper bound, only a label whose bound is +infinity is out of reach.
+        ///   The margin is not computed then: the tolerance times infinity would be infinite, or
+        ///   NaN.
+        [[nodiscard]] static bool is_out_of_reach(const Label<ResourceType>& label,
+                                                  const SearchContext<ResourceType>& context) {
+            const double bound = (*context.completion_bound)(label);
+            if (!std::isfinite(context.upper_bound)) {
+                return bound == std::numeric_limits<double>::infinity();
+            }
+            const double margin = std::max(0.0, context.params->tolerance) *
+                                  std::max(1.0, std::abs(context.upper_bound));
+            return label.get_cost() + bound >= context.upper_bound + margin;
         }
 };
 

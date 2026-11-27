@@ -107,13 +107,24 @@ class ExtensionFunction {
             return DirectionalResourceKind::Unspecified;
         }
 
-        /// @brief Whether the extension clamps what it computes (a floor, say), so that from some
-        ///        values an arc adds less than its share of the sum.
+        /// @brief Whether the extension clamps the value it computes: forces it into a range,
+        ///        by replacing a result below a floor with the floor (or one above a ceiling with
+        ///        the ceiling).
         ///
-        /// A priced component whose extension clamps has no additive cost
-        /// (@c Resource::is_cost_additive): a completion bound built from the arcs' shares is not
-        /// a lower bound on it, so no prune adds that bound, and a backward or bidirectional search
-        /// refuses the model. Declared, so the refusal does not rest on the arcs the solve probes.
+        /// In practice, an arc then does not always change the value by the same amount. For
+        /// example, @c AdditionExtensionFunction with a floor of 0 computes max(0, value + arc):
+        /// an arc of -5 takes a value of 10 to 5, but a value of 3 only to 0. When the component
+        /// is part of the cost, a path's cost is then no longer the sum of what its arcs add,
+        /// and what relies on that sum no longer holds:
+        /// - the completion bound, built from what each arc adds, is not a lower bound on the
+        ///   cost, so @c prune_by_incumbent compares the cost alone and @c prune_by_threshold
+        ///   refuses to start;
+        /// - a backward or bidirectional search refuses the model: it adds the arcs in the other
+        ///   order, and would meet the floor at the other end of the path.
+        ///
+        /// Override it to return @c true in an extension that clamps. Without the declaration,
+        /// the solve can find the clamp only by testing a sample of the model's arcs, and may
+        /// miss it.
         ///
         /// @return @c false unless overridden; @c AdditionExtensionFunction answers @c true when it
         ///         has a floor.
