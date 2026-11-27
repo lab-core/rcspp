@@ -30,11 +30,17 @@ class KeepWhileWaiting {
             std::remove_cvref_t<decltype(std::declval<const ContainerType&>().get_labels())>;
 
     public:
-        static constexpr bool records_at_take = true;        // nothing is left at the end nodes
-        static constexpr bool releases_taken_labels = true;  // nothing is kept behind
+        /// @brief A solution is recorded when its end-node label is taken: nothing is left at the
+        ///        end nodes to read when the loop ends.
+        static constexpr bool records_at_take = true;
+        /// @brief The step releases every label it takes once it is done with it: nothing is
+        ///        kept behind (@ref releases_taken_labels_v).
+        static constexpr bool releases_taken_labels = true;
 
+        /// @brief Does nothing: no container is kept, whatever the number of nodes.
         void reset(size_t /*number_of_nodes*/, const ContainerType& /*prototype*/) {}
 
+        /// @brief Does nothing: no label is stored, so none is forgotten.
         void clear() {}
 
         /// @brief The view of a node: nothing is stored there.

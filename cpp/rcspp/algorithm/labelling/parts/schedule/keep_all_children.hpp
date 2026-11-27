@@ -13,6 +13,7 @@ namespace rcspp::parts {
 
 /// @brief Keeps every child: a plain dive.
 struct KeepAllChildren {
+        /// @brief Drops no child: @p children and @p rejected are left as they are.
         template <typename ResourceType>
         void select(std::vector<StoredLabel<ResourceType>>& /*children*/,
                     std::vector<StoredLabel<ResourceType>>& /*rejected*/,
