@@ -63,7 +63,9 @@ struct RunEnd {
         bool ended_with_stored_aside = false;
         /// @brief Whether the run added a solution the solve did not have.
         bool new_solution = false;
-        /// @brief The cost of the end-node label the run recorded last; infinite when none.
+        /// @brief The cost of the end-node label the run recorded last in a step (with
+        ///        @c end_runs_at_end_node, the label it ended at) or, when no step recorded one,
+        ///        the last recorded from the end nodes once the run was over; infinite when none.
         double cost = std::numeric_limits<double>::infinity();
         /// @brief Its path's arc ids, in path order: recorded as a solution or not (a duplicate,
         ///        or not below the upper bound).

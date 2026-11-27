@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/arc_mask.hpp"
@@ -103,9 +104,11 @@ class Driven : public Base {
         /// wait, and the run @c ended_with_stored_aside, not @c exhausted.
         void main_loop() override {
             run_ = {};
+            noted_in_a_step_ = false;
             if (refused_) {
                 return;
             }
+            in_run_ = true;
             for (size_t phase = 1;; ++phase) {
                 // A label it recorded ended the run (end_runs_at_end_node, max_solutions), or a
                 // stop (time limit, interrupt, memory limit) left labels waiting: the run is over.
@@ -124,26 +127,59 @@ class Driven : public Base {
                     break;
                 }
             }
+            in_run_ = false;
         }
 
         bool prepare_next_run(size_t number_of_runs) override {
             return !refused_ && driver_.after_run(*this, number_of_runs);
         }
 
-        /// @brief Records @p label as the base does, and notes it in the run's end.
+        /// @brief Records @p label as the base does, and notes it in the run's end
+        ///        (@c parts::RunEnd), building its path once.
+        ///
+        /// Once a step of the run has recorded a label, the labels recorded from the end nodes
+        /// after the run (@c record_remaining_solutions) are still recorded, but not noted: with
+        /// @c end_runs_at_end_node, the run's end is the label it ended at, whatever the
+        /// retention keeps at the end nodes.
         void record_solution(const Label<resource_type>& label) override {
             const size_t before = this->solutions_.size();
+            noting_ = in_run_ || !noted_in_a_step_;
+            if (noting_) {
+                noted_in_a_step_ = noted_in_a_step_ || in_run_;
+                run_.cost = label.get_cost();
+                run_.arc_ids.clear();
+            }
             run_.recorded = true;
-            run_.cost = label.get_cost();
-            run_.arc_ids = this->get_path_arc_ids(label);
-            Base::record_solution(label);
+            if (label.get_cost() >= this->upper_bound_) {
+                // The base drops such a label before it builds the path, which the run's end
+                // still needs.
+                if (noting_) {
+                    run_.arc_ids = this->get_path_arc_ids(label);
+                }
+            } else {
+                Base::record_solution(label);  // builds the path, and hands it to record_path
+            }
+            noting_ = false;
             run_.new_solution = run_.new_solution || this->solutions_.size() > before;
+        }
+
+        /// @brief Notes the path of the label being recorded in the run's end, then records it as
+        ///        the base does.
+        void record_path(double cost, std::vector<size_t> path_arc_ids,
+                         size_t end_node_id) override {
+            if (noting_) {
+                run_.arc_ids = path_arc_ids;
+            }
+            Base::record_path(cost, std::move(path_arc_ids), end_node_id);
         }
 
     private:
         DriverType driver_;
         parts::RunEnd run_;
         bool refused_ = false;
+        bool in_run_ = false;           ///< inside @ref main_loop: a step records
+        bool noted_in_a_step_ = false;  ///< a step of the last run noted a label in @ref run_
+        bool noting_ = false;           ///< the label being recorded is noted in @ref run_
 };
 
 }  // namespace rcspp::detail

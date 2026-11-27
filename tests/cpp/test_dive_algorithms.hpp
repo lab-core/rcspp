@@ -1105,6 +1105,25 @@ TEST(DrivenSearch, ARunEndsAtItsFirstPathWhateverTheRetention) {
 
 namespace {
 
+/// @brief Two arcs from the source to the sink whose labels there do not dominate each other: arc
+///        0 costs -1 and carries 0 on a second resource, arc 1 costs -2 and carries 1.
+inline std::unique_ptr<ResourceGraph<RealResource, RealResource>> make_two_sink_labels_graph() {
+    auto g = std::make_unique<ResourceGraph<RealResource, RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<TrivialCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource, RealResource>({-1.0, 0.0}, 0, 1);
+    g->add_arc<RealResource, RealResource>({-2.0, 1.0}, 0, 1);
+    return g;
+}
+
 /// @brief Solves @p g with @p Strategy and @p params.
 ///
 /// @return The status, and how many labels the solve extended.
@@ -1118,6 +1137,18 @@ std::pair<AlgorithmStatus, size_t> solve_counting_extensions(ResourceGraph<RealR
 }
 
 }  // namespace
+
+/// @brief A run's end is the label it ended at, not one the retention left at the end nodes:
+///        under KeepAtNodes, the run ends at arc 0's label, and arc 1's, left at the sink and
+///        recorded once the run is over, is returned but does not replace it in the run's end.
+TEST(DrivenSearch, ARunsEndIsTheLabelItEndedAt) {
+    auto g = make_two_sink_labels_graph();
+    const auto result = g->solve<DrivenAtNodes<RecordOneRun>>(AlgorithmBaseParams{});
+    EXPECT_EQ(result.solutions.size(), 2U);
+    ASSERT_EQ(driven_runs().size(), 1U);
+    EXPECT_DOUBLE_EQ(driven_runs()[0].cost, -1.0);
+    EXPECT_EQ(driven_runs()[0].arc_ids, (std::vector<size_t>{0}));
+}
 
 /// @brief A driven search counts the steps of all its runs for the memory check: each episode
 ///        here takes three labels, fewer than the interval of 10, yet the check runs within the
