@@ -380,6 +380,15 @@ before the end on Windows only) and once on #97's processor-time test. `main` ga
 conflicts with #99's deletion of `benchmark.yml` (dry run: one conflict, keep the deletion). **Next (agreed with the
 user):** rebase #61-#124 onto `main` with the fixes on the way (few local builds, CI checks), then #125-#128 once #125's
 checks end.
+Done 2026-11-27 (`D-374`): all 16 branches rebased onto `main` `f57a7658` in `../rcspp-rebase` (one conflict, #99 keeps
+the deletion of `benchmark.yml`), with five fix commits: #99 `e5ad959b` (flush, `F-165`), #124 `850b61be` (gap test at
+30 %, `F-167`), #125 `a38348fd` (`/bigobj`), #127 `29370334` (records within one HiGHS build), #128 `5b03395c` (quick
+file's gaps on C101_25); backups: tags `backup/colgen-<name>-before-main-rebase-3`. Every branch has its commits plus
+these; pre-commit on each, #127's test and the quick file run locally on the old build, no new build. Pushed at once,
+`run-ci` re-added on the 16 PRs (CI Full queued); GitHub's stack removed by the user (`F-166`). Plan branch on
+`5b03395c` (backup `backup/colgen-plan-before-main-rebase-3`). The other chat's local
+`feature/column-generation-debug-checks` (in `../rcspp-dev`) sits on the old #128 `0baf6bcd`: it needs `git rebase
+--onto 5b03395c 0baf6bcd` (its own or the user's call, `D-373`). **Next:** read CI on the 16 PRs.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
