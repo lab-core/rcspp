@@ -11,6 +11,11 @@ if(NOT TARGET rcspp_column_generation_gurobi AND NOT TARGET rcspp_column_generat
 endif()
 
 add_executable(cpp-native-solver cpp_native_solver.cpp)
+# The program's templates over the graph's resource types exceed the default section limit
+# of an object file in a Debug build.
+if(MSVC)
+  target_compile_options(cpp-native-solver PRIVATE /bigobj)
+endif()
 target_link_libraries(cpp-native-solver PRIVATE rcspp_objects rcspp_column_generation_objects)
 # The configuration it was built in, for the run's record.
 target_compile_definitions(cpp-native-solver PRIVATE RCSPP_BUILD_CONFIG="$<CONFIG>")
