@@ -154,6 +154,25 @@ void init_graph(py::module_& m) {
                       "may not be optimal, even when status is 'complete': 'complete' then means "
                       "only that the labels that were kept were all processed. Reported by every "
                       "algorithm.")
+        .def_readonly("proven",
+                      &SolveResult::proven,
+                      "Whether the result is a proof of optimality: no path is cheaper than the "
+                      "cheapest one returned. When none is returned, no path costs less than the "
+                      "upper bound (no path exists, with no upper bound). It requires status "
+                      "'complete', an exact admission rule, no memory-pressure trim, no tabu arc, "
+                      "and, with prune_by_incumbent, a valid completion bound (an additive cost "
+                      "whose arcs each add their share). A tabu solve is therefore a proof only "
+                      "when its first episode found no path. proof_lost_by says why the result "
+                      "is not a proof.")
+        .def_readonly("proof_lost_by",
+                      &SolveResult::proof_lost_by,
+                      "Why the result is not a proof; empty when it is. When the search did not "
+                      "finish: the status's name ('truncated', 'timeout', 'max_solutions', "
+                      "'interrupted', 'memory_limit'). Otherwise, the first loss: "
+                      "'relaxed_admission' (admission_rule), 'heuristic_driver' (a tabu search "
+                      "made an arc tabu), 'incumbent_prune' (prune_by_incumbent with no valid "
+                      "completion bound) or 'memory_pressure'. ('arcs_masked' comes only from "
+                      "the C++ arc masks.)")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -178,7 +197,8 @@ void init_graph(py::module_& m) {
         .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
         .def("__repr__", [](const SolveResult& r) {
             std::string text = "SolveResult(status=" + r.status_string() +
-                               ", solutions=" + std::to_string(r.solutions.size());
+                               ", solutions=" + std::to_string(r.solutions.size()) +
+                               ", proven=" + (r.proven ? "True" : "False");
             if (r.bidirectional) {
                 text += ", half_way_used=" +
                         std::string(r.bidirectional->half_way_used ? "True" : "False") +
@@ -209,11 +229,28 @@ void init_graph(py::module_& m) {
         .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
         .def_readwrite("max_solutions", &PyAlgorithmParams::max_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
-        .def_readwrite("prune_by_incumbent", &PyAlgorithmParams::prune_by_incumbent)
+        .def_readwrite("prune_by_incumbent",
+                       &PyAlgorithmParams::prune_by_incumbent,
+                       "Whether a search drops a label that cannot lead to a path cheaper than the "
+                       "incumbent (default False). The incumbent is the cheapest path found so "
+                       "far, or the upper bound until one is found. A label is dropped when its "
+                       "cost plus its completion bound is at or above the incumbent. The prune "
+                       "never drops the cheapest path when the completion bound is valid, which "
+                       "needs an additive cost whose arcs each add their share, whatever the "
+                       "label; the solve tests this when it starts. Otherwise the cost alone is "
+                       "compared, which may drop the cheapest path, and result.proven is False "
+                       "('incumbent_prune').")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
-        .def_readwrite("max_iterations", &PyAlgorithmParams::max_iterations)
+        .def_readwrite("max_iterations",
+                       &PyAlgorithmParams::max_iterations,
+                       "The most iterations of one main loop (default: no limit). For simple, "
+                       "pushing, astar, greedy and bound_guided_greedy, an iteration is one label "
+                       "taken; for pulling, one node visited. The count starts again at each "
+                       "phase. For tabu, an iteration is one episode (a dive to a path), and "
+                       "max_iterations must be set: with no limit, or with 0, tabu runs no "
+                       "episode. A solve it stops with labels still waiting ends 'truncated'.")
         .def_readwrite("timeout_s",
                        &PyAlgorithmParams::timeout_s,
                        "Wall-clock timeout in seconds; solve() returns early when elapsed >= "
@@ -227,10 +264,22 @@ void init_graph(py::module_& m) {
             "If true (default), release label memory after solve(). Set to false when the "
             "same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() "
             "overhead.")
-        .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
-        .def_readwrite("tabu_exempt_node_ids", &PyAlgorithmParams::tabu_exempt_node_ids)
-        .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
-        .def_readwrite("seed", &PyAlgorithmParams::seed)
+        .def_readwrite("tabu_tenure",
+                       &PyAlgorithmParams::tabu_tenure,
+                       "The tabu searches' base tenure: an arc made tabu stays tabu for the next "
+                       "tabu_tenure - 1 episodes, plus an adaptive extra (default 5).")
+        .def_readwrite("tabu_exempt_node_ids",
+                       &PyAlgorithmParams::tabu_exempt_node_ids,
+                       "Nodes whose arcs tabu never makes tabu: an arc that starts or ends at one "
+                       "of them stays usable (default: none). Assign the whole set: the value "
+                       "read is a copy, so add() on it changes nothing.")
+        .def_readwrite("tabu_random_noise",
+                       &PyAlgorithmParams::tabu_random_noise,
+                       "Whether each tabu tenure is moved at random by -1, 0 or +1 when an arc is "
+                       "made tabu (default True). The draws come from seed.")
+        .def_readwrite("seed",
+                       &PyAlgorithmParams::seed,
+                       "Seed of the random generator behind tabu_random_noise (default 0).")
         // ── Memory-limit parameters ──────────────────────────────────────
         .def_readwrite("max_memory_gb",
                        &PyAlgorithmParams::max_memory_gb,

@@ -91,17 +91,22 @@ struct TakeRule {
         ///        has answered @c Extend.
         ///
         /// In this order:
-        /// 1. A label at an end node stays stored (@c Verdict::Keep), and lowers the incumbent
-        ///    when it costs less than the upper bound. It is to be recorded now
-        ///    (@c Decision::record) in two cases; otherwise its path is read at the end of the
-        ///    solve, from the labels left at the end nodes:
-        ///    - the retention records at take (@c records_at_take): it keeps nothing at the end
-        ///      nodes;
+        /// 1. A label at an end node is not extended (@c Verdict::Keep). If it costs less than
+        ///    the upper bound, it lowers the incumbent. Its path is recorded now
+        ///    (@c Decision::record) in three cases:
+        ///    - the retention records at take (@c records_at_take), since it keeps nothing at
+        ///      the end nodes to read later;
         ///    - @c return_dominated_solutions is set: a later label may dominate this one and
         ///      erase it from its node before the end, so only a record made now returns it. A
         ///      label dominated before it is taken is released by @ref live, and is never
-        ///      recorded.
-        ///    The caller records it, then asks @ref SearchContext::should_end_run whether to stop.
+        ///      recorded;
+        ///    - the run stops at its first path (@c SearchContext::run_ends_at_end_node, set by
+        ///      a driver), whatever the retention. If the retention also keeps the label at its
+        ///      node, it is read again from there when the run ends, and @c record_path drops
+        ///      that second copy as a duplicate.
+        ///    Otherwise its path is read when the run ends, from the labels left at the end
+        ///    nodes. After the caller records a label, it asks
+        ///    @ref SearchContext::should_end_run whether to stop the run.
         /// 2. A label of infinite cost is erased and released.
         /// 3. On a bidirectional side, a label past the half-way point stays stored, unextended
         ///    (@c Verdict::Keep), for the join to pair.
@@ -116,7 +121,8 @@ struct TakeRule {
                 }
                 return {.verdict = Verdict::Keep,
                         .record = SearchType::retention_type::records_at_take ||
-                                  context.params->return_dominated_solutions};
+                                  context.params->return_dominated_solutions ||
+                                  context.run_ends_at_end_node};
             }
             if (std::isinf(label.get_cost())) {
                 return {.verdict = Verdict::EraseAndRelease};

@@ -75,7 +75,8 @@ struct AlgorithmBaseParams {
         /// its share of the cost, whatever the label it extends, which the solve tests at the start
         /// by running the extension on the model's arcs (an undeclared floor or ceiling, or a
         /// maximum, in a priced extension fails it). Otherwise the label's cost alone is compared,
-        /// which may drop the cheapest path when an arc lowers the cost.
+        /// which may drop the cheapest path when an arc lowers the cost; the result is then not a
+        /// proof (@c ProofLoss::IncumbentPrune).
         bool prune_by_incumbent = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each
@@ -96,8 +97,9 @@ struct AlgorithmBaseParams {
         /// A phase extends labels until none waits or a stop applies. When labels were stored
         /// aside (by the per-node quota or a memory-pressure trim), the next phase puts them
         /// back and extends them, with the per-node counts started again. Labels still stored
-        /// aside after the last phase make the solve @c AlgorithmStatus::Truncated. A
-        /// bidirectional search runs one.
+        /// aside after the last phase make the solve @c AlgorithmStatus::Truncated. A driven
+        /// search (the tabu searches) runs up to this many phases in each run; a bidirectional
+        /// search runs one.
         size_t max_phases = 1;
 
         /// @brief The most iterations of one main loop (no limit by default, @ref kNoLimit).
@@ -107,8 +109,8 @@ struct AlgorithmBaseParams {
         ///   schedule; `Pulling`: one node visited. The count starts again at each phase, so a
         ///   solve may make up to `max_phases × max_iterations`. A bidirectional search counts
         ///   the iterations of both sides together.
-        /// - the tabu searches: one episode (one dive to a path); the labels a dive takes are not
-        ///   counted. Must be finite.
+        /// - the tabu searches: one episode (one dive to a path; `ImprovingTabu`'s first dive is
+        ///   not counted); the labels a dive takes are not counted. Must be finite.
         /// - `DiversificationSearch`: one solve of the inner algorithm. Must be finite.
         ///
         /// A solve it stops with labels still waiting ends @c AlgorithmStatus::Truncated.
@@ -137,18 +139,32 @@ struct AlgorithmBaseParams {
         /// retained across calls and shrink_to_fit() overhead is avoided.
         bool release_after_solve = true;
 
-        // for tabu search algorithms
+        /// @brief How long an arc stays tabu, in episodes of a tabu search (default 5).
+        ///
+        /// An arc made tabu after an episode stays tabu for the next `tabu_tenure` − 1 episodes,
+        /// plus an adaptive extra that each search grows and shrinks by its own rule
+        /// (@c parts::TabuEpisodes, @c parts::ImprovingTabuEpisodes). @ref DiversificationSearch
+        /// counts its inner solves the same way.
         size_t tabu_tenure = 5;  // NOLINT(readability-magic-numbers)
+        /// @brief Nodes whose arcs are never made tabu: an arc that starts or ends at one of them
+        ///        stays usable, in the tabu searches and in @ref DiversificationSearch.
         std::set<size_t> tabu_exempt_node_ids;
+        /// @brief Whether each tenure is moved at random by −1, 0 or +1 when an arc is made tabu
+        ///        (default true). A tenure of 1 is never lowered. The draws come from @ref seed.
         bool tabu_random_noise = true;
 
-        /// @brief Consecutive non-improving dives before a diversification step.
+        /// @brief How many episodes in a row without a cheaper path make
+        ///        @c strategy::ImprovingTabu lengthen its tabu tenure (default 10).
         ///
-        /// Used by @ref ImprovingTabuSearch: when this many dives in a row fail
-        /// to strictly improve the best known cost, @c grow_extra() is called on
-        /// the tabu list to force exploration of unexplored regions.
+        /// An episode improves when it finds a path cheaper than the best so far by more than
+        /// @c tolerance. @c DiversificationSearch does not read this: it lengthens its tenure
+        /// after every inner solve that adds no new path.
         size_t non_improving_episodes_before_growth = 10;  // NOLINT(readability-magic-numbers)
 
+        /// @brief The seed of the random generator behind @ref tabu_random_noise (default 0).
+        ///
+        /// The generator is seeded once, when the algorithm is built, and is not seeded again
+        /// at each solve: two solves with the same algorithm draw different noise.
         int seed = 0;
 
         /// @brief Index of the critical resource: the "clock" on which the bidirectional search
@@ -223,12 +239,19 @@ struct AlgorithmBaseParams {
         /// Must be in (0, 1].  Default 0.9 leaves a 10 % safety margin.
         double memory_limit_fraction = kDefaultMemoryLimitFraction;
 
-        /// @brief Number of main-loop iterations between consecutive RSS checks.
+        /// @brief How often the search checks how much memory the process uses: once every
+        ///        this many main-loop iterations (default 50,000).
         ///
-        /// Larger values reduce measurement overhead; smaller values react
-        /// faster to memory spikes.  Must be > 0. Counted like max_iterations, within one phase:
-        /// a phase shorter than this never reads the memory. Diversification reads it after each
-        /// of its inner solves instead, whatever this interval.
+        /// The check reads the process's resident set size (RSS: the physical memory it
+        /// occupies) and compares it with the memory limit and the pressure threshold
+        /// (@ref memory_limit_fraction, @ref memory_pressure_fraction). Larger values reduce the
+        /// cost of measuring; smaller values react faster to memory spikes. Must be > 0.
+        ///
+        /// Iterations are counted as for @ref max_iterations, and the count starts again at each
+        /// phase, so a phase shorter than this never checks the memory. A driven search (the tabu
+        /// searches) counts the iterations of all its runs in the solve together.
+        /// @ref DiversificationSearch ignores this interval: it checks the memory once after each
+        /// inner solve.
         size_t memory_check_interval = kDefaultMemoryCheckInterval;
 
         /// @brief Pressure threshold as a fraction of the effective memory limit.
@@ -241,16 +264,17 @@ struct AlgorithmBaseParams {
         /// @brief How many waiting labels a memory-pressure trim keeps, per node (default 200).
         ///
         /// Each time a memory check finds the pressure threshold reached
-        /// (@ref memory_pressure_fraction), the search trims the labels waiting to be extended.
-        /// `Pushing` and `Pulling` keep this many at each node; `Simple`, `AStar` and `Greedy`
-        /// keep this many times the number of nodes in all: the best (non-dominated, then
-        /// cheapest; A* by its key) or, for Greedy's dive, those it would take first. Of the
-        /// labels trimmed, a dominated one is released, and a non-dominated one
-        /// is stored aside for the next phase, or abandoned on a side of a bidirectional search.
-        /// From the second trim of a solve on, every label stored aside is released first, to
-        /// free memory. The per-node quota (@ref max_extended_labels_per_node) is also lowered to
-        /// this value for the rest of the solve. The result may then not be optimal
-        /// (@c Algorithm::memory_pressure_was_triggered).
+        /// (@ref memory_pressure_fraction), the search trims the labels waiting to be extended:
+        /// - `Pushing` and `Pulling` keep this many at each node;
+        /// - `Simple`, `AStar` and `Greedy` keep this many times the number of nodes in all. They
+        ///   keep the best: non-dominated first, then cheapest (A* by its key). Greedy's dive
+        ///   keeps the labels it would take first.
+        ///
+        /// Of the labels trimmed, a dominated one is released. A non-dominated one is stored aside
+        /// for the next phase, or abandoned on a side of a bidirectional search. From the second
+        /// trim of a solve on, every label stored aside is released first, to free memory. The
+        /// per-node quota (@ref max_extended_labels_per_node) is also lowered to this value for
+        /// the rest of the solve. The result is then not a proof (@c ProofLoss::MemoryPressure).
         size_t memory_pressure_max_labels_per_node = kDefaultMemoryPressureMaxLabelsPerNode;
 
         /// @brief Wrap these base params in an AlgorithmParams with the given container.

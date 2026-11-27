@@ -64,25 +64,58 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     protected:
         /// @brief Starts the solve: an empty search and its context, and the completion bound
         ///        when the schedule's order or the incumbent prune reads it
-        ///        (@ref compute_completion_bound).
+        ///        (@ref compute_completion_bound). An admission rule that is not exact loses the
+        ///        proof (@c ProofLoss::RelaxedAdmission).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
+            memory_steps_ = 0;
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
             // The incumbent prune adds the completion bound whenever it is valid, so the bound is
             // computed then, as well as for an order that reads it (A*).
-            const bool reads_bound =
+            refresh_completion_bound(
+                *graph,
                 parts::reads_completion_bound_v<typename search_type::schedule_type> ||
-                context_.prune_adds_completion_bound;
-            search_.completion_bound = reads_bound ? compute_completion_bound<Direction>(*graph)
-                                                   : CompletionBound<ResourceType>{};
+                    context_.prune_adds_completion_bound);
+            if (!decltype(search_.admission)::is_exact(context_.admission)) {
+                this->proof_.record(ProofLoss::RelaxedAdmission);
+            }
             search_.schedule.initialize(context_);
         }
 
+        /// @brief Gives the search its completion bound when @p needed, and none otherwise.
+        ///
+        /// The bound depends on the graph only, not on the arc mask. So if the caller promised
+        /// that the graph has not changed since the last solve
+        /// (@ref Algorithm::set_graph_unchanged), and that solve computed the bound on this same
+        /// graph, the bound is kept rather than computed again.
+        void refresh_completion_bound(const Graph<ResourceType>& graph, bool needed) {
+            if (!needed) {
+                search_.completion_bound = {};
+                completion_bound_graph_ = nullptr;
+            } else if (!this->is_graph_unchanged() || completion_bound_graph_ != &graph) {
+                search_.completion_bound = compute_completion_bound<Direction>(graph);
+                completion_bound_graph_ = &graph;
+            }
+        }
+
+        /// @brief Empties the search for another run of the same solve (@ref Search::restart).
+        ///
+        /// Every node's container and the schedule are emptied, so that the start labels can be
+        /// stored and queued again. The completion bound and the work count are kept. No label
+        /// is released here: @ref initialize_labels does that (@c Driven::reseed calls both).
+        void restart_search() {
+            search_.restart(this->graph_->get_number_of_nodes(),
+                            make_directed_container<Direction>(this->params_.labels));
+        }
+
         void initialize_labels() override {
-            // At the start of a solve the pool is already empty (Algorithm::initialize clears
-            // it), so this releases nothing: it only makes the start safe to repeat.
+            // Give every label back to the pool. At the start of a solve the pool is already
+            // empty (Algorithm::initialize clears it), so this releases nothing. It matters when
+            // a driver starts another run (Driven::reseed): every label of the previous run goes
+            // back to the pool, including those the pool holds until the labels extended from
+            // them are released (pending_release).
             this->label_pool_.release_all_labels();
             search_.create_start_labels(*this->graph_, &this->label_pool_);
         }
@@ -91,14 +124,35 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return search_.schedule.size();
         }
 
-        /// @brief One phase: at most `max_iterations` steps. Each phase has its own count.
+        /// @brief One phase: at most `max_iterations` steps. Each phase has its own count, for
+        ///        the steps and for the memory check (@ref memory_steps_).
         void main_loop() override {
+            memory_steps_ = 0;
+            run_loop(this->params_.max_iterations);
+        }
+
+        /// @brief Runs @ref step until no label is waiting, a limit is reached, or @p max_steps
+        ///        steps are done.
+        ///
+        /// A step takes one label, or, with a pulling schedule, visits one node. Before each
+        /// step the memory check runs (@c Algorithm::check_memory). It reads the process's
+        /// memory only once every `memory_check_interval` steps, counted by @ref memory_steps_.
+        /// A search that is not driven starts that count again at each phase (@ref main_loop).
+        /// A driven search keeps counting across its runs: its runs can be shorter than the
+        /// interval, and would otherwise never reach a check.
+        ///
+        /// @param max_steps The most steps this call makes: `max_iterations` for a phase,
+        ///                  @c kNoLimit for a driven run.
+        /// @return @c true if a step ended the run (@ref SearchContext::should_end_run).
+        bool run_loop(size_t max_steps) {
             size_t iteration = 0;
-            while (number_of_waiting_labels() > 0 && !this->should_end_loop(iteration)) {
-                if (this->check_memory(iteration)) {
+            while (number_of_waiting_labels() > 0 && iteration < max_steps &&
+                   !this->should_stop()) {
+                if (this->check_memory(memory_steps_)) {
                     break;
                 }
                 ++iteration;
+                ++memory_steps_;
                 if (step(
                         search_,
                         context_,
@@ -106,9 +160,10 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         [this](parts::ExtensionOutcome outcome) {
                             this->count_extension(outcome);
                         })) {
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
@@ -121,15 +176,16 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         ///        counts.
         ///
         /// Called between phases (@c Algorithm::solve), and once more at the end of the solve, so
-        /// that labels still held back count as waiting and the status reads Truncated.
+        /// that labels still stored aside count as waiting and the status reads Truncated.
+        /// A driven run also calls it between its phases (@c Driven::main_loop).
         void prepare_next_phase() override { search_.schedule.prepare_next_phase(context_); }
 
         /// @brief Relieves memory pressure (@c Algorithm::relieve_memory_pressure): the quota
         ///        drops to `memory_pressure_max_labels_per_node`, and the schedule keeps about
         ///        that many labels per node and stores the rest aside for the next phase. From
         ///        the second call on, what the earlier calls stored aside is released first, and
-        ///        is lost. Any call makes the result possibly not optimal
-        ///        (@c Algorithm::memory_pressure_was_triggered).
+        ///        is lost. Any call makes the result not a proof
+        ///        (@c ProofLoss::MemoryPressure).
         void on_memory_pressure() override { this->relieve_memory_pressure(search_, context_); }
 
         /// @brief Releases the pool, then forgets the containers and the schedule, so that no
@@ -162,6 +218,12 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         search_type search_;
         SearchContext<ResourceType> context_;
+        /// @brief The graph @c search_.completion_bound was computed on; null when it holds none.
+        const Graph<ResourceType>* completion_bound_graph_ = nullptr;
+        /// @brief The steps counted for the memory check (@ref run_loop). A search that is not
+        ///        driven counts from the start of the phase; a driven search counts from the
+        ///        start of the solve, across its runs and phases.
+        size_t memory_steps_ = 0;
 };
 
 }  // namespace rcspp::detail

@@ -8,27 +8,41 @@
 #include <string>
 #include <vector>
 
+#include "rcspp/algorithm/proof_record.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
 
-/// @brief Exit status returned by Algorithm::solve().
+/// @brief Why Algorithm::solve() ended: @c Complete when no label was left to extend,
+///        otherwise the stop that left labels unextended.
+///
+/// When several stops apply, the first in this order is reported: @c Timeout, @c Interrupted,
+/// @c MemoryLimit, @c MaxSolutions, @c Truncated. @c Complete alone does not mean the result
+/// is optimal: @c SolveResult::proven says whether it is.
 enum class AlgorithmStatus {
-    Complete,      ///< All labels processed; result is optimal (given other params).
-    Timeout,       ///< Wall-clock timeout reached before completion.
-    MaxSolutions,  ///< max_solutions reached.
-    Truncated,     ///< max_phases used up with labels unextended, or a dive's budget spent.
-    Interrupted,   ///< External should_stop callback returned true.
-    MemoryLimit,   ///< RSS memory limit reached.
+    /// No label was left to extend: each was extended, or dropped by a rule of the search
+    /// (dominance, a prune, the admission rule).
+    Complete,
+    Timeout,       ///< `timeout_s` passed with labels still to extend.
+    MaxSolutions,  ///< `max_solutions` paths were recorded with labels still to extend.
+    /// Labels were left unextended, for none of the reasons above. This happens when:
+    /// - `max_iterations` was reached;
+    /// - the last of `max_phases` phases ended with labels stored aside (by the per-node quota
+    ///   or a memory-pressure trim);
+    /// - a side of a bidirectional search abandoned labels;
+    /// - a driver (the tabu searches) stopped its runs with labels still waiting.
+    Truncated,
+    Interrupted,  ///< The `should_stop` callback returned true with labels still to extend.
+    MemoryLimit,  ///< The process's memory (RSS) reached the limit with labels still to extend.
 };
 
 /// @brief Human-readable name for an @ref AlgorithmStatus value.
 ///
-/// Note: only @ref AlgorithmStatus::Complete means the search was exhaustive; every other
-/// status indicates the solve was cut short (so e.g. "no solution found" does not prove that
-/// none exists).
+/// Only @ref AlgorithmStatus::Complete means the search ran out of labels; every other status
+/// means it was cut short (so e.g. "no solution found" does not prove that none exists). Even
+/// @c Complete is a proof only when @c SolveResult::proven is true.
 [[nodiscard]] inline std::string to_string(AlgorithmStatus status) {
     switch (status) {
         case AlgorithmStatus::Complete:
@@ -76,14 +90,32 @@ struct SolveResult {
 
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
-        /// Status can still be @c AlgorithmStatus::Complete after a trim, so a caller treating
-        /// @c Complete as a proof of optimality must check this too. Same value as
-        /// @c Algorithm::memory_pressure_was_triggered().
+        /// Status can still be @c AlgorithmStatus::Complete after a trim; @ref proven is then
+        /// @c false. Same value as @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
         /// @brief The bidirectional search's half-way point and join; empty from every other
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
+
+        /// @brief True if the result is a proof of optimality: no path is cheaper than the
+        ///        cheapest one returned. When none is returned, no path costs less than the
+        ///        solve's upper bound (no path exists at all, with no upper bound).
+        ///
+        /// It requires the status @c AlgorithmStatus::Complete. It also requires that the solve
+        /// used nothing that can hide a path even from a search that finished: an arc mask, an
+        /// admission rule that is not exact, memory pressure, a tabu arc, or an incumbent prune
+        /// without a valid completion bound (@c ProofLoss). @ref proof_lost_by says which. It is
+        /// the same value as @c Algorithm::is_optimal() after the solve.
+        bool proven = false;
+
+        /// @brief Why the result is not a proof, or empty when it is.
+        ///
+        /// If the search did not finish, it is the status's name (`"truncated"`, `"timeout"`,
+        /// ...). If it finished, it is the first @c ProofLoss recorded: `"arcs_masked"`,
+        /// `"relaxed_admission"`, `"memory_pressure"`, `"heuristic_driver"` or
+        /// `"incumbent_prune"`.
+        std::string proof_lost_by;
 
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }

@@ -18,27 +18,32 @@
 
 namespace rcspp::parts {
 
-/// @brief Hands labels out depth first: the children of the label extended last, lowest key
-///        first, before any label waiting from earlier; up to the per-node quota (Greedy's order).
+/// @brief Hands labels out depth first: once a label is extended, its children are handed out
+///        before any label that was already waiting. The heuristics (Greedy, BoundGuidedGreedy,
+///        the tabu searches) use it.
 ///
 /// Once the step has extended a label along every arc, it calls @ref place_children
-/// (@ref PlacesChildren), which handles the label's children together. The filter drops some
-/// (they are erased from their node and released at once; see @ref place_children). The others
-/// are sorted by key, ties kept in the order of their arcs, and put on top of the stack. So each
-/// child's own children are handed out before its next sibling. When a label has no child left
-/// to hand out, the search goes back to the most recently pushed label still waiting: a
-/// backtracking dive. The start labels, pushed before any label is extended, are handed out in
-/// the order pushed.
+/// (@ref PlacesChildren). The child filter (@p FilterType) may drop some of the label's
+/// children. The others are sorted by key (@p KeyType), lowest first, and put on top of a
+/// stack; children with equal keys stay in the order of their arcs. So the search follows the
+/// lowest child first, then that child's own children, and so on, before it tries the next
+/// sibling. When a label has no child left, the search goes back to the label most recently put
+/// on the stack that is still waiting. This is a backtracking dive.
 ///
-/// As in @ref FifoSchedule, a label that comes up while dominated is released, and one over its
-/// node's quota is stored aside for the next phase, until a later memory-pressure event releases
-/// it (@ref StoredAsideLabels). Neither is handed out: @ref next goes on to the next label.
+/// The start labels are handed out in the order they were pushed.
+///
+/// Two kinds of label come up in @ref next and are not handed out, as in @ref FifoSchedule:
+/// - a label marked dominated is released;
+/// - a label over its node's per-node quota is stored aside for the next phase, until a later
+///   memory-pressure event releases it (@ref StoredAsideLabels).
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam KeyType      The order among a label's children: @ref CostKey (the default) or
-///                      @ref CostPlusBoundKey.
+///                      @ref CostPlusBoundKey. A key of one's own provides
+///                      `double operator()(label, context)`, lower first, and
+///                      `static constexpr bool reads_completion_bound`.
 /// @tparam FilterType   Which children are kept (@ref ChildFilter): @ref KeepAllChildren (the
-///                      default).
+///                      default) or @ref TabuChildFilter.
 template <typename ResourceType, typename KeyType = CostKey, typename FilterType = KeepAllChildren>
 class DepthFirstSchedule {
         static_assert(ChildFilter<FilterType, ResourceType>,

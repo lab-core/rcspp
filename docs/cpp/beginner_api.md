@@ -76,6 +76,9 @@ labels carry a composition of resource types.
 :members:
 ```
 
+```{doxygenenum} rcspp::ProofLoss
+```
+
 ## Strategies
 
 A solve names its algorithm by a strategy, a struct of `rcspp::strategy`:
