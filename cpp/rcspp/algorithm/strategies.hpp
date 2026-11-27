@@ -20,6 +20,70 @@
 
 /// @brief The strategies a solve names: @c graph.solve<strategy::AStar>(...).
 ///
+/// @par How a labelling search works
+/// A @b label stands for a partial path: the path from a start node to the label's node, with
+/// its cost and its resource values. The search starts with one label at each start node (the
+/// sources when searching forward, the sinks when searching backward). It then repeats one
+/// @b step: it @b takes a waiting label and @b extends it along each arc leaving its node, which
+/// creates one new label per arc. A new label that breaks a resource constraint is dropped. When
+/// a label reaches an end node (a sink forward, a source backward), its path is a solution.
+///
+/// @par Glossary
+/// - @b Waiting label: a label created but not extended yet.
+/// - @b Schedule: decides which waiting label is taken next (first in first out, cheapest first,
+///   depth first, ...). It is the only part a strategy must name.
+/// - @b Take rule: the checks a label goes through when it is taken, before it is extended. A
+///   label dominated since it was queued is dropped, and so is one that cannot lead to a path
+///   cheap enough to report (when a prune is on). A label at an end node is not extended: its
+///   path is a solution.
+/// - @b Dominance: label A dominates label B at the same node when A costs no more and its
+///   resources are no worse, so every way to finish B's path also finishes A's at no greater
+///   cost. B can then be dropped without losing the best path.
+/// - @b Admission: decides whether a new label is kept. The exact searches keep a label only if
+///   no label at its node dominates it; the heuristics keep every feasible label.
+/// - @b Retention: decides where kept labels are stored and for how long. The exact searches keep
+///   them at their node until the end of the solve; the heuristics keep a label only until it
+///   has been extended.
+/// - @b Label pool: where labels are allocated. To @b release a label is to give it back to the
+///   pool for reuse. A label stays alive while a label extended from it does, since that
+///   label's path goes through it.
+/// - @b Per-node quota (@c max_extended_labels_per_node): the most labels a node may extend in
+///   one phase. Labels over the quota are @b stored @b aside, not dropped.
+/// - @b Memory pressure: when the process uses nearly all the memory allowed, the per-node quota
+///   is lowered (@c memory_pressure_max_labels_per_node) and the waiting labels over it are
+///   stored aside. From the second time on, the labels stored aside earlier are dropped.
+/// - @b Phase: the search runs until no label is waiting. If labels were stored aside, they are
+///   then put back and a new phase starts, up to @c max_phases phases. One phase is enough when
+///   nothing was stored aside.
+/// - @b Upper bound: a path is reported only if it costs less than this. The @b incumbent is the
+///   cheapest path found so far in the solve.
+/// - @b Completion bound: for each node, a lower bound on the cost still needed to reach an end
+///   node. A* uses it to order labels; the prunes use it to drop labels that cannot lead to a
+///   path cheaper than the upper bound.
+/// - @b Clamp: an extension clamps when it forces the value it computes into a range, for
+///   example a floor: max(0, value + arc). An arc then does not always add the same amount, so
+///   a path's cost is not the sum of what its arcs add, which the completion bound and the
+///   backward searches need. See @c ExtensionFunction::is_clamped.
+/// - @b Arc mask: a list of arcs the search must not use (@b hard arcs) or may use only when the
+///   schedule allows it (@b soft arcs). The graph itself is not changed.
+/// - @b Driver: runs the same search several times in one solve, and may change it between
+///   @b runs. The tabu searches use one, and call each run an @b episode.
+/// - @b Tabu arc: an arc the tabu searches avoid for a while, because it was on a path they
+///   found. A dive does not take a tabu arc, unless every arc it could take from that node is
+///   tabu. The arc stays tabu for a number of episodes, its @b tenure (@c tabu_tenure). The
+///   tenure grows while episodes find nothing new or better, and shrinks when one does.
+/// - @b Dive: a depth-first search that follows one path to an end node before trying others,
+///   to find a good path fast. Greedy and the tabu searches are dives.
+/// - @b Proven: the result is a proof that no better path exists. A solve is proven only if it
+///   ran to the end (status @c Complete) and nothing that can hide a path was used (an arc mask,
+///   a relaxed admission rule, a driver that forbids arcs, ...). See @c ProofLoss.
+/// - @b Bidirectional search, @b half-way point, @b join: a bidirectional search runs a forward
+///   search from the sources and a backward search from the sinks. Each stops extending a label
+///   once one resource (the clock, for example time) passes the half-way point. At the end, the
+///   @b join pairs each forward label with the backward labels at the same node, and keeps the
+///   pairs that form a feasible path.
+///
+/// @par Strategies are descriptors
 /// A labelling strategy is a descriptor: a struct whose members name the parts its search is
 /// built from. @c create_algorithm reads these members, and no others:
 ///
@@ -47,8 +111,9 @@
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
 ///
-/// Greedy, Tabu and ImprovingTabu are dives, built from the depth-first parts; the tabu searches
-/// add a driver. They search forward or backward, never bidirectionally.
+/// Greedy, BoundGuidedGreedy, Tabu and ImprovingTabu are heuristics: dives, built from the
+/// depth-first parts; the tabu searches add a driver. They search forward or backward, never
+/// bidirectionally.
 ///
 /// Diversification is not a labelling search: its descriptor names a class of its own,
 /// `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`, and

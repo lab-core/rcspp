@@ -75,11 +75,13 @@ bool step_node(SearchType& search, SearchContext<typename SearchType::resource_t
 ///        For a pulling schedule, a step visits the next node and pulls into it instead
 ///        (@ref step_node).
 ///
-/// Once a label is extended, a schedule that places children (@c parts::PlacesChildren, a
-/// dive's) places the labels just pushed; and a retention that keeps nothing behind
-/// (@c parts::releases_taken_labels_v, a dive's) has the label released, as it has one the
-/// rule keeps at an end node. Each branch is chosen at compile time: the other searches compile
-/// to the step without them.
+/// With the heuristics' parts, two more things happen once a label is extended:
+/// - a schedule that places children (@c parts::PlacesChildren, the depth-first one) places
+///   the labels just pushed, the label's children;
+/// - a retention that keeps nothing behind (@c parts::releases_taken_labels_v,
+///   @c parts::KeepWhileWaiting) has the label released. (It has a label the rule keeps at an
+///   end node released too, in @ref Search::apply.)
+/// Both are chosen at compile time, so the other searches compile to the step without them.
 ///
 /// An end-node label the rule records goes to @p record; every extension's outcome goes to
 /// @p count.

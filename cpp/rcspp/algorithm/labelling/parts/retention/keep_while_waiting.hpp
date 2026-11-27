@@ -15,13 +15,18 @@
 
 namespace rcspp::parts {
 
-/// @brief Kept labels live only while they wait to be taken: a dive's retention, which keeps
-///        nothing behind it.
+/// @brief A retention that stores no label at the nodes: a label lives only while it waits in
+///        the schedule, or while a label extended from it waits. The heuristics use it.
 ///
-/// Nothing is stored at the nodes. A solution is recorded when its end-node label is taken
-/// (`records_at_take`), and the step releases every label it takes once it is done with it
-/// (`releases_taken_labels`), through the reference counts: a label lives on while one of the
-/// labels extended from it waits, so the path of every waiting label stays whole.
+/// Since nothing is stored at the end nodes, no path can be read from there when the run ends.
+/// Instead, a path is recorded as soon as its end-node label is taken (@ref records_at_take).
+/// Once the step is done with a label it took (it extended it, or recorded it), it releases it
+/// (@ref releases_taken_labels). The release goes through the reference counts: a label stays
+/// alive as long as some label extended from it, directly or not, is still waiting. So the path
+/// of every waiting label stays whole.
+///
+/// With nothing stored, no label at a node can dominate a new one: the admission rule sees an
+/// @ref EmptyNodeView, so any rule keeps every feasible label, as @ref AdmitAll does.
 ///
 /// @tparam ContainerType The per-node label container of the params, which it does not use.
 template <typename ContainerType>

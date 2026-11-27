@@ -3,8 +3,9 @@
 
 // What every exact labelling search must agree on, whatever its order of work: the optimum of
 // forward Simple, paths that replay through the model, and, within one direction, the labels it
-// ends with; and what the relaxed and k-best admission rules keep of it. Its own translation
-// unit, as each row instantiates a search.
+// ends with; and what the relaxed and k-best admission rules keep of it. Also the parity
+// harness's own tests (util/parity.hpp). Its own translation unit, as each row instantiates a
+// search.
 
 #include <gtest/gtest.h>
 
@@ -349,6 +350,117 @@ TEST(KernelProperties, TheHeuristicsSearchBackward) {
               "improving tabu",
               false);
     }
+}
+
+namespace kernel_properties {
+
+/// @brief Three solves of @p c on one @p Strategy object with @p params, each under the previous
+///        best cost + 5 (none for the first); expects every returned path to replay.
+template <typename Strategy>
+std::vector<rcspp::SolveResult> three_solves(const parity::Case& c,
+                                             const rcspp::AlgorithmParams<List>& params) {
+    auto graph = c.build();
+    auto algorithm = graph->template create_algorithm<Strategy>(params);
+    std::vector<rcspp::SolveResult> runs;
+    double upper_bound = parity::kInf;
+    for (size_t k = 0; k < 3; ++k) {
+        runs.push_back(graph->solve(algorithm.get(), upper_bound, /*preprocess=*/false));
+        for (const auto& solution : runs.back().solutions) {
+            EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "")
+                << c.name << ", solve " << k;
+        }
+        if (!runs.back().solutions.empty()) {
+            upper_bound = runs.back().solutions.front().cost + 5.0;
+        }
+    }
+    return runs;
+}
+
+/// @brief Whether two solves ended alike: the same status, and the same solutions in the same
+///        order, to the bit.
+inline bool same_result(const rcspp::SolveResult& a, const rcspp::SolveResult& b) {
+    if (a.status != b.status || a.solutions.size() != b.solutions.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.solutions.size(); ++i) {
+        if (a.solutions[i].path_arc_ids != b.solutions[i].path_arc_ids ||
+            parity::bits(a.solutions[i].cost) != parity::bits(b.solutions[i].cost)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// @brief Runs @ref three_solves of @p c with @p Strategy and @p params (the noise on), twice on
+///        new objects and once with the noise off. Expects no path cheaper than @p optimum's and
+///        the second run to repeat the first; counts in @p noise_changed the solves the noise
+///        changed.
+template <typename Strategy>
+void check_with_noise(const parity::Case& c, rcspp::AlgorithmParams<List> params,
+                      const Outcome& optimum, const std::string& where, size_t& noise_changed) {
+    const auto runs = three_solves<Strategy>(c, params);
+    const auto again = three_solves<Strategy>(c, params);
+    params.tabu_random_noise = false;
+    const auto quiet = three_solves<Strategy>(c, params);
+    for (size_t k = 0; k < runs.size(); ++k) {
+        const auto& result = runs[k];
+        const std::string at = where + ", solve " + std::to_string(k);
+        if (!result.solutions.empty()) {
+            ASSERT_FALSE(optimum.solutions.empty()) << at;
+            EXPECT_GE(result.solutions.front().cost, optimum.solutions.front().cost - 1e-6) << at;
+        }
+        EXPECT_TRUE(same_result(result, again[k])) << at << ": the same seed gave another result";
+        if (!same_result(result, quiet[k])) {
+            ++noise_changed;
+        }
+    }
+}
+
+}  // namespace kernel_properties
+
+/// @brief With the tabu tenure's noise on (seed 3), Tabu and Improving Tabu, forward and backward,
+///        and Diversification, each solving three times on one object, labels kept and released:
+///        every path replays, none is cheaper than the optimum, a second object with the same
+///        seed returns the same, and the noise changes some result.
+///
+/// The golden rows turn the noise off, since each standard library draws differently, so they
+/// cannot record what it does; this test checks what holds whatever is drawn.
+TEST(KernelProperties, TheTabuSearchesWithTheTenuresNoiseOn) {
+    namespace kp = kernel_properties;
+    namespace strategy = rcspp::strategy;
+    const auto reference = kp::rows().front();
+    size_t noise_changed = 0;
+    for (const auto& c : kp::property_cases()) {
+        const auto optimum = reference.solve(c);
+        for (const bool release : {false, true}) {
+            rcspp::AlgorithmParams<kp::List> params;
+            params.max_iterations = 20;
+            params.tabu_random_noise = true;
+            params.seed = 3;
+            params.release_after_solve = release;
+            const std::string where = c.name + (release ? ", released" : ", kept");
+            kp::check_with_noise<strategy::Diversification<>>(c,
+                                                              params,
+                                                              optimum,
+                                                              where + ", diversification",
+                                                              noise_changed);
+            for (const auto direction : {SearchDirection::Forward, SearchDirection::Backward}) {
+                params.direction = direction;
+                const std::string at = where + ", " + std::string(rcspp::to_string(direction));
+                kp::check_with_noise<strategy::Tabu>(c,
+                                                     params,
+                                                     optimum,
+                                                     at + " tabu",
+                                                     noise_changed);
+                kp::check_with_noise<strategy::ImprovingTabu>(c,
+                                                              params,
+                                                              optimum,
+                                                              at + " improving tabu",
+                                                              noise_changed);
+            }
+        }
+    }
+    EXPECT_GT(noise_changed, 0U) << "the noise never changed a result";
 }
 
 /// @brief A hard mask leaves its arcs out of every search, as if they were removed from the
@@ -906,5 +1018,139 @@ TEST(KernelProperties, BoundGuidedGreedyReachesTheOptimum) {
             EXPECT_EQ(kp::paths_of(bounded_out), kp::paths_of(plain_out))
                 << c.name << ", upper bound " << upper_bound;
         }
+    }
+}
+
+// ── The parity harness, on itself ────────────────────────────────────────────────────────────
+
+namespace parity_harness {
+
+using parity::Composed;
+using parity::List;
+using rcspp::RealResource;
+
+/// @brief The setting named @p name, forward, on label lists.
+inline parity::Setting<List> setting(const std::string& name) {
+    for (const auto& s : parity::settings<List>(rcspp::SearchDirection::Forward, List{})) {
+        if (s.name == name) {
+            return s;
+        }
+    }
+    ADD_FAILURE() << "no setting " << name;
+    return {name, rcspp::AlgorithmParams<List>()};
+}
+
+/// @brief A cost feasibility that rules one node out as unreachable, as an ng memory can.
+class BlocksNode : public rcspp::Clonable<BlocksNode, rcspp::FeasibilityFunction<RealResource>> {
+    public:
+        explicit BlocksNode(size_t blocked) : blocked_(blocked) {}
+
+        auto is_feasible(const RealResource& /*resource*/) -> bool override { return true; }
+
+        auto is_reachable(const rcspp::Resource<RealResource>& /*resource*/,
+                          size_t destination_node_id) -> bool override {
+            return destination_node_id != blocked_;
+        }
+
+    private:
+        size_t blocked_;
+};
+
+/// @brief Source 0, sink 3, arcs 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3 (ids 0 to 3), each costing 1, and
+///        node 2 unreachable: the composition's look-ahead asks the cost's feasibility.
+inline std::unique_ptr<parity::GraphType> blocked_diamond() {
+    auto graph = std::make_unique<parity::GraphType>(
+        std::make_unique<rcspp::CompositionExtensionFunction<RealResource>>(),
+        std::make_unique<
+            rcspp::ReachableCompositionFeasibilityFunction<RealResource, RealResource>>(0),
+        std::make_unique<rcspp::ComponentCostFunction<0, RealResource>>(0),
+        std::make_unique<rcspp::CompositionDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<rcspp::AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<BlocksNode>(2),
+        std::make_unique<rcspp::ValueCostFunction<RealResource>>(),
+        std::make_unique<rcspp::ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+    for (const auto& [origin, destination] :
+         std::vector<std::pair<size_t, size_t>>{{0, 1}, {0, 2}, {1, 3}, {2, 3}}) {
+        graph->add_arc<RealResource>({1.0}, origin, destination, 1.0);
+    }
+    return graph;
+}
+
+/// @brief The golden 11-node instance of seed 1, the second case.
+inline parity::Case golden_s1_n11() {
+    const auto c = parity::cases().at(1);
+    EXPECT_EQ(c.name, "golden s1 n11 t1");
+    return c;
+}
+
+/// @brief The library's Simple, traced.
+using SimpleType = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule, List>;
+
+}  // namespace parity_harness
+
+/// @brief The library's Simple (traced) against itself: the harness sees no difference, in either
+///        release mode.
+TEST(Parity, HarnessSeesNoDifference) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    for (const bool release : {false, true}) {
+        const auto first = parity::observe<ph::SimpleType>(c, ph::setting("exact"), release);
+        ASSERT_FALSE(first.front().trace.empty());
+        EXPECT_TRUE(
+            parity::same(first, parity::observe<ph::SimpleType>(c, ph::setting("exact"), release)));
+    }
+}
+
+/// @brief Simple's search with an admission that keeps every label, against the library's Simple:
+///        the harness sees the difference, first in the extension trace.
+///
+/// Thirty iterations: without dominance the label count grows fast.
+TEST(Parity, HarnessSeesADifference) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    using KeepsEveryLabel = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule,
+                                                             ph::List,
+                                                             rcspp::ForwardDirection,
+                                                             rcspp::parts::AdmitAll>;
+    const auto changed = parity::observe<KeepsEveryLabel>(c, ph::setting("early"), false);
+    const auto library = parity::observe<ph::SimpleType>(c, ph::setting("early"), false);
+    const auto result = parity::same(changed, library);
+    ASSERT_FALSE(result);
+    EXPECT_NE(std::string(result.message()).find("traces"), std::string::npos) << result.message();
+}
+
+/// @brief Pressure forced on the first memory check reaches the result through a real solve, and
+///        the trim it makes leaves fewer labels extended.
+TEST(Parity, ForcedPressureTrims) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    const auto exact = parity::observe<ph::SimpleType>(c, ph::setting("exact"), true);
+    auto pressed = ph::setting("exact");
+    pressed.params.memory_check_interval = 1;
+    pressed.params.memory_pressure_max_labels_per_node = 1;
+    pressed.forced_pressure_checks = {1};
+    const auto runs = parity::observe<ph::SimpleType>(c, pressed, true);
+    EXPECT_FALSE(exact.front().memory_pressure);
+    EXPECT_TRUE(runs.front().memory_pressure);
+    EXPECT_LT(runs.front().extended, exact.front().extended);
+}
+
+/// @brief The trace holds an extension whose head is unreachable: the kernel tells its observer
+///        of the unreachable outcome, though no label is drawn.
+TEST(Parity, TheTraceHoldsUnreachableArcs) {
+    namespace ph = parity_harness;
+    const parity::Case c{"diamond with node 2 unreachable", ph::blocked_diamond, 1, 0.0};
+    for (const bool release : {false, true}) {
+        const auto observed = parity::observe<ph::SimpleType>(c, ph::setting("exact"), release);
+        // Arc 1 (0 -> 2) was tried and traced, but drew no label: two extensions, three entries.
+        const auto& trace = observed.front().trace;
+        EXPECT_EQ(trace.size(), 3U) << (release ? "released" : "kept");
+        EXPECT_EQ(std::ranges::count(trace, size_t{1}, &parity::TraceEntry::arc_id), 1);
+        EXPECT_EQ(observed.front().extended, 2U);
     }
 }

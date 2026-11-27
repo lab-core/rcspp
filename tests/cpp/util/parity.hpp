@@ -3,9 +3,11 @@
 
 #pragma once
 
-// Runs a frozen copy of a labelling class and the library's class of the same name on the same
-// instance, and compares everything each did: the extensions in order, the pool's counts, the
-// result, and the labels left in the containers.
+// Runs two labelling searches on the same instance, and compares everything each did: the
+// extensions in order, the pool's counts, the result, and the labels left in the containers. A
+// port runs the search it replaces against the one replacing it, as the move to the kernel ran
+// the frozen copies of the classes before the kernel against the kernel's searches; the copies
+// went once every class was on the kernel. The kernel properties test runs the harness on itself.
 
 #include <gtest/gtest.h>
 
@@ -107,7 +109,7 @@ void record_labels(const std::vector<ContainerType>& containers, std::vector<Lab
 
 /// @brief @p AlgorithmType with forced memory pressure, and readers for what it did.
 ///
-/// @tparam AlgorithmType A labelling class: a frozen copy or the library's.
+/// @tparam AlgorithmType A labelling class: a single-direction search or a bidirectional one.
 template <typename AlgorithmType>
 class Observed : public AlgorithmType {
     public:
@@ -186,56 +188,27 @@ class Observed : public AlgorithmType {
 
     private:
         /// @brief The containers of a single-direction search, or a bidirectional search's forward
-        ///        ones: a kernel search's, or a frozen copy's.
+        ///        ones.
         decltype(auto) own_labels() const {
             if constexpr (requires { this->search_.labels.containers(); }) {
                 return (this->search_.labels.containers());
-            } else if constexpr (requires { this->forward_labels(); }) {
-                return (this->forward_labels());
-            } else if constexpr (requires { this->get_forward_labels_by_node_pos(); }) {
-                return (this->get_forward_labels_by_node_pos());
             } else {
-                return (this->non_dominated_labels_by_node_pos_);
+                return (this->forward_labels());
             }
         }
 
-        /// @brief Whether this is a bidirectional search: the library's, or a frozen copy.
-        static constexpr bool has_backward_labels = requires(const AlgorithmType& self) {
-            self.backward_labels();
-        } || requires(const AlgorithmType& self) { self.get_backward_labels_by_node_pos(); };
+        /// @brief Whether this is a bidirectional search.
+        static constexpr bool has_backward_labels =
+            requires(const AlgorithmType& self) { self.backward_labels(); };
 
         /// @brief A bidirectional search's backward containers.
-        decltype(auto) backward_labels_of() const {
-            if constexpr (requires { this->backward_labels(); }) {
-                return (this->backward_labels());
-            } else {
-                return (this->get_backward_labels_by_node_pos());
-            }
-        }
+        decltype(auto) backward_labels_of() const { return (this->backward_labels()); }
 
         std::vector<size_t> forced_;
 };
 
-/// @brief @ref Observed, also recording every call of the virtual `extend_label(label, arc)`, as
-///        (label id, arc id).
-///
-/// For the single-direction searches; the bidirectional search extends without that hook.
-template <typename AlgorithmType>
-class Traced : public Observed<AlgorithmType> {
-    public:
-        using Observed<AlgorithmType>::Observed;
-
-    protected:
-        void extend_label(rcspp::Label<Composed>* label, const rcspp::Arc<Composed>* arc) override {
-            if (this->observation_ != nullptr) {
-                this->observation_->trace.push_back({label->id, arc->id});
-            }
-            Observed<AlgorithmType>::extend_label(label, arc);
-        }
-};
-
 /// @brief An observer that records every extension a kernel search tries, as (label id, arc id),
-///        whatever its outcome: the trace a frozen copy's @ref Traced records.
+///        whatever its outcome, the unreachable ones included.
 struct TracingObserver {
         /// @brief Where the entries go; null records nothing.
         std::vector<TraceEntry>* trace = nullptr;
@@ -250,20 +223,21 @@ struct TracingObserver {
         }
 };
 
-/// @brief A preset of the library's parts on @p ScheduleTemplate, with the tracing observer: the
-///        preset of a public class with one more type argument.
-template <template <typename> class ScheduleTemplate>
-using TracedParts =
-    rcspp::detail::SearchParts<ScheduleTemplate<Composed>, rcspp::parts::DominanceAdmission,
-                               rcspp::parts::KeepAtNodes, TracingObserver>;
+/// @brief The library's parts on @p ScheduleTemplate (@c detail::SearchParts), with the tracing
+///        observer and @p AdmissionType: a public class's parts with one more type argument.
+template <template <typename> class ScheduleTemplate,
+          typename AdmissionType = rcspp::parts::DominanceAdmission>
+using TracedParts = rcspp::detail::SearchParts<ScheduleTemplate<Composed>, AdmissionType,
+                                               rcspp::parts::KeepAtNodes, TracingObserver>;
 
-/// @brief The library's single-direction search on @p ScheduleTemplate, in @p Direction, traced:
-///        the parity side of a ported class.
+/// @brief The library's single-direction search on @p ScheduleTemplate, in @p Direction, with
+///        @p AdmissionType, traced.
 template <template <typename> class ScheduleTemplate, typename LabelContainerType,
-          typename Direction = rcspp::ForwardDirection>
+          typename Direction = rcspp::ForwardDirection,
+          typename AdmissionType = rcspp::parts::DominanceAdmission>
 using TracedLabellingAlgorithm =
     Observed<rcspp::detail::LabellingAlgorithm<Composed, LabelContainerType, Direction,
-                                               TracedParts<ScheduleTemplate>>>;
+                                               TracedParts<ScheduleTemplate, AdmissionType>>>;
 
 /// @brief A*'s order, as a one-parameter schedule template.
 template <typename ResourceType>
@@ -353,8 +327,7 @@ struct Setting {
         bool half_way_off = false;
 };
 
-/// @brief The settings that apply to @p direction, on @p container; with buckets, only exact,
-///        quota and pressure.
+/// @brief The settings that apply to @p direction, on @p container.
 ///
 /// - `exact`: the defaults. `pre`: the solve preprocesses the graph.
 /// - `quota`: 2 labels extended per node. `phases` (one direction only): and 3 phases.
@@ -368,8 +341,7 @@ struct Setting {
 /// - Bidirectional only: `early_nojoin` (no join after the early stop) and `half_way_off`.
 template <typename LabelContainerType>
 std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection direction,
-                                                  const LabelContainerType& container,
-                                                  bool buckets = false) {
+                                                  const LabelContainerType& container) {
     using rcspp::SearchDirection;
     using SettingType = Setting<LabelContainerType>;
     const auto base = [&] {
@@ -391,9 +363,6 @@ std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection directi
         s.params.memory_pressure_max_labels_per_node = 2;
         s.forced_pressure_checks = {3, 7};
         all.push_back(s);
-    }
-    if (buckets) {
-        return all;
     }
     {
         SettingType s{"pre", base()};
@@ -459,7 +428,7 @@ std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection directi
     return all;
 }
 
-/// @brief Solves @p c under @p s with an @p AlgorithmType (an @ref Observed or @ref Traced class),
+/// @brief Solves @p c under @p s with an @p AlgorithmType (an @ref Observed class),
 ///        releasing the labels after each solve when @p release, and returns one observation per
 ///        solve.
 template <typename AlgorithmType, typename LabelContainerType>
@@ -575,33 +544,6 @@ inline ::testing::AssertionResult same(const std::vector<Observation>& reference
         }
     }
     return ::testing::AssertionSuccess();
-}
-
-/// @brief Runs @p ReferenceType and @p LibraryType over every case and setting of @p direction,
-///        in both release modes, and expects them to agree, and the library's reference counts
-///        to be consistent.
-///
-/// @return The number of (case, setting, release mode) runs compared.
-template <typename ReferenceType, typename LibraryType, typename LabelContainerType>
-size_t sweep(rcspp::SearchDirection direction, const LabelContainerType& container,
-             bool buckets = false) {
-    size_t compared = 0;
-    for (const Case& c : cases()) {
-        for (const auto& s : settings<LabelContainerType>(direction, container, buckets)) {
-            for (const bool release : {false, true}) {
-                const auto expected = observe<ReferenceType>(c, s, release);
-                const auto actual = observe<LibraryType>(c, s, release);
-                EXPECT_TRUE(same(expected, actual))
-                    << c.name << ", setting " << s.name << (release ? ", released" : ", kept");
-                for (const auto& o : actual) {
-                    EXPECT_TRUE(o.ref_counts_consistent) << c.name << ", setting " << s.name;
-                }
-                ++compared;
-            }
-        }
-    }
-    EXPECT_GT(compared, 0U);
-    return compared;
 }
 
 }  // namespace parity
