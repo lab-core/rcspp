@@ -380,8 +380,9 @@ New features are summarised, with a pointer to where they are documented.
   bounds (`dual_signs`), the reduced cost of every column of the master (`master_reduced_costs`),
   and the LP value against its columns' values (`objective`). The first check that fails raises
   `DebugCheckError`. An artificial column's `MasterColumn.solution` now holds its column (its cost
-  and its one entry) instead of nothing. See "Checking a master solver or a pricer" in
-  `docs/advanced/column-generation.md`.
+  and its one entry) instead of nothing. The C++ column generation example has the same, in C++
+  (`DebugCheckError` derives from `std::runtime_error`) and through its bindings. See "Checking a
+  master solver or a pricer" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 

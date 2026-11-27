@@ -34,8 +34,8 @@ struct MasterColumn {
         size_t pricer = 0;
         /// @brief Real or artificial.
         ColumnTag tag = ColumnTag::Real;
-        /// @brief The pricer's solution: for a graph pricer, the path and its column; empty
-        ///        for an artificial column.
+        /// @brief The pricer's solution: for a graph pricer, the path and its column. An
+        ///        artificial column has no path, and its column holds its cost and its one entry.
         Solution solution;
 };
 

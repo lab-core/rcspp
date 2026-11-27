@@ -422,6 +422,31 @@ class StatisticsParams:
         columns: bool = False,
     ) -> None: ...
 
+class DebugChecks:
+    """Which checks of the master solver and the pricers a run makes, each off by default; a
+    failed one raises DebugCheckError."""
+
+    pricer_reduced_costs: bool
+    dual_signs: bool
+    master_reduced_costs: bool
+    objective: bool
+    def __init__(
+        self,
+        *,
+        pricer_reduced_costs: bool = False,
+        dual_signs: bool = False,
+        master_reduced_costs: bool = False,
+        objective: bool = False,
+    ) -> None: ...
+
+class DebugCheckError(RuntimeError):
+    """A debug check failed: the master solver or a pricer gave something the others
+    contradict."""
+
+    check: str
+    iteration: int
+    message: str
+
 class Statistics:
     @property
     def generated_columns(self) -> int: ...
@@ -504,6 +529,7 @@ class ColumnGenerationParams:
     log_frequency: int
     on_iteration: Callable[[IterationInfo], None] | None
     on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None
+    debug_checks: DebugChecks
     def __init__(
         self,
         *,
@@ -520,6 +546,7 @@ class ColumnGenerationParams:
         log_frequency: int = ...,
         on_iteration: Callable[[IterationInfo], None] | None = None,
         on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None,
+        debug_checks: DebugChecks = ...,
     ) -> None: ...
 
 class ColumnGenerationResult:

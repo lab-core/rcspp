@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/column_generation/debug_checks.hpp"
 #include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
@@ -82,6 +83,9 @@ struct ColumnGenerationParams {
         std::function<void(const IterationInfo&)> on_iteration;
         /// @brief Called after each proven convergence; may change a pricer and ask to continue.
         std::function<ConvergenceAction(ConvergenceContext&)> on_converged;
+        /// @brief Which checks of the master solver and the pricers to make, all off by default;
+        ///        a failed one throws @c DebugCheckError.
+        DebugChecks debug_checks;
 };
 
 /// @brief How a run ended.
@@ -151,6 +155,8 @@ class ColumnGeneration {
         /// @brief Runs column generation until convergence or a limit, then has the master
         ///        solver restore the user's model (@c MasterSolver::restore_user_model), also when
         ///        the run ends with an exception.
+        ///
+        /// @throws DebugCheckError When a check of @c ColumnGenerationParams::debug_checks fails.
         [[nodiscard]] ColumnGenerationResult run();
 
         /// @brief Solves the master as a MIP over the columns it holds (a heuristic: the best
@@ -189,7 +195,12 @@ class ColumnGeneration {
         // Prices every pricer once and adds what they find.
         PricingRound price(std::span<const double> duals, const Timer& total_timer,
                            double reduced_cost_tolerance, std::span<const double> paths_allowed,
-                           bool wants_info);
+                           bool wants_info, size_t iteration);
+
+        // The debug checks of an LP solution: its duals' signs, the reduced costs of the master's
+        // columns, its value.
+        void check_solution(size_t iteration, double objective, std::span<const double> duals,
+                            double tolerance);
 
         // How many paths each pricer's convexity row allows: its upper bound, infinity without a
         // row. Read once per run and after a restart, as a master solver may copy its model to
@@ -216,6 +227,13 @@ class ColumnGeneration {
         ColumnGenerationParams params_;
         ToleranceContext context_;
         bool initialized_ = false;
+
+        // What the debug checks read: the master's columns, kept between runs; the rows' bounds
+        // and the cost of the user's own variables, read once per run (empty or none until then).
+        KeptColumns kept_columns_;
+        std::vector<double> row_lower_;
+        std::vector<double> row_upper_;
+        std::optional<double> user_cost_;
 };
 
 }  // namespace rcspp::column_generation

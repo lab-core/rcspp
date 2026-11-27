@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -21,6 +22,7 @@
 
 #include "active_call.hpp"
 #include "graph_pricer.hpp"
+#include "rcspp/column_generation/debug_checks.hpp"
 #include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
@@ -950,6 +952,61 @@ void init_column_generation(py::module_& m) {
                        "The nonzero values of each iteration's LP solution.")
         .def_readwrite("columns", &StatisticsParams::columns, "The columns each iteration added.");
 
+    const DebugChecks checks_defaults;
+    py::class_<DebugChecks>(m,
+                            "DebugChecks",
+                            "Which checks of the master solver and the pricers a run makes, each "
+                            "off by default; a failed one raises DebugCheckError.")
+        .def(py::init([](bool pricer_reduced_costs,
+                         bool dual_signs,
+                         bool master_reduced_costs,
+                         bool objective) {
+                 return DebugChecks{.pricer_reduced_costs = pricer_reduced_costs,
+                                    .dual_signs = dual_signs,
+                                    .master_reduced_costs = master_reduced_costs,
+                                    .objective = objective};
+             }),
+             py::kw_only(),
+             py::arg("pricer_reduced_costs") = checks_defaults.pricer_reduced_costs,
+             py::arg("dual_signs") = checks_defaults.dual_signs,
+             py::arg("master_reduced_costs") = checks_defaults.master_reduced_costs,
+             py::arg("objective") = checks_defaults.objective)
+        .def_readwrite("pricer_reduced_costs",
+                       &DebugChecks::pricer_reduced_costs,
+                       "Each new column's reduced cost against its cost, its rows and the duals.")
+        .def_readwrite("dual_signs",
+                       &DebugChecks::dual_signs,
+                       "The duals' signs against their rows' bounds; a row with two different "
+                       "finite bounds is not checked.")
+        .def_readwrite("master_reduced_costs",
+                       &DebugChecks::master_reduced_costs,
+                       "The reduced cost of every column of the master: not negative, and 0 for "
+                       "the columns the LP solution uses.")
+        .def_readwrite("objective",
+                       &DebugChecks::objective,
+                       "The LP value against its columns' values, when the user's own variables "
+                       "cost nothing.");
+
+    // DebugCheckError: a RuntimeError with the check's name and the iteration.
+    PYBIND11_CONSTINIT static py::gil_safe_call_once_and_store<py::object> debug_check_error;
+    debug_check_error.call_once_and_store_result([&m] {
+        return py::object(py::exception<DebugCheckError>(m, "DebugCheckError", PyExc_RuntimeError));
+    });
+    py::register_exception_translator([](std::exception_ptr thrown) {
+        try {
+            if (thrown) {
+                std::rethrow_exception(thrown);
+            }
+        } catch (const DebugCheckError& error) {
+            const py::object type = debug_check_error.get_stored();
+            py::object raised = type(error.what());
+            raised.attr("check") = error.check();
+            raised.attr("iteration") = error.iteration();
+            raised.attr("message") = error.message();
+            PyErr_SetObject(type.ptr(), raised.ptr());
+        }
+    });
+
     py::class_<Statistics>(m, "Statistics", "Counters and times of one run.")
         .def_readonly("generated_columns", &Statistics::generated_columns)
         .def_readonly("artificial_columns", &Statistics::artificial_columns)
@@ -1069,7 +1126,8 @@ void init_column_generation(py::module_& m) {
                          std::function<void(IterationInfo)>
                              on_iteration,
                          std::function<ConvergenceAction(ConvergenceContext&)>
-                             on_converged) {
+                             on_converged,
+                         DebugChecks debug_checks) {
                  ColumnGenerationParams params{.max_iterations = max_iterations,
                                                .timeout_s = timeout_s,
                                                .relaxation = relaxation,
@@ -1081,7 +1139,8 @@ void init_column_generation(py::module_& m) {
                                                .cutoff = cutoff,
                                                .integer_objective = integer_objective,
                                                .log_frequency = log_frequency,
-                                               .on_converged = std::move(on_converged)};
+                                               .on_converged = std::move(on_converged),
+                                               .debug_checks = debug_checks};
                  set_iteration_hook(params, std::move(on_iteration));
                  return params;
              }),
@@ -1098,7 +1157,8 @@ void init_column_generation(py::module_& m) {
              py::arg("integer_objective") = params_defaults.integer_objective,
              py::arg("log_frequency") = params_defaults.log_frequency,
              py::arg("on_iteration") = py::none(),
-             py::arg("on_converged") = py::none())
+             py::arg("on_converged") = py::none(),
+             py::arg("debug_checks") = params_defaults.debug_checks)
         .def_readwrite("max_iterations", &ColumnGenerationParams::max_iterations)
         .def_readwrite("timeout_s", &ColumnGenerationParams::timeout_s)
         .def_readwrite("relaxation",
@@ -1146,7 +1206,11 @@ void init_column_generation(py::module_& m) {
         .def_readwrite("on_converged",
                        &ColumnGenerationParams::on_converged,
                        "Called after each proven convergence with a ConvergenceContext; returns "
-                       "a ConvergenceAction.");
+                       "a ConvergenceAction.")
+        .def_readwrite("debug_checks",
+                       &ColumnGenerationParams::debug_checks,
+                       "Which checks of the master solver and the pricers to make; a failed one "
+                       "raises DebugCheckError.");
 
     py::class_<ColumnGenerationResult>(m, "ColumnGenerationResult", "Result of a run.")
         .def_readonly("status", &ColumnGenerationResult::status)

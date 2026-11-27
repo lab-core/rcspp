@@ -207,8 +207,14 @@ ColumnGenerationResult ColumnGeneration::iterate() {
     const bool timers = statistics.timers;
     const bool wants_info = params_.on_iteration || params_.log_frequency > 0;
     std::optional<IterationInfo> last_info;
+    const DebugChecks& checks = params_.debug_checks;
+    const bool checks_solution =
+        checks.dual_signs || checks.master_reduced_costs || checks.objective;
 
     initialize();
+    row_lower_.clear();
+    row_upper_.clear();
+    user_cost_.reset();
 
     // Never below the LP solver's own tolerance, or a column it leaves out would come back forever.
     MasterSolver& solver = master_.solver();
@@ -248,6 +254,10 @@ ColumnGenerationResult ColumnGeneration::iterate() {
         duals.resize(master_.number_of_rows());
         solver.duals(duals);
 
+        if (checks_solution) {
+            check_solution(result.iterations, result.objective, duals, reduced_cost_tolerance);
+        }
+
         // The LP solution, read before the new columns change the model.
         std::optional<std::pair<std::vector<ColumnId>, std::vector<double>>> master_values;
         if (wants_info && statistics.master_values) {
@@ -259,7 +269,12 @@ ColumnGenerationResult ColumnGeneration::iterate() {
         const double relaxation_seconds = relaxation_timer.elapsed_seconds() - relaxation_before;
         const double pricing_before = pricing_timer.elapsed_seconds();
         PricingRound round = timed(timers, pricing_timer, [&] {
-            return price(duals, total_timer, reduced_cost_tolerance, paths, wants_info);
+            return price(duals,
+                         total_timer,
+                         reduced_cost_tolerance,
+                         paths,
+                         wants_info,
+                         result.iterations);
         });
         const size_t new_columns = round.new_columns;
         const bool proven = round.proven;
@@ -329,6 +344,9 @@ ColumnGenerationResult ColumnGeneration::iterate() {
             if (params_.on_converged(context) == ConvergenceAction::Continue) {
                 result.lower_bound = -infinity;
                 paths = paths_allowed();
+                row_lower_.clear();
+                row_upper_.clear();
+                user_cost_.reset();
                 continue;
             }
         }
@@ -379,8 +397,9 @@ ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> d
                                                        const Timer& total_timer,
                                                        double reduced_cost_tolerance,
                                                        std::span<const double> paths_allowed,
-                                                       bool wants_info) {
+                                                       bool wants_info, size_t iteration) {
     const StatisticsParams& statistics = params_.statistics;
+    const bool check_columns = params_.debug_checks.pricer_reduced_costs;
     const bool collect = wants_info && statistics.pricers;
     PricingRound round{.new_columns = 0, .proven = true, .bound_terms = 0.0, .pricers = {}};
     if (collect) {
@@ -434,11 +453,59 @@ ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> d
             }
         }
 
+        if (check_columns) {
+            check_pricer_reduced_costs(priced.columns,
+                                       duals,
+                                       reduced_cost_tolerance,
+                                       iteration,
+                                       index);
+        }
+
         round.new_columns += priced.columns.size();
         master_.add_columns(index, std::move(priced.columns));
     }
 
     return round;
+}
+
+void ColumnGeneration::check_solution(size_t iteration, double objective,
+                                      std::span<const double> duals, double tolerance) {
+    const DebugChecks& checks = params_.debug_checks;
+    MasterSolver& solver = master_.solver();
+
+    // The rows' bounds, read again when rows were added.
+    if (checks.dual_signs) {
+        if (row_lower_.size() != duals.size()) {
+            row_lower_.resize(duals.size());
+            row_upper_.resize(duals.size());
+            solver.row_bounds(row_lower_, row_upper_);
+        }
+
+        check_dual_signs(duals, row_lower_, row_upper_, tolerance, iteration);
+    }
+
+    if (!checks.master_reduced_costs && !checks.objective) {
+        return;
+    }
+
+    keep_new_columns(kept_columns_, master_);
+    const std::vector<double> values = column_values();
+
+    if (checks.master_reduced_costs) {
+        const double feasibility = params_.tolerances->feasibility(context_);
+        check_master_reduced_costs(kept_columns_, duals, values, tolerance, feasibility, iteration);
+    }
+
+    // The LP value is its columns' cost only when the user's own variables cost nothing.
+    if (checks.objective) {
+        if (!user_cost_.has_value()) {
+            user_cost_ = solver.largest_user_cost();
+        }
+
+        if (*user_cost_ == 0.0) {
+            check_objective(kept_columns_, values, objective, tolerance, iteration);
+        }
+    }
 }
 
 std::vector<double> ColumnGeneration::paths_allowed() const {
@@ -507,7 +574,9 @@ ToleranceContext ColumnGeneration::compute_tolerance_context() const {
     }
 
     for (const MasterColumn& column : master_.columns()) {
-        scale = std::max(scale, std::abs(column.solution.column.cost));
+        if (column.tag == ColumnTag::Real) {
+            scale = std::max(scale, std::abs(column.solution.column.cost));
+        }
     }
 
     // Starting columns the user built in their own model.

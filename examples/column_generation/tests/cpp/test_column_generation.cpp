@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "test_column_generation_bound.hpp"
+#include "test_column_generation_debug_checks.hpp"
 #include "test_column_generation_graph_pricer.hpp"
 #include "test_column_generation_initialization.hpp"
 #include "test_column_generation_interfaces.hpp"
