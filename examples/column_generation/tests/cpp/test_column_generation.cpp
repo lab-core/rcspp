@@ -2,14 +2,16 @@
 // All rights reserved.
 
 // The column generation layer, tested with a scripted master solver and scripted pricers (no LP
-// solver, no graph).
+// solver) and small graphs.
 
 #include <gtest/gtest.h>
 
+#include "test_column_generation_graph_pricer.hpp"
 #include "test_column_generation_initialization.hpp"
 #include "test_column_generation_interfaces.hpp"
 #include "test_column_generation_loop.hpp"
 #include "test_column_generation_master.hpp"
 #include "test_column_generation_master_solver_support.hpp"
+#include "test_column_generation_pricing_strategy.hpp"
 #include "test_column_generation_self_test.hpp"
 #include "test_column_generation_tolerances.hpp"
