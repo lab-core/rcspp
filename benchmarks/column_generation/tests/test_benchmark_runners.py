@@ -1043,8 +1043,13 @@ def test_the_log_goes_to_the_runs_output(
 
 
 def test_every_layer_records_the_same_iterations(build: Path, tmp_path: Path):
-    """Without their times, the lines of every layer are the same on C101_25 with a
-    fleet row."""
+    """Without their times, the lines of the layers over one HiGHS build are the same on
+    C101_25 with a fleet row; across builds, the last line's LP and bound.
+
+    The package solves with the highspy wheel, the example's layers with the HiGHS built
+    with it: two builds can take other iterations to the same LP (see
+    test_every_layer_gives_the_same_run).
+    """
     layers = ["package"]
 
     if has_example():
@@ -1065,7 +1070,7 @@ def test_every_layer_records_the_same_iterations(build: Path, tmp_path: Path):
 
         return pytest.approx(value, rel=1e-9) if isinstance(value, float) else value
 
-    found: dict[str, Any] = {}
+    lines: dict[str, list[dict[str, Any]]] = {}
 
     for layer in layers:
         master = ("--master", "highs") if layer == "cpp-native" else ()
@@ -1076,7 +1081,13 @@ def test_every_layer_records_the_same_iterations(build: Path, tmp_path: Path):
             *("--instance", "C101_25", "--instance.vehicles", "25", *master),
             *("--statistics.iterations", EVERY_GROUP),
         )
-        found[layer] = without_times(iteration_lines(tmp_path / layer))
+        lines[layer] = iteration_lines(tmp_path / layer)
+
+    # The example's layers solve with one HiGHS build: the same lines.
+    for layer in layers[2:]:
+        assert without_times(lines[layer]) == without_times(lines["cpp-bindings"]), layer
 
     for layer in layers[1:]:
-        assert found[layer] == found["package"], layer
+        for name in ("objective", "lower_bound"):
+            last = lines["package"][-1][name]
+            assert lines[layer][-1][name] == pytest.approx(last, rel=1e-9), (layer, name)
