@@ -417,7 +417,8 @@ ctest 896 run, all pass; package 725; the example's Python 124; benchmark 536 (t
 check); the second changed `test_benchmark_script.py` only (49 passed). No measurable cost when off
 (`debug-checks.md`). The large all-features file started on the server by the user on `f0a81cc7` (the first rebase's
 head: the same code). Pushed 2026-11-27 (`8cab04a1`), draft PR #131 on #128's branch (assigned to the user, `run-ci`;
-description `debug-checks-pr.md`, no plan IDs). **Next:** the server's result; CI on #131.
+description `debug-checks-pr.md`, no plan IDs). The large all-features file passed on the server (9 tests,
+1 h 33 min); CI green on #131. `T-2.7` done; its review and merge are the user's.
 `T-1.23` (parallel chat) designed and built 2026-11-27 (`analysis-tool.md`, `D-400`-`D-443`; this chat's IDs
 `D-400`+, `F-180`+, `I-80`+): `analysis.py` reads run folders and never solves: a core of pandas tables (rounds,
 iterations, pricers, stages, duals, solutions), commands `compare` (moved from `compare.py`), `convergence`,

@@ -11,14 +11,14 @@ how to run them: `benchmark-results/colgen/HANDOFF.md`.
 - **The code stack** (one PR per branch, each on the previous one, on `main` `f57a7658`, `D-374`): #61, #69, #72, #76,
   #77, #78, #80, #88 (the package), #97 (benchmark), #98, #99 (VRP examples), #114 (`T-1.9`), #124 (`T-2.3`), #125
   (`T-1.31`), #127 (`T-2.5`), #128 (`T-1.29`), #131 (`T-2.7`), #132 (`T-1.23`, the head `97ec7a7e`). Every check of
-  #61-#128 green 2026-11-27; #131 and #132: CI pending. All drafts; review and merge order are the user's. `main` takes
+  #61-#131 green 2026-11-27; #132: CI pending. All drafts; review and merge order are the user's. `main` takes
   squash merges only: after each, the next PR is rebased with `--onto origin/main <parent's old head>`.
 - **This branch:** the plan block on #132's head (`D-370`). #60 (theory docs) conflicts with `main`.
 - **Worktrees:** `../rcspp-dev` on #131 (`feature/column-generation-debug-checks`; test build `build/`, Python build
   `build-python-highs`), `../rcspp-options` on #132 (`feature/column-generation-analysis`; its own `.venv` and build),
   `../rcspp-rebase` detached (for rebases). `git stash` is shared and holds an old unrelated entry: do not pop it.
 - **Machines:** the home server is the timing reference (`D-267`, `server-setup.md`); the large all-features file runs
-  there on `f0a81cc7` for `T-2.7` (result pending). The laptop's clones are in `C:\dev\` since 2026-11-24.
+  there: on `f0a81cc7` for `T-2.7`, passed 2026-11-27 (9 tests, 1 h 33). The laptop's clones are in `C:\dev\` since 2026-11-24.
 - **Next, main line (`D-307`):** phase 2: design chats for `T-2.1`, `T-2.2`, `T-2.4` (`phase-2-design.md` §3), then
   their code.
 - **Next, parallel chats:** `T-1.26` and `T-1.37` first (the user, 2026-11-27), then `T-1.30`, `T-1.35`, `T-1.36`.

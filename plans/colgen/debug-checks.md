@@ -69,7 +69,7 @@ is in the message).
 
 ## Left
 
-- The large all-features file on the server (above), after the push.
-- Draft PR #131 on #128's branch, opened 2026-11-27 (assigned to the user, `run-ci`; description `debug-checks-pr.md`):
-  CI.
+- Done 2026-11-27: the large all-features file on the server (above) passed on `f0a81cc7` (the code of `8cab04a1`):
+  9 tests in 1 h 33 min (44 min on the laptop without the checks for `T-1.29`); CI green on draft PR #131 (13 checks,
+  the coverage gate skipped). Left: the review and merge (the user's).
 - Follow-ups: `PathEvaluator` as a check of `GraphPricer`'s paths once #81 is merged (`D-381`); `F-171`'s fix.
