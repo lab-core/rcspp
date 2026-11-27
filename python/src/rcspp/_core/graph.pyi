@@ -98,6 +98,8 @@ class Arc:
 
 class Algorithm:
     """
+    The algorithm ResourceGraph.solve runs; solve also accepts its name in snake_case. Simple, Pushing, Pulling and AStar are the exact labelling algorithms, and search in every direction. Simple takes labels first in, first out. Pushing goes node by node, in sweep order. Pulling visits node by node, pulling labels from the neighbours. AStar takes first the label with the lowest cost plus a lower bound on the cost still to pay. Greedy, BoundGuidedGreedy and Tabu are heuristics, which search forward or backward. Greedy dives depth first, cheapest child first; with no max_iterations, it tries every path. BoundGuidedGreedy is Greedy's dive with the children taken by cost plus that lower bound; use it with prune_by_threshold. Tabu repeats Greedy's dive in episodes, each stopping at its first path, whose arcs are then tabu for the next episodes. Its max_iterations counts episodes and must be set: with no limit, Tabu runs nothing.
+
     Members:
 
       Simple
@@ -111,9 +113,12 @@ class Algorithm:
       Tabu
 
       AStar
+
+      BoundGuidedGreedy
     """
 
     AStar: typing.ClassVar[Algorithm]
+    BoundGuidedGreedy: typing.ClassVar[Algorithm]
     Greedy: typing.ClassVar[Algorithm]
     Pulling: typing.ClassVar[Algorithm]
     Pushing: typing.ClassVar[Algorithm]
@@ -137,7 +142,7 @@ class Algorithm:
 
 class SearchDirection:
     """
-    Which way a search runs: Forward from the sources, Backward from the sinks, or Bidirectional (both at once, joined in the middle). Every labelling algorithm (simple, pushing, pulling, astar) supports all three; greedy and tabu search Forward only.
+    Which way a search runs: Forward from the sources, Backward from the sinks, or Bidirectional (both at once, joined in the middle). The exact labelling algorithms (simple, pushing, pulling, astar) search in all three; the heuristics (greedy, bound_guided_greedy, tabu) search Forward or Backward.
 
     Members:
 
@@ -326,7 +331,7 @@ class AlgorithmParams:
     @property
     def admission_rule(self) -> AdmissionRule:
         """
-        Whether a new label is kept at its node: AdmissionRule.Exact (dominance, the default), Relaxed or KBest. Relaxed and KBest drop labels exact dominance keeps: every path returned is feasible and correctly priced, but the optimum may be missed, and result.proven is False (unless the rule is at its limit: nothing left out, no limit on k). Read by every labelling algorithm (simple, pushing, pulling, astar), in every direction; greedy and tabu keep every label and ignore it, though solve() still raises ValueError for a rule that cannot be honoured (a k of 0, a resource the graph does not have).
+        Whether a new label is kept at its node: AdmissionRule.Exact (dominance, the default), Relaxed or KBest. Relaxed and KBest drop labels exact dominance keeps: every path returned is feasible and correctly priced, but the optimum may be missed, and result.proven is False (unless the rule is at its limit: nothing left out, no limit on k). Read by the exact labelling algorithms (simple, pushing, pulling, astar), in every direction; the heuristics (greedy, bound_guided_greedy, tabu) keep every label and ignore it, though solve() still raises ValueError for a rule that cannot be honoured (a k of 0, a resource the graph does not have).
         """
 
     @admission_rule.setter
@@ -342,7 +347,7 @@ class AlgorithmParams:
     @property
     def direction(self) -> SearchDirection:
         """
-        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. Every labelling algorithm (simple, pushing, pulling, astar) searches in each; greedy and tabu raise ValueError for any but Forward. ResourceGraph.solve's `direction` argument overrides it for that call only.
+        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. The exact labelling algorithms (simple, pushing, pulling, astar) search in each; the heuristics (greedy, bound_guided_greedy, tabu) search Forward or Backward, and raise ValueError for Bidirectional. ResourceGraph.solve's `direction` argument overrides it for that call only.
         """
 
     @direction.setter
@@ -476,7 +481,7 @@ class AlgorithmParams:
     @property
     def prune_by_threshold(self) -> bool:
         """
-        Whether a labelling search drops a label whose cost plus a lower bound on the cost still to pay from its node reaches the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Needs an additive cost (a zero or value cost under an addition, for every resource the cost reads); another raises ValueError.
+        Whether a search drops a label that cannot lead to a path cheaper than the solve's upper_bound (default False). A label is dropped when its cost plus a lower bound on the cost still to pay from its node is at or above upper_bound. The paths returned are the same; fewer labels are extended. With no upper_bound, only labels that cannot reach an end node are dropped. Every algorithm reads it (simple, pushing, pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; bound_guided_greedy is meant to be used with it. The cost must be additive: every resource the cost reads uses TrivialCostFunction, or ValueCostFunction under an AdditionExtensionFunction with no min_value. Each arc must also add its share whatever the label, which the solve tests. If either fails, solve() raises ValueError when it starts.
         """
 
     @prune_by_threshold.setter
