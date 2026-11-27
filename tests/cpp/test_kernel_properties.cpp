@@ -806,4 +806,9 @@ TEST(KernelProperties, ThresholdPruningRefusesACostThatIsNotAdditive) {
     params.prune_by_threshold = true;
     EXPECT_THROW((void)graph->solve<rcspp::strategy::Simple>(params, /*preprocess=*/false),
                  std::invalid_argument);
+    // Diversification leaves the checks to its inner algorithm, which still refuses the prune.
+    params.max_iterations = 5;
+    EXPECT_THROW(
+        (void)graph->solve<rcspp::strategy::Diversification<>>(params, /*preprocess=*/false),
+        std::invalid_argument);
 }

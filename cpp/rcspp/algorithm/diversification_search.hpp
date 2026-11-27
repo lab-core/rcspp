@@ -60,11 +60,21 @@ namespace rcspp {
 template <typename ResourceType, typename LabelContainerType, typename Inner>
 class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType> {
     public:
+        /// @brief An algorithm that solves @p Inner, built with @p params, again and again.
+        ///
+        /// Only the inner algorithm prunes: this one keeps @p params with both prunes off, so that
+        /// its own solve does not run the checks the prunes need (the cost's additivity, and the
+        /// arcs' shares, read over every arc), which the inner algorithm runs at its first solve.
+        ///
+        /// @param resource_factory The factory the inner algorithm's labels are built with.
+        /// @param params           The params; the inner algorithm's are built from them.
         DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
                               AlgorithmParams<LabelContainerType> params)
-            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)),
+            : Algorithm<ResourceType, LabelContainerType>(resource_factory, without_prunes(params)),
               tabu_(this->params_, ArcMask::State::Hard),
-              resource_factory_(resource_factory) {}
+              resource_factory_(resource_factory),
+              prune_by_incumbent_(params.prune_by_incumbent),
+              prune_by_threshold_(params.prune_by_threshold) {}
 
         /// @brief The most iterations an inner solve may make on a graph of @p number_of_nodes
         ///        nodes.
@@ -105,6 +115,8 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                 return;
             }
             auto inner_params = this->params_;
+            inner_params.prune_by_incumbent = prune_by_incumbent_;
+            inner_params.prune_by_threshold = prune_by_threshold_;
             inner_params.direction = SearchDirection::Forward;
             inner_params.max_solutions = 1;  // only need one solution per iteration
             inner_params.max_iterations = max_iterations;
@@ -208,6 +220,16 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         detail::TabuArcs tabu_;  ///< the tabu arcs, hard in the mask the inner algorithm reads
         ResourceFactory<ResourceType>* resource_factory_;
         size_t inner_max_iterations_ = 0;  // the budget algo_ was built with
+        bool prune_by_incumbent_;          ///< the params', for the inner algorithm only
+        bool prune_by_threshold_;          ///< the params', for the inner algorithm only
+
+        /// @brief @p params with both prunes off: this algorithm's own.
+        static AlgorithmParams<LabelContainerType> without_prunes(
+            AlgorithmParams<LabelContainerType> params) {
+            params.prune_by_incumbent = false;
+            params.prune_by_threshold = false;
+            return params;
+        }
 };
 
 }  // namespace rcspp
