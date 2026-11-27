@@ -396,6 +396,16 @@ places); #97-#128 rebased and pushed (8 branches; #128 `9617552a`), `run-ci` re-
 705, benchmark 557, the end-sample test 30 of 30. The first of these rebases also moved another chat's local
 `feature/column-generation-analysis` (it pointed into the range): restored at once to `5b03395c` from its reflog.
 Plan branch on `9617552a` (backup `backup/colgen-plan-before-ci-fixes`). **Next:** read CI on #97-#128.
+`T-2.7` designed and built 2026-11-27 (`debug-checks.md`, `D-380`-`D-391`; this chat's IDs `D-380`+, `F-170`+,
+`I-70`+): four switches (`pricer_reduced_costs`, `dual_signs`, `master_reduced_costs`, `objective`), off by default;
+a failed check raises `DebugCheckError`; the whole-master checks keep numpy arrays (`D-385`, the user's `D-16` choice);
+artificial columns keep their entry. Written in `C:\dev\rcspp-dev` while the stack was rebased, then rebased onto #128
+`9617552a` (no conflict): `feature/column-generation-debug-checks` `5dc0b2f8` (`F-170`), `fbf0ef5a` (the package),
+`e53cdded` (the C++ example layer), `f0a81cc7` (the benchmark), each reviewed by the user; plan branch on `f0a81cc7`.
+After the rebase: ctest 896 run, all pass; package 725; the example's Python 124; benchmark 536 (the quick
+all-features file runs every check). No measurable cost when off (`debug-checks.md`). Not pushed. **Next:** the user
+pushes; the large all-features file on the server (commands in `debug-checks.md`); the draft PR on #128's branch
+(description drafted in `debug-checks-pr.md`, read with the user).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -500,6 +510,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
 | `statistics-design.md` | `T-2.5`'s whole design: groups and switches, duals and master values, a pricer's details, the label count, the log, the benchmark's records, commits, checks, as built | working on `T-2.5` |
 | `all-features.md` | `T-1.29`: the all-features test's files, runs, checks and commits | working on `T-1.29` or adding a feature |
+| `debug-checks.md` (+ `-pr`) | `T-2.7`: setup, commits as built, the overhead, the server run's commands, what is left; the PR description draft | working on `T-2.7` or a check |
 | `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
 
