@@ -3,6 +3,7 @@
 """The analysis of the benchmark's output, a command per question:
 
     python analysis.py compare results/my_benchmark:<run A> results/my_benchmark:<run B>
+    python analysis.py convergence results/my_benchmark --gap
 
 ``python analysis.py <command> --help`` lists a command's options. A command reads run folders
 and instances, never runs a solve; what it writes goes into an analysis folder, with
@@ -17,7 +18,7 @@ from pathlib import Path
 # The analysis and the benchmark's shared code are in this folder.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from column_generation_analysis.commands import compare  # noqa: E402
+from column_generation_analysis.commands import compare, convergence  # noqa: E402
 
 #: Each command: its name, what it does, its arguments, and what runs it.
 COMMANDS: list[
@@ -29,6 +30,7 @@ COMMANDS: list[
     ]
 ] = [
     (compare.NAME, compare.HELP, compare.add_arguments, compare.run),
+    (convergence.NAME, convergence.HELP, convergence.add_arguments, convergence.run),
 ]
 
 

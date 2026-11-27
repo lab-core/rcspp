@@ -307,9 +307,10 @@ It needs more than the runners: `pip install -r requirements-analysis.txt` (the 
 and matplotlib). [ANALYSIS.md](ANALYSIS.md) has each command, the options they share and the folder an analysis
 writes.
 
-| command   | what                                                    |
-| --------- | ------------------------------------------------------- |
-| `compare` | the comparison of two runs, with an optional time rule |
+| command       | what                                                                  |
+| ------------- | --------------------------------------------------------------------- |
+| `compare`     | the comparison of two runs, with an optional time rule               |
+| `convergence` | the objective and the best bound of runs, iteration after iteration |
 
 ## Tests
 

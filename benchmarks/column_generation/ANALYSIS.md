@@ -5,9 +5,20 @@ never runs a solve. It needs more than the runners: `pip install -r requirements
 (the benchmark's requirements, pandas and matplotlib). `python analysis.py --help` lists the
 commands, `python analysis.py <command> --help` a command's options.
 
-| command   | what                                                    |
-| --------- | ------------------------------------------------------- |
-| `compare` | the comparison of two runs, with an optional time rule |
+| command       | what                                                                  |
+| ------------- | --------------------------------------------------------------------- |
+| `compare`     | the comparison of two runs, with an optional time rule               |
+| `convergence` | the objective and the best bound of runs, iteration after iteration |
+
+The commands but `compare` take the same runs and output options:
+
+| option | what |
+| --- | --- |
+| `RUNS` | one or more: a benchmark folder, a folder of run folders, a run folder, or `<folder>:<run name>`, the name in full or its start (every run that starts so) |
+| `--where OPTION=VALUE` | keep the runs whose dotted option has that value (`graph.ng_size=8`, `master.type=highspy`); the value is read as TOML, else as text; may be given more than once. An option no run has is an error |
+| `--output-folder FOLDER` | the analysis folder; by default `results/analysis/<command>-<date>-<time>` |
+| `--overwrite` | replace the analysis the folder already holds |
+| `--format FORMAT` | a figure's format, `png`, `pdf` or `svg`; may be given more than once (default `png` and `pdf`) |
 
 A command that writes files writes them into an analysis folder, with two files that say how
 they were made:
@@ -97,3 +108,31 @@ min, max or judgement.
 `--output-folder FOLDER` writes both into an analysis folder, as `comparison.md` and `comparison.csv`, with its
 `analysis.json` and `command.txt` (`--overwrite` to replace an analysis there). The `2` of the exit codes also
 covers a folder that cannot take it.
+
+## Convergence
+
+`python analysis.py convergence RUNS` draws how runs converge, a figure per instance with the runs of that instance:
+each run's objective as a solid line, its best bound so far as a dashed one of the same colour (an iteration records
+its own bound, from the pricers; the best is the highest so far), against the loop's time or the iterations. It needs
+the runs' iterations (`statistics.iterations`, any groups) and, for a bound, `instance.vehicles`.
+
+```bash
+python analysis.py convergence results/my_benchmark --gap
+python analysis.py convergence results/my_benchmark:R201_25 --where master.type=highspy --x iteration
+```
+
+| option | what |
+| --- | --- |
+| `--x` | `time` (default), the loop's time in seconds, or `iteration` |
+| `--gap` | a panel below with the relative gap, (objective - best bound) / \|objective\|, on a log scale |
+| `--y-range` | `auto` (default): from half the lowest last objective to twice the highest, the end of the convergence (an artificial start's first objectives are orders of magnitude above it); `full`; or `LOW,HIGH` |
+| `--rounds` | `median` (default): each run's round whose loop took the median time (the lower one for an even count); `all`: every round, thin lines |
+
+The legend names a run by the parts of its name that the other runs of its figure do not all have (`exact-artificial`,
+`heuristics-first-single-customer`), with its benchmark folder when two folders hold it. A round that did not finish
+(killed at its timeout, crashed) is drawn to its last iteration, ended with a cross. Each figure,
+`convergence-<instance>.<format>`, comes with its data, `convergence-<instance>.csv`: per iteration of each curve, its
+benchmark folder, run and round, `iteration`, `elapsed_seconds`, `objective`, `lower_bound`, `best_bound` and `gap`.
+
+The runs without iterations are left out with a warning, and none at all is an error (exit code 2, as a wrong
+argument or a folder that cannot take the analysis). A run not finished and a gap panel with no bound warn too.
