@@ -18,8 +18,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+import analysis
 import benchmark
-import compare
 import psutil
 import pytest
 from column_generation_benchmark import run_folder
@@ -946,7 +946,7 @@ def test_every_kind_of_input_runs_and_runs_again(
     capsys.readouterr()
     arguments = [f"{tmp_path / 'out'}:{name}", str(tmp_path / "again" / first.name)]
 
-    assert compare.main([*arguments, "--floor", "1000"]) == 0
+    assert analysis.main(["compare", *arguments, "--floor", "1000"]) == 0
     printed = capsys.readouterr().out
     assert "- Options that differ: none" in printed
     assert "- Records that differ: none" in printed

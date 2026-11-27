@@ -344,7 +344,7 @@ New features are summarised, with a pointer to where they are documented.
   (a `tabu` stage without `max_iterations`, `greedy` or `tabu` in another direction than forward or
   with buckets). `benchmark.py` makes many runs from a benchmark file (named blocks, one or several
   matrices, rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
-  summarises a benchmark folder, and `compare.py` compares two runs with an optional time rule.
+  summarises a benchmark folder, and `analysis.py compare` compares two runs with an optional time rule.
   See `benchmarks/column_generation/README.md`.
 - **A Python VRP example with several vehicle types** (`examples/python/solve_vehicle_types.py`):
   one pricing graph and one pricer per type, each type with its capacity, fixed cost per route,
