@@ -84,6 +84,7 @@
 #include "rcspp/graph/node.hpp"
 #include "rcspp/graph/row.hpp"
 #include "rcspp/label/cost_ordered_label_list.hpp"
+#include "rcspp/label/default_label_container.hpp"
 #include "rcspp/label/label.hpp"
 #include "rcspp/label/label_buckets.hpp"
 #include "rcspp/label/label_dominance.hpp"

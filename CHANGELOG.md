@@ -319,6 +319,20 @@ New features are summarised, with a pointer to where they are documented.
   `DominanceAlgorithm`'s write-only counters
   (`nb_infeasible_labels_`, `nb_update_non_dom_iter_`, `nb_extend_iter_`, `total_extend_time_`,
   `total_update_non_dom_time_`).
+- **`CostOrderedLabelList` is the default label container** (`DefaultLabelContainer`), in place of
+  `LabelList`: of `Algorithm`, `BidirectionalLabellingAlgorithm`, `ResourceGraph::solve` and
+  `ResourceGraph::create_algorithm`, and of the Python graphs' searches (the bucket params still
+  use `LabelBuckets`). An exact search finds the same paths and keeps the same labels (a wrong
+  declared promise may change which labels a cap, `KBest` or a per-node quota, keeps); a node's
+  labels are read cheapest first, and a solve's solutions of equal cost may come in another order. On the
+  default model the inferred cost order (below) skips the dominance tests the costs rule out.
+  Without a promise it tests every label, as `LabelList` does, and was not slower on the nurse
+  pricing problems of rcspp-benchmark. Code that names the default's type changes with it:
+  `Algorithm<R>` is `Algorithm<R, CostOrderedLabelList<R>>`, and `create_algorithm()` returns one;
+  the labels at a node (`KeepAtNodes::labels_at`) are a view, not a `std::list`. To keep the list,
+  name it: `AlgorithmParams<LabelList<R>>`, `solve<Strategy, LabelList<R>>(...)`. Python has no
+  choice of container: its searches use the default. A strategy's parts are now checked against
+  the container the search keeps, not against `LabelList`.
 
 ### Added
 
@@ -344,6 +358,22 @@ New features are summarised, with a pointer to where they are documented.
   returns, a reference or a view. The masked and direction-aware dominance of the containers is
   shared in `rcspp/label/label_dominance.hpp`. See "Cost-ordered label containers" in
   `docs/advanced/algorithms.md`.
+- **The cost order of component-wise dominance is inferred.** `CompositionDominanceFunction`
+  declares `requires_component_dominance()`, and with no tolerance of its own its promise comes
+  from the components and the cost function (`CostFunction::component_wise_cost_order_tolerance`):
+  a zero cost gives 0; a cost that is the value gives its dominance's `value_order_tolerance()`,
+  which `ValueDominanceFunction` declares (machine epsilon for a `double` value, 0 for an integer
+  one) and which a backward dominance that swaps its comparison withholds; `ComponentCostFunction`
+  passes on its component's, and `CompositionCostFunction` that of its one nonzero cost (none when
+  two or more are nonzero, since the sum's rounding could break it). The default model, the VRP
+  example and the Python graphs have it without a line of code. A function derived from
+  `CompositionDominanceFunction` infers nothing unless it overrides
+  `requires_component_dominance()`, and a class derived from `ValueDominanceFunction`,
+  `ComponentCostFunction` or `CompositionCostFunction` passes on no promise; a declaration comes
+  first. `Resource<R>::component_cost_order_tolerance`
+  says what one component's dominance implies for its cost, and the composition's
+  `cost_order_source` names where its promise comes from, as the messages of
+  `CostOrderedLabelList` and `RCSPP_VERIFY_COST_ORDER` now do.
 - **How the labelling algorithms are built** (`docs/advanced/algorithms.md`) covers the heuristics,
   drivers, arc masks, the admission rules, the threshold prune and the proof record, with every
   strategy as an assembly of parts; `AGENT.md`'s file map lists the kernel's files.

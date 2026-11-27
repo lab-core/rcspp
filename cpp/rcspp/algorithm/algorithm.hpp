@@ -31,6 +31,7 @@
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
 #include "rcspp/graph/graph.hpp"
+#include "rcspp/label/default_label_container.hpp"
 #include "rcspp/label/label_list.hpp"
 #include "rcspp/label/label_pool.hpp"
 #include "rcspp/resource/composition/composition.hpp"
@@ -87,7 +88,7 @@ enum class Role : std::uint8_t;
 
 }  // namespace detail
 
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+template <typename ResourceType, typename LabelContainerType = DefaultLabelContainer<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class Algorithm {
     public:

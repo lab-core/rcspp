@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -210,6 +211,32 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->cost_function_->cost_kind();
         }
 
+        /// @brief What this component's dominance says of its cost: an @c eps such that
+        ///        `*this <= other` implies `get_cost() <= other.get_cost() + eps`; empty when
+        ///        nothing is known.
+        ///
+        /// 0 for a zero cost (@c CostKind::Zero), whatever the dominance; for a cost that is the
+        /// value (@c CostKind::Value), the dominance function's
+        /// @c DominanceFunction::value_order_tolerance; nothing otherwise. A composition's cost
+        /// function reads it to infer the composition's cost order
+        /// (@c CostFunction::component_wise_cost_order_tolerance). Named apart from the
+        /// composition's @c cost_order_tolerance, which a label container reads: a label of one
+        /// resource type has no promise.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] auto component_cost_order_tolerance() const -> std::optional<double> {
+            return cost_order_tolerance_from(this->dominance_function_->value_order_tolerance());
+        }
+
+        /// @brief The same for @ref back_dominates: an @c eps such that
+        ///        `back_dominates(other)` implies `get_cost() <= other.get_cost() + eps`.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] auto back_component_cost_order_tolerance() const -> std::optional<double> {
+            return cost_order_tolerance_from(
+                this->dominance_function_->back_value_order_tolerance());
+        }
+
         // Return true if the resource is feasible
         /// @brief Returns `true` if this resource satisfies all forward-direction feasibility
         ///        constraints.
@@ -331,6 +358,21 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         /// @return `true` when the destination node can still be reached.
         [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
             return this->feasibility_function_->is_reachable(*this, destination_node_id);
+        }
+
+    private:
+        /// @brief The cost order a component gets from its dominance's @p value_tolerance: 0 for
+        ///        a zero cost, @p value_tolerance for a cost that is the value, nothing otherwise.
+        [[nodiscard]] auto cost_order_tolerance_from(std::optional<double> value_tolerance) const
+            -> std::optional<double> {
+            switch (this->cost_function_->cost_kind()) {
+                case CostKind::Zero:
+                    return 0.0;
+                case CostKind::Value:
+                    return value_tolerance;
+                default:
+                    return std::nullopt;
+            }
         }
 };
 }  // namespace rcspp

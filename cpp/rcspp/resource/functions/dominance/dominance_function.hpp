@@ -110,6 +110,32 @@ class DominanceFunction {
                        : fast_check_dominance(lhs_resource, rhs_resource, delta);
         }
 
+        /// @brief A promise on a scalar value: an @c eps >= 0 such that
+        ///        `check_dominance(a, b)` implies `a.get_value() <= b.get_value() + eps`; empty
+        ///        when the function promises nothing, the default.
+        ///
+        /// @c CompositionDominanceFunction reads it, with the component's cost function, to infer
+        /// the composition's cost order (@c DominanceFunction::cost_order_tolerance): a component
+        /// whose cost is its value (@c CostKind::Value) passes it on. @c ValueDominanceFunction
+        /// declares it. A function derived from one that declares it and tests otherwise must
+        /// declare its own; a wrong promise makes a search on @c CostOrderedLabelList slower,
+        /// never wrong (and @c RCSPP_VERIFY_COST_ORDER catches it).
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] virtual auto value_order_tolerance() const -> std::optional<double> {
+            return std::nullopt;
+        }
+
+        /// @brief The same promise for @c check_back_dominance.
+        ///
+        /// By default that of @ref value_order_tolerance when the backward test is the forward
+        /// one, and none when it swaps the arguments (a limit, where the larger value is better).
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] virtual auto back_value_order_tolerance() const -> std::optional<double> {
+            return back_dominance_reversed_ ? std::nullopt : value_order_tolerance();
+        }
+
         /// @brief Creates a polymorphic copy of this dominance function.
         ///
         /// @return A new heap-allocated copy wrapped in a unique_ptr.
@@ -218,6 +244,10 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// (@c kVerifyCostOrder), the container tests the pairs it skips too, and throws on one
         /// that is a dominance.
         ///
+        /// When it is empty and the function declares @ref requires_component_dominance, as
+        /// @c CompositionDominanceFunction does, the promise is inferred from the components
+        /// instead (@c CostFunction::component_wise_cost_order_tolerance).
+        ///
         /// @return The tolerance, or @c std::nullopt.
         [[nodiscard]] virtual auto cost_order_tolerance() const -> std::optional<double> {
             return std::nullopt;
@@ -231,6 +261,20 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto back_cost_order_tolerance() const -> std::optional<double> {
             return std::nullopt;
         }
+
+        /// @brief Whether a dominance needs every component to dominate: `check_dominance(a, b)`
+        ///        only when each component of @c a dominates the same component of @c b
+        ///        (`a_i <= b_i`), and `check_back_dominance(a, b)` only when each
+        ///        backward-dominates it (`a_i.back_dominates(b_i)`). False by default.
+        ///
+        /// When it is true and the function declares no @ref cost_order_tolerance, the
+        /// composition infers one from the components and the cost function
+        /// (@c CostFunction::component_wise_cost_order_tolerance): a test as strict as the
+        /// components', or stricter, keeps their promise. @c CompositionDominanceFunction
+        /// declares it; a function derived from it that relaxes a component must not.
+        ///
+        /// @return @c true if a dominance needs every component's.
+        [[nodiscard]] virtual auto requires_component_dominance() const -> bool { return false; }
 
         /// @brief Creates a polymorphic copy of this dominance function.
         ///

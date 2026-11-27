@@ -191,7 +191,7 @@ the usual case).  A model whose clock is an `int` resource while its cost is
 
 ```cpp
 using Resources = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
-using Labels = rcspp::LabelList<Resources>;
+using Labels = rcspp::CostOrderedLabelList<Resources>;
 rcspp::AlgorithmParams<Labels> params;
 params.direction = rcspp::SearchDirection::Bidirectional;
 params.critical_resource_index = 0;  // the first int component
@@ -664,7 +664,7 @@ Diversification is C++ only: Python does not offer it.
 <!-- docs-check: skip -->
 
 ```cpp
-AlgorithmParams<LabelList<Resources>> params;
+AlgorithmParams<CostOrderedLabelList<Resources>> params;
 params.max_solutions = 20;    // collect 20 distinct solutions
 params.max_iterations = 100;  // at most 100 inner solves
 params.tabu_tenure = 5;       // a path's arcs stay out for 5 solves
@@ -839,7 +839,7 @@ is the boundary label the join pairs.
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
 (`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels in
-the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
+the container you pass, turned backward: `CostOrderedLabelList`, `LabelList` and `LabelBuckets` each declare
 `with_direction<TargetDirection>()`, an empty copy of themselves that compares in direction
 `TargetDirection`. A container of your own that does not declare it is refused for a backward
 search. `create_algorithm<Strategy>(params)` returns a
@@ -1062,7 +1062,9 @@ new label only against the stored labels costing at most its cost + `eps`, and r
 costing at least its cost − `eps`. `back_cost_order_tolerance()` makes the same promise for
 `check_back_dominance`, which a backward search uses. Both are empty by default: the container then
 tests every stored label, as `LabelList` does (in cost order, so a scan that finds a dominating
-label may stop after another number of tests).
+label may stop after another number of tests). The default `CompositionDominanceFunction` needs no
+declaration: its promise is inferred ("The promise inferred", below). A function of your own
+declares it, as here:
 
 <!-- docs-check: skip -->
 
@@ -1111,6 +1113,42 @@ cost by their container's order on every container (a stable sort), so `LabelLis
 erases it by the label (`erase_label(const parts::StoredLabel&)`). An algorithm kept from solve to
 solve (`release_after_solve` false) keeps each vector's capacity: a repeat solve on a graph with as
 many nodes allocates nothing for the containers, unless a node keeps more labels than it ever did.
+
+**The promise inferred.** `CompositionDominanceFunction`, the default, declares no tolerance, but
+its dominance needs every component's (`requires_component_dominance()`), so the promise is
+inferred from the components and the cost function
+(`CostFunction::component_wise_cost_order_tolerance`):
+
+- each component tells what its dominance says of its cost (`Resource::component_cost_order_tolerance`): 0
+  for a zero cost (`TrivialCostFunction`), whatever the dominance; for a cost that is the value
+  (`ValueCostFunction`), the dominance's `value_order_tolerance()`, which `ValueDominanceFunction`
+  declares (machine epsilon for a `double` value, 0 for an integer one, as `value_leq` compares);
+  nothing for any other cost or dominance. Backward, a dominance that swaps its comparison (a
+  limit, `set_back_dominance_reversed`) tells nothing;
+- `ComponentCostFunction`, the graph's default cost, passes on the tolerance of the one component
+  it reads;
+- `CompositionCostFunction` passes on the tolerance of its one nonzero cost among zero costs, and
+  tells nothing when two components or more have a cost that is not zero: each dominance holds
+  within its tolerance, but the rounding of the sum, which grows with the costs' magnitudes, may
+  break the promise by more than the ulp the container allows. Declare a tolerance for such a model
+  yourself when you know one.
+
+So the default model (`presets::add_cost_resource`, the graph's default cost and dominance), the
+VRP example and the Python graphs have their promise without a line of code. A declaration comes
+first. A function derived from `CompositionDominanceFunction` infers nothing, since it may test
+otherwise; one whose test is as strict, or stricter, overrides `requires_component_dominance()` to
+return `true`. Likewise a class derived from `ValueDominanceFunction`, `ComponentCostFunction` or
+`CompositionCostFunction` passes on no promise. A cost function of your own that declares
+`CostKind::Value` must return exactly the value: the inference relies on it. A single-resource
+dominance function of your own declares `value_order_tolerance()` when its dominance implies
+`a.get_value() <= b.get_value() + eps`. `RCSPP_VERIFY_COST_ORDER` checks an inferred promise as it
+does a declared one, and its message says which it was.
+
+**The default.** `CostOrderedLabelList` is the container a search uses when none is named
+(`DefaultLabelContainer`): of `ResourceGraph::solve`, `create_algorithm`, `Algorithm<R>` and the
+Python graphs. Without a promise it tests every stored label, as `LabelList` does, and on the nurse
+pricing problems of rcspp-benchmark it was not slower: in cost order a scan meets a dominating label
+sooner, so it made fewer tests. Name `LabelList` in the params to keep labels in storing order.
 
 ## How the labelling algorithms are built
 

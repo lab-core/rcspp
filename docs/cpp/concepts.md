@@ -220,15 +220,17 @@ Three built-in containers are provided:
 
 | Type | Complexity | Best for |
 |---|---|---|
-| `LabelList<R>` (default) | O(N) dominance check | Few labels per node |
-| `CostOrderedLabelList<R>` | O(N), but only the labels whose costs allow a dominance are tested | A dominance function that declares a cost order |
+| `CostOrderedLabelList<R>` (default) | O(N), but only the labels whose costs allow a dominance are tested | A dominance function with a cost order, declared or inferred; as `LabelList` otherwise |
+| `LabelList<R>` | O(N) dominance check | Labels in storing order |
 | `LabelBuckets<R>` | O(log B) dominance check | Many labels; partitioned by one resource |
 
 `LabelBuckets` requires a `BucketAlgorithmParams` specifying the bucket
-resource index and sort resource index. `CostOrderedLabelList` keeps each node's labels in cost
-order; when the composition dominance function promises that a dominance implies an order on the
-costs (`cost_order_tolerance`), it skips the pairs the costs rule out, and otherwise tests every
-stored label, as `LabelList` does (see "Cost-ordered label containers" in `docs/advanced/algorithms.md`).
+resource index and sort resource index. `CostOrderedLabelList`, the default
+(`DefaultLabelContainer`), keeps each node's labels in cost order; when the composition dominance
+function promises that a dominance implies an order on the costs (`cost_order_tolerance`, or the
+order inferred for the default component-wise dominance), it skips the pairs the costs rule out, and
+otherwise tests every stored label, as `LabelList` does (see "Cost-ordered label containers" in
+`docs/advanced/algorithms.md`).
 
 ---
 

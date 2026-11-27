@@ -299,7 +299,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///         ask for, or a backward or bidirectional search is asked for with a container
         ///         that cannot compare backward (no with_direction of its own).
         template <typename Strategy = strategy::Simple,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename LabelContainerType = DefaultLabelContainer<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
         std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>> create_algorithm(
@@ -333,7 +333,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///         form that compares backward (no with_direction of its own).
         /// @throws ModelRefused when the model checks find a problem; the graph is left unchanged.
         template <typename Strategy = strategy::Simple,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename LabelContainerType = DefaultLabelContainer<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
@@ -354,7 +354,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         /// @brief The solve above, with no cost upper bound.
         template <typename Strategy = strategy::Simple,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename LabelContainerType = DefaultLabelContainer<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
@@ -378,7 +378,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @param preprocess     Whether to run preprocessing before solving.
         /// @param cost_index     Index of the cost component to use.
         template <typename Strategy = strategy::Simple,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename LabelContainerType = DefaultLabelContainer<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>

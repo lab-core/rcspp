@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "rcspp/resource/base/resource_type.hpp"
@@ -23,7 +24,8 @@ class Resource;
 enum class CostKind {
     Unspecified,  ///< not declared: a backward or bidirectional solve refuses a cost that reads it
     Zero,         ///< always zero, so additive
-    Value,        ///< the resource's value, additive only under an accumulation that is a sum
+    Value,        ///< the resource's value, additive only under an accumulation that is a sum;
+                  ///< exactly the value: the cost order inferred from the dominance relies on it
 };
 
 /// @brief Abstract base class defining the cost function for a resource type.
@@ -119,6 +121,28 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto is_additive(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/) const -> bool {
             return false;
+        }
+
+        /// @brief The cost order a component-wise dominance gives this cost: an @c eps such that,
+        ///        when every component of @c a dominates the same component of @c b, this
+        ///        function's cost of @c a is at most its cost of @c b + @c eps; empty when the
+        ///        function cannot tell, the default.
+        ///
+        /// A dominance function that declares @c DominanceFunction::requires_component_dominance
+        /// and no tolerance of its own (@c CompositionDominanceFunction) gets this one, which lets
+        /// @c CostOrderedLabelList skip the pairs the costs rule out. Each component tells its own
+        /// (@c Resource::component_cost_order_tolerance). A function that adds several components'
+        /// costs should declare nothing when more than one may be nonzero: the rounding of the sum
+        /// may break the promise by more than the one ulp the container allows.
+        ///
+        /// @param resource Any node's resource, to read the components' declarations from.
+        /// @param backward Whether the components backward-dominate (@c Resource::back_dominates)
+        ///                 rather than dominate.
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] virtual auto component_wise_cost_order_tolerance(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
+            bool /*backward*/) const -> std::optional<double> {
+            return std::nullopt;
         }
 
         /// @brief Creates a polymorphic copy of this cost function.

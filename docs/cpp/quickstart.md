@@ -124,7 +124,7 @@ while (true) {
 // Default (optimal): strategy::Simple
 auto optimal = graph.solve();
 
-AlgorithmParams<LabelList<Resources>> params;
+AlgorithmParams<CostOrderedLabelList<Resources>> params;
 
 // Greedy: fast and non-optimal within a budget; with none it tries every path
 params.max_iterations = 10'000;  // labels taken
@@ -143,7 +143,7 @@ auto diverse = graph.solve<strategy::Diversification<>>(ub, params);
 <!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
 
 ```cpp
-AlgorithmParams<LabelList<Resources>> params;
+AlgorithmParams<CostOrderedLabelList<Resources>> params;
 params.limit_to_available_ram         = true;   // auto-limit to system free RAM
 params.memory_limit_fraction          = 0.8;    // use at most 80% of available RAM
 params.memory_pressure_fraction       = 0.6;    // start pruning at 60%
