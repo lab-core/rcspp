@@ -406,8 +406,8 @@ layer), `8cab04a1` (the benchmark), each reviewed by the user; plan branch on `8
 ctest 896 run, all pass; package 725; the example's Python 124; benchmark 536 (the quick all-features file runs every
 check); the second changed `test_benchmark_script.py` only (49 passed). No measurable cost when off
 (`debug-checks.md`). The large all-features file started on the server by the user on `f0a81cc7` (the first rebase's
-head: the same code). Not pushed. **Next:** the server's result; the user pushes; the draft PR on #128's branch
-(description in `debug-checks-pr.md`, read with the user).
+head: the same code). Pushed 2026-11-27 (`8cab04a1`), draft PR #131 on #128's branch (assigned to the user, `run-ci`;
+description `debug-checks-pr.md`, no plan IDs). **Next:** the server's result; CI on #131.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks

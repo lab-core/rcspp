@@ -70,5 +70,6 @@ is in the message).
 ## Left
 
 - The large all-features file on the server (above), after the push.
-- The draft PR on #128's branch: description in `debug-checks-pr.md` (no plan IDs), read with the user.
+- Draft PR #131 on #128's branch, opened 2026-11-27 (assigned to the user, `run-ci`; description `debug-checks-pr.md`):
+  CI.
 - Follow-ups: `PathEvaluator` as a check of `GraphPricer`'s paths once #81 is merged (`D-381`); `F-171`'s fix.
