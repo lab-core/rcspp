@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -195,6 +196,40 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
                                       short_type_name(*this) +
                                       " cannot be read backward: override check_back_dominance, as "
                                       "CompositionDominanceFunction does");
+        }
+
+        /// @brief A promise on the cost: an @c eps >= 0 such that @c check_dominance(a, b) implies
+        ///        `a.get_cost() <= b.get_cost() + eps`; empty when the function promises nothing,
+        ///        the default.
+        ///
+        /// A container that keeps its labels in cost order (@c CostOrderedLabelList) then skips
+        /// the pairs the costs rule out: a label is never dominated by one costing more than its
+        /// cost + @c eps, nor dominates one costing less than its cost − @c eps. A dominance
+        /// function that rejects a pair as soon as the first label costs more, as one comparing
+        /// the costs first does, declares the tolerance of that comparison. The promise is read
+        /// in exact arithmetic: a function that compares a rounded `a - eps <= b` may accept a
+        /// pair the exact inequality rules out by an ulp; the container widens its bounds by one
+        /// ulp, which covers such a rounding of one operation.
+        ///
+        /// A wrong promise is slow, never wrong, for an exact search: the container skips only
+        /// pairs that could have removed a label, and keeping a label dominance would have
+        /// removed loses no path. Under a cap on the labels a node keeps or extends, the labels
+        /// kept too may change which others the cap keeps. Built with @c RCSPP_VERIFY_COST_ORDER
+        /// (@c kVerifyCostOrder), the container tests the pairs it skips too, and throws on one
+        /// that is a dominance.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] virtual auto cost_order_tolerance() const -> std::optional<double> {
+            return std::nullopt;
+        }
+
+        /// @brief The same promise for @c check_back_dominance: `check_back_dominance(a, b)`
+        ///        implies `a.get_cost() <= b.get_cost() + eps`, for backward labels. Empty by
+        ///        default, whatever @ref cost_order_tolerance says.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] virtual auto back_cost_order_tolerance() const -> std::optional<double> {
+            return std::nullopt;
         }
 
         /// @brief Creates a polymorphic copy of this dominance function.

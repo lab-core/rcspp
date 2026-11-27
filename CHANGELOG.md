@@ -322,6 +322,28 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **A cost-ordered label container, and a cost order a dominance function can declare.** A
+  composition dominance function may declare `cost_order_tolerance()` (and
+  `back_cost_order_tolerance()` for backward labels): an `eps >= 0` such that a dominance implies
+  `a.get_cost() <= b.get_cost() + eps`; both return `std::nullopt` by default, a promise of
+  nothing. The new `CostOrderedLabelList` keeps each node's labels in a vector sorted by cost,
+  labels of equal cost in the order they were stored, and with a declaration tests a label only
+  against the stored labels its cost allows: those costing at most its cost + `eps` can dominate
+  it, those costing at least its cost − `eps` can be dominated. Without one it tests every stored
+  label, as `LabelList` does, in cost order. With a true declaration every node keeps the labels
+  `LabelList` keeps, and the searches extend the same labels; the labels are read cheapest first
+  (`get_labels()` is a view in cost order), and the bidirectional join reads them without sorting:
+  a container that declares `static constexpr bool orders_by_cost = true` is read in its order.
+  The join now sorts the other containers' labels stably, so labels of equal cost are paired in
+  their container's order (it was unspecified): a `LabelList` may return another of several
+  equal-cost joined paths than before. A wrong declaration makes an exact search slower, never
+  wrong (under a cap on the labels kept or extended, it may change which are kept); built with
+  `RCSPP_VERIFY_COST_ORDER` (`rcspp::kVerifyCostOrder`; on in the Debug builds of the test suite),
+  the container also tests the pairs it skips and throws on one that is a dominance. A negative
+  tolerance is refused. `KeepAtNodes::labels_at` returns what the container's `get_labels()`
+  returns, a reference or a view. The masked and direction-aware dominance of the containers is
+  shared in `rcspp/label/label_dominance.hpp`. See "Cost-ordered label containers" in
+  `docs/advanced/algorithms.md`.
 - **How the labelling algorithms are built** (`docs/advanced/algorithms.md`) covers the heuristics,
   drivers, arc masks, the admission rules, the threshold prune and the proof record, with every
   strategy as an assembly of parts; `AGENT.md`'s file map lists the kernel's files.

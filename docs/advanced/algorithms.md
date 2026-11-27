@@ -1048,6 +1048,70 @@ place in the list `add_label` returned, unless the container declares
 the label and that position, and may find the label by the label, as a container that keeps its
 labels in another order than a list's must.
 
+## Cost-ordered label containers
+
+Most dominance tests a search makes compare two labels whose costs already decide it: a label that
+costs more than another cannot dominate it when the dominance compares the costs first, as the
+default component-wise dominance does on its cost component. `CostOrderedLabelList` keeps each
+node's labels in a vector sorted by cost, and skips those tests when the model says it may.
+
+**The promise.** A composition dominance function declares
+`std::optional<double> cost_order_tolerance() const`: an `eps >= 0` such that
+`check_dominance(a, b)` implies `a.get_cost() <= b.get_cost() + eps`. The container then tests a
+new label only against the stored labels costing at most its cost + `eps`, and removes only those
+costing at least its cost − `eps`. `back_cost_order_tolerance()` makes the same promise for
+`check_back_dominance`, which a backward search uses. Both are empty by default: the container then
+tests every stored label, as `LabelList` does (in cost order, so a scan that finds a dominating
+label may stop after another number of tests).
+
+<!-- docs-check: skip -->
+
+```cpp
+using Resources = ResourceTypeComposition<RealResource, IntResource>;
+
+// The default component-wise dominance compares component 0, the cost, by value: a dominance
+// implies a.cost <= b.cost + the machine epsilon, so any larger tolerance is a true promise.
+class CostFirstDominance
+    : public Clonable<CostFirstDominance, CompositionDominanceFunction<RealResource, IntResource>,
+                      DominanceFunction<Resources>> {
+    public:
+        [[nodiscard]] std::optional<double> cost_order_tolerance() const override { return 1e-9; }
+        [[nodiscard]] std::optional<double> back_cost_order_tolerance() const override {
+            return 1e-9;
+        }
+};
+
+ResourceGraph<RealResource, IntResource> graph(
+    std::make_unique<CompositionExtensionFunction<RealResource, IntResource>>(),
+    std::make_unique<CompositionFeasibilityFunction<RealResource, IntResource>>(),
+    std::make_unique<ComponentCostFunction<0, RealResource, IntResource>>(0),
+    std::make_unique<CostFirstDominance>());
+// ... resources, nodes and arcs ...
+using Ordered = CostOrderedLabelList<Resources>;
+auto result = graph.solve<strategy::Pulling, Ordered>(AlgorithmParams<Ordered>());
+```
+
+**A wrong promise is slow, never wrong, for an exact search.** The container skips only tests that
+could have removed a label, and keeping a label dominance would have removed loses no path. With a
+true promise, every node keeps what `LabelList` keeps, and the search extends the same labels. Under
+a cap on the labels a node keeps (`AdmissionRule::KBest`) or extends (a per-node quota), the labels
+a wrong promise keeps may change which others are kept. The promise is read in exact arithmetic,
+and the container widens its bounds by one ulp against rounding. To check a declaration, build with
+`RCSPP_VERIFY_COST_ORDER` (the Debug builds of the test suite do): the container then also tests the
+pairs it skips, and throws `std::logic_error`, naming the dominance function, when one is a
+dominance. A negative tolerance is refused (`std::invalid_argument`). A dominance over the
+components a `DominanceMask` leaves in (`dominance_ignored_components`) may leave out the cost, so
+those tests are never skipped.
+
+**What changes.** A node's labels are read cheapest first (`get_labels()` returns a view in cost
+order, labels of equal cost in the order they were stored), so the bidirectional join reads them
+without sorting them; a solve still sorts its solutions by cost. The join orders labels of equal
+cost by their container's order on every container (a stable sort), so `LabelList` and
+`CostOrderedLabelList` pair the same labels. A label is stored at no list position: the search
+erases it by the label (`erase_label(const parts::StoredLabel&)`). An algorithm kept from solve to
+solve (`release_after_solve` false) keeps each vector's capacity: a repeat solve on a graph with as
+many nodes allocates nothing for the containers, unless a node keeps more labels than it ever did.
+
 ## How the labelling algorithms are built
 
 Every exact labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and

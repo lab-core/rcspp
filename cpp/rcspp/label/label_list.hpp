@@ -9,6 +9,7 @@
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/label/label.hpp"
+#include "rcspp/label/label_dominance.hpp"
 #include "rcspp/utils/spare_nodes.hpp"
 
 namespace rcspp {
@@ -148,7 +149,7 @@ class LabelList {
         /// @return `true` when @p lhs dominates @p rhs in this container's direction.
         [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
                                             const Label<ResourceType>& rhs) {
-            return Direction::template dominates<ResourceType>(lhs, rhs);
+            return detail::label_dominates<Direction>(lhs, rhs);
         }
 
         /// @brief Dominance over the components @p mask leaves in: each applies its own rule,
@@ -163,23 +164,7 @@ class LabelList {
         [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
                                             const Label<ResourceType>& rhs,
                                             const DominanceMask& mask) {
-            if constexpr (requires { lhs.get_resource().get_components(); }) {
-                size_t component = 0;
-                return lhs.get_resource().for_each_component_and(
-                    rhs.get_resource(),
-                    [&component, &mask](const auto& lhs_component, const auto& rhs_component) {
-                        if (mask.ignores(component++)) {
-                            return true;
-                        }
-                        if constexpr (Direction::backward) {
-                            return lhs_component.back_dominates(rhs_component);
-                        } else {
-                            return lhs_component <= rhs_component;
-                        }
-                    });
-            } else {
-                return mask.ignores(0) || dominates(lhs, rhs);
-            }
+            return detail::label_dominates<Direction>(lhs, rhs, mask);
         }
 
         /// @brief @ref remove_dominated_labels, with @p dominates the test.

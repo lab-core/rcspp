@@ -135,6 +135,11 @@ for (const Solution& solution : result.solutions) {
 :undoc-members:
 ```
 
+```{doxygenclass} rcspp::CostOrderedLabelList
+:members:
+:undoc-members:
+```
+
 ---
 
 ## Built-in Extension Functions

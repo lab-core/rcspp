@@ -132,14 +132,28 @@ class Cheapest {
         std::unordered_set<std::vector<size_t>, PathHash> kept_;
 };
 
-/// @brief @p labels, cheapest first.
+/// @brief Whether @p ContainerType keeps its labels in cost order, cheapest first, and says so
+///        with `static constexpr bool orders_by_cost = true` (@c CostOrderedLabelList): the join
+///        then reads them as they are instead of sorting them.
+template <typename ContainerType>
+inline constexpr bool orders_by_cost_v = [] {
+    if constexpr (requires { ContainerType::orders_by_cost; }) {
+        return static_cast<bool>(ContainerType::orders_by_cost);
+    } else {
+        return false;
+    }
+}();
+
+/// @brief @p labels, cheapest first; labels of equal cost keep their order.
 ///
-/// A strict order, as sorting requires: labels of equal cost keep no particular order, which the
-/// join's early exits (`cost >= bound`) do not depend on.
+/// Stable, so that the join pairs labels of equal cost in the container's order, which a
+/// container that keeps its labels in cost order (@ref orders_by_cost_v) gives as it is: the
+/// join's early exits (`cost >= bound`, and the incumbent prune, which keeps the first pair of a
+/// cost) then pick the same pairs on every container that stores the same labels in the same order.
 template <typename ResourceType>
 [[nodiscard]] std::vector<Label<ResourceType>*> cheapest_first(
     std::vector<Label<ResourceType>*> labels) {
-    std::ranges::sort(labels, std::less{}, &Label<ResourceType>::get_cost);
+    std::ranges::stable_sort(labels, std::less{}, &Label<ResourceType>::get_cost);
     return labels;
 }
 
@@ -162,16 +176,26 @@ template <typename ResourceType, typename ForwardContainerType>
         }
         labels.push_back(label);
     }
-    return cheapest_first<ResourceType>(std::move(labels));
+    if constexpr (orders_by_cost_v<ForwardContainerType>) {
+        return labels;  // read in cost order, and filtering keeps it
+    } else {
+        return cheapest_first<ResourceType>(std::move(labels));
+    }
 }
 
 /// @brief A node's labels, cheapest first.
 ///
-/// No label container guarantees a global cost order, which the join's early exits need.
+/// The join's early exits need a global cost order: read as it is from a container that keeps
+/// its labels in cost order (@ref orders_by_cost_v), sorted otherwise.
 template <typename ResourceType, typename ContainerType>
 [[nodiscard]] std::vector<Label<ResourceType>*> sorted_by_cost(const ContainerType& container) {
-    return cheapest_first<ResourceType>(
-        {container.get_labels().begin(), container.get_labels().end()});
+    const auto& labels = container.get_labels();
+    std::vector<Label<ResourceType>*> ordered(labels.begin(), labels.end());
+    if constexpr (orders_by_cost_v<ContainerType>) {
+        return ordered;
+    } else {
+        return cheapest_first<ResourceType>(std::move(ordered));
+    }
 }
 
 /// @brief Splices a boundary label's chain and a backward chain into one arc sequence.

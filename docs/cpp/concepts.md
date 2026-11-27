@@ -216,15 +216,19 @@ graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, arc_cost);
 ## Label containers
 
 The algorithm stores non-dominated labels at each node in a *label container*.
-Two built-in containers are provided:
+Three built-in containers are provided:
 
 | Type | Complexity | Best for |
 |---|---|---|
 | `LabelList<R>` (default) | O(N) dominance check | Few labels per node |
+| `CostOrderedLabelList<R>` | O(N), but only the labels whose costs allow a dominance are tested | A dominance function that declares a cost order |
 | `LabelBuckets<R>` | O(log B) dominance check | Many labels; partitioned by one resource |
 
 `LabelBuckets` requires a `BucketAlgorithmParams` specifying the bucket
-resource index and sort resource index.
+resource index and sort resource index. `CostOrderedLabelList` keeps each node's labels in cost
+order; when the composition dominance function promises that a dominance implies an order on the
+costs (`cost_order_tolerance`), it skips the pairs the costs rule out, and otherwise tests every
+stored label, as `LabelList` does (see "Cost-ordered label containers" in `docs/advanced/algorithms.md`).
 
 ---
 

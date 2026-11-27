@@ -46,9 +46,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} GTest::gtest_main)
 # Debug builds check every kept label cost against its cost function (Resource::get_cost): a change
 # of a component that did not invalidate the kept cost fails the test that made it. Both builds run
-# the kept costs as they ship; Debug adds the check (rcspp::kVerifyCostCache). One setting for the
-# whole executable: the headers must agree (ODR).
-target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:RCSPP_VERIFY_COST_CACHE>)
+# the kept costs as they ship; Debug adds the check (rcspp::kVerifyCostCache). Debug builds also
+# test every pair of labels a cost-ordered container skips (CostOrderedLabelList,
+# rcspp::kVerifyCostOrder): a dominance function whose declared cost order is wrong fails the test
+# that uses it. One setting for the whole executable: the headers must agree (ODR).
+target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:RCSPP_VERIFY_COST_CACHE>
+                                                  $<$<CONFIG:Debug>:RCSPP_VERIFY_COST_ORDER>)
 if(USE_COVERAGE)
   target_link_libraries(${PROJECT_NAME} rcspp_coverage)
 endif()
