@@ -372,6 +372,14 @@ benchmark 521, quick 8 passed (`F-164`); the plan branch on `0baf6bcd`. Pushed, 
 assigned to the user; no plan IDs in it). Draft comment on #105 (`I-60`, not filed). Rebasing onto another chat's work
 is asked first (`D-373`). `T-1.29` done 2026-11-26 (both commits reviewed). **Next:** CI on #128 once the GitHub stack
 lets it start.
+CI on the stack 2026-11-27 (#128 the first full run above #114; GitHub's stack removed by the user, which unstuck #125's
+mergeability): Windows Debug fails on #114 and #124 by `F-165` (fix on #99), and from #125 or #127 on `/bigobj`; ubuntu
+fails from #124 on `test_every_layer_stops_on_the_same_bound` (a 5 % gap reached only at the last iteration on Linux)
+and from #127 on its per-iteration layer comparison; macOS fails on #128's `absolute_gap = 10` (fires one iteration
+before the end on Windows only) and once on #97's processor-time test. `main` gained #112 (action bumps), which
+conflicts with #99's deletion of `benchmark.yml` (dry run: one conflict, keep the deletion). **Next (agreed with the
+user):** rebase #61-#124 onto `main` with the fixes on the way (few local builds, CI checks), then #125-#128 once #125's
+checks end.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
