@@ -321,5 +321,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "rcspp-vrp: " << error.what() << '\n';
         return 1;
     }
+
+    // HiGHS's worker threads live until the process exits, and on Windows the exit can end
+    // before std::cout's buffer is written: flush it while the program still runs.
+    std::cout.flush();
     return 0;
 }

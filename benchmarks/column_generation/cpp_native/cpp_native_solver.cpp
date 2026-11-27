@@ -1088,7 +1088,9 @@ int main(int argc, char* argv[]) {
     try {
         // Built whole first: an error must not leave a "RESULT" line behind.
         const std::string result = rcspp::run(options);
-        std::cout << "RESULT " << result << '\n';
+        // HiGHS's worker threads live until the process exits, and on Windows the exit can
+        // end before std::cout's buffer is written: flush the result while the program runs.
+        std::cout << "RESULT " << result << '\n' << std::flush;
     } catch (const rcspp::OptionsError& error) {
         std::cerr << "cpp-native-solver: " << error.what() << '\n';
         return 2;
