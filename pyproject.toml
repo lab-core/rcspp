@@ -44,6 +44,8 @@ cmake.args = [
   "-DUSE_PYTHON=ON",
   "-DUSE_TESTS=OFF",
   "-DUSE_VRP=OFF",
+  # The column generation example stays out of the wheel, whatever the environment sets.
+  "-DUSE_COLUMN_GENERATION_EXAMPLE=OFF",
 ]
 
 [tool.cibuildwheel]
