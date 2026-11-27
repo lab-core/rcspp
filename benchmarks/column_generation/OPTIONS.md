@@ -202,6 +202,12 @@ A heuristic stage should be followed by an exact one: without it, no iteration e
 `greedy` can enumerate every path; give it `max_solutions` and `timeout_s`. On the command line, `--stage` writes a
 stage as `algorithm:key=value,key=value`, a list as `key=[0,26]` (see [the command line](#the-command-line)).
 
+A bidirectional stage's `half_way_point` is a value of its `critical_resource_index`, which counts the graph's real
+resources: 0 the cost (the distance), 1 the time, 2 the load. The default, 0, cannot hold a half-way point: the search
+logs that it turns it off and runs both directions to their ends (the LP is the same, the search slower). On the time,
+about half the depot's closing time: `{ algorithm = "simple", direction = "bidirectional", half_way_point = 600,
+critical_resource_index = 1 }` on a C1 instance.
+
 Any of the three bucket keys makes the stage keep its labels in buckets (`BucketAlgorithmParams`) instead of a
 list: an exact stage only, since `greedy` and `tabu` keep their own path and never read the labels' container. The
 LP is the list's; only the time changes. For example

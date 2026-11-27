@@ -1,0 +1,163 @@
+# Every feature of the column generation through the benchmark, small enough for CI: HiGHS only, on
+# C101_10, and C102_10 where the route relaxations give different LPs. test_benchmark_all_features.py
+# runs it and checks the results; ../all_features.toml is the large version, run by hand.
+#
+# A new feature adds its runs here and in ../all_features.toml, and its check to the test.
+#
+# Each matrix lists both HiGHS masters: a layer keeps the ones it has (package: highspy;
+# cpp-bindings: both; cpp-native: highs), and the benchmark drops the others.
+
+[benchmark]
+processes = 4
+timeout = 300
+
+[defaults]
+instance = "C101_10"
+start = { type = "single-customer" }
+integer = { solve = false }
+
+# Exact pricing: every algorithm in every direction.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+]
+
+# Route relaxations on every layer, forward and bidirectional with label buckets: no relaxation
+# gives a lower LP than ng-routes, which give elementary routes' LP here; ng 10, the customer
+# count, is elementary.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C102_10"]
+graph = [
+  {},
+  { relaxation = "ng", ng_size = 4 },
+  { relaxation = "ng", ng_size = 10 },
+  { relaxation = "elementary" },
+]
+"pricing.stages" = [
+  [{ algorithm = "simple" }],
+  [{ algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+]
+
+# Preprocessing off.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+"pricing.preprocess" = [false]
+
+# Both starts on every layer and master.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+start = [{ type = "single-customer" }, { type = "artificial", cost_factor = 1e4 }]
+
+# Heuristic stages before the exact one.
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+"pricing.stages" = [
+  [{ algorithm = "greedy", max_solutions = 10, timeout_s = 1 }, { algorithm = "simple" }],
+  [{ algorithm = "tabu", max_iterations = 20 }, { algorithm = "simple" }],
+  [
+    { algorithm = "greedy", max_solutions = 10, timeout_s = 1 },
+    { algorithm = "tabu", max_iterations = 20 },
+    { algorithm = "simple" },
+  ],
+]
+
+# A search's own limits and options on an exact stage. A stage stopped early proves nothing, so
+# the ones that can stop before their first column are followed by a plain one. The half-way
+# point is on the time (the graph's second real resource), at about half of C101's horizon.
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+"pricing.stages" = [
+  [{ algorithm = "simple", max_solutions = 3 }],
+  [{ algorithm = "simple", timeout_s = 1e-4 }, { algorithm = "simple" }],
+  [{ algorithm = "simple", max_extended_labels_per_node = 2, max_phases = 3 }, { algorithm = "simple" }],
+  [{ algorithm = "simple", prune_by_incumbent = true }],
+  [{ algorithm = "simple", direction = "bidirectional", half_way_point = 600, critical_resource_index = 1 }],
+  [
+    { algorithm = "simple", direction = "bidirectional", timeout_s = 1e-4, join_after_early_stop = false },
+    { algorithm = "simple" },
+  ],
+]
+
+# The loop's limits, tolerances and threads.
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+column_generation = [
+  { max_iterations = 2 },
+  { timeout_s = 0 },
+  { tolerances = "relative" },
+  { threads = 2 },
+]
+
+# The stops on the lower bound, with a fleet row as large as the customers (the LP stays). The
+# gaps on C101_25, where they stop well before the end (iteration 16 of 21 on Windows) whatever
+# path the LP solver takes; on C101_10 the bound reaches the LP in one step near the end, and
+# the integer objective stop may not fire.
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+instance = [{ name = "C101_25", vehicles = 25 }]
+column_generation = [{ absolute_gap = 60 }, { relative_gap = 0.3 }]
+
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+instance = [{ name = "C101_10", vehicles = 10 }]
+column_generation = [
+  { cutoff = 1 },
+  { integer_objective = true },
+  { cutoff = 58, integer_objective = true },
+]
+
+# The integer solve after the loop, its routes checked against the instance.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+integer = [{ solve = true }]
+
+# Everything at once (an inline table stays on one line in TOML), and the reference run of its
+# problem: the package's forward simple search, on the same graph.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+graph = [{ relaxation = "ng", ng_size = 8 }]
+
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+instance = [{ name = "C101_10", vehicles = 10 }]
+graph = [{ relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+"pricing.stages" = [[
+  { algorithm = "greedy", max_solutions = 10, timeout_s = 1 },
+  { algorithm = "tabu", max_iterations = 20 },
+  { algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time", half_way_point = 600, critical_resource_index = 1 },
+  { algorithm = "pulling", prune_by_incumbent = true },
+]]
+column_generation = [{ relative_gap = 1e-3, tolerances = "relative" }]
+integer = [{ solve = true }]
+
+# A larger instance on every layer and master.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C101_25"]

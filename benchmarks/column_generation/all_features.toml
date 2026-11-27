@@ -1,0 +1,257 @@
+# Every feature of the column generation through the benchmark, the large version of
+# tests/all_features_quick.toml, run by hand (an hour or more; Gurobi needs a licence):
+#
+#   pytest tests/test_benchmark_all_features.py --all-features-file all_features.toml
+#
+# The test runs it and checks the results as it checks the quick file's. A new feature adds its runs
+# here and in the quick file, and its check to the test.
+#
+# A matrix that lists several masters runs each layer with the ones it has (package: highspy,
+# gurobipy; cpp-bindings: highspy, gurobipy, highs; cpp-native: highs, gurobi); the benchmark drops
+# the others. Elementary routes run on ten customers only: on twenty or more they take hours.
+
+[benchmark]
+processes = 4
+timeout = 1800
+
+[defaults]
+instance = "C101_25"
+start = { type = "single-customer" }
+integer = { solve = false }
+
+# Exact pricing on the package: every algorithm in every direction, plain, with label buckets, and
+# without preprocessing, with no route relaxation and with ng-routes.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+  [{ algorithm = "simple", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "simple", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pushing", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "pulling", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "forward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "backward", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "astar", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+]
+
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+]
+
+# The C++ layers: forward simple, plain, with buckets, bidirectional with buckets, and without
+# preprocessing.
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.stages" = [
+  [{ algorithm = "simple" }],
+  [{ algorithm = "simple", bucket_width = 20, bucket_resource = "time" }],
+  [{ algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time" }],
+]
+
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+graph = [{}, { relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+
+# Ten customers, every layer: no relaxation <= ng-routes <= elementary routes; ng 10, the customer
+# count, is elementary. C102_10's relaxations give different LPs, C101_10's the same.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C101_10", "C102_10"]
+graph = [
+  {},
+  { relaxation = "ng", ng_size = 4 },
+  { relaxation = "ng", ng_size = 8 },
+  { relaxation = "ng", ng_size = 10 },
+  { relaxation = "elementary" },
+]
+
+# Elementary routes through every exact algorithm and direction, on the package.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_10", "C102_10"]
+graph = [{ relaxation = "elementary" }]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "forward" }],
+  [{ algorithm = "simple", direction = "backward" }],
+  [{ algorithm = "simple", direction = "bidirectional" }],
+  [{ algorithm = "pushing", direction = "forward" }],
+  [{ algorithm = "pushing", direction = "backward" }],
+  [{ algorithm = "pushing", direction = "bidirectional" }],
+  [{ algorithm = "pulling", direction = "forward" }],
+  [{ algorithm = "pulling", direction = "backward" }],
+  [{ algorithm = "pulling", direction = "bidirectional" }],
+  [{ algorithm = "astar", direction = "forward" }],
+  [{ algorithm = "astar", direction = "backward" }],
+  [{ algorithm = "astar", direction = "bidirectional" }],
+]
+
+# Every master of every layer, both starts.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+start = [{ type = "single-customer" }, { type = "artificial", cost_factor = 1e4 }]
+
+# Heuristic stages before the exact one.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+"pricing.stages" = [
+  [{ algorithm = "greedy", max_solutions = 10, timeout_s = 1 }, { algorithm = "simple" }],
+  [{ algorithm = "tabu", max_iterations = 20 }, { algorithm = "simple" }],
+  [
+    { algorithm = "greedy", max_solutions = 10, timeout_s = 1 },
+    { algorithm = "tabu", max_iterations = 20 },
+    { algorithm = "simple" },
+  ],
+]
+
+# A search's own limits and options on an exact stage. A stage stopped early proves nothing, so
+# the ones that can stop before their first column are followed by a plain one. The half-way
+# point is on the time (the graph's second real resource), at about half of each horizon.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+"pricing.stages" = [
+  [{ algorithm = "simple", max_solutions = 3 }],
+  [{ algorithm = "simple", timeout_s = 1e-4 }, { algorithm = "simple" }],
+  [{ algorithm = "simple", max_extended_labels_per_node = 2, max_phases = 3 }, { algorithm = "simple" }],
+  [{ algorithm = "pulling", max_extended_labels_per_node = 2, max_phases = 3 }, { algorithm = "simple" }],
+  [{ algorithm = "simple", prune_by_incumbent = true }],
+  [{ algorithm = "astar", prune_by_incumbent = true }],
+  [
+    { algorithm = "simple", direction = "bidirectional", timeout_s = 1e-4, join_after_early_stop = false },
+    { algorithm = "simple" },
+  ],
+]
+
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["C101_25"]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "bidirectional", half_way_point = 600, critical_resource_index = 1 }],
+  [{ algorithm = "astar", direction = "bidirectional", half_way_point = 600, critical_resource_index = 1 }],
+]
+
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["R201_25"]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "bidirectional", half_way_point = 500, critical_resource_index = 1 }],
+]
+
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = ["RC201_12"]
+"pricing.stages" = [
+  [{ algorithm = "simple", direction = "bidirectional", half_way_point = 480, critical_resource_index = 1 }],
+]
+
+# The loop's limits, tolerances and threads, over every master.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+instance = ["C101_25", "R201_25"]
+column_generation = [
+  { max_iterations = 2 },
+  { timeout_s = 0 },
+  { tolerances = "relative" },
+  { threads = 2 },
+]
+
+# The stops on the lower bound, with a fleet row as large as the customers (the LP stays).
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "highs"]
+instance = [
+  { name = "C101_10", vehicles = 10 },
+  { name = "C101_25", vehicles = 25 },
+  { name = "R201_25", vehicles = 25 },
+  { name = "RC201_12", vehicles = 20 },
+]
+column_generation = [
+  { absolute_gap = 10 },
+  { relative_gap = 0.3 },
+  { cutoff = 1 },
+  { integer_objective = true },
+  { cutoff = 58, integer_objective = true },
+]
+
+# The integer solve after the loop, its routes checked against the instance, over every master.
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+instance = ["C101_25", "R201_25", "RC201_12"]
+integer = [{ solve = true }]
+
+# Everything at once (an inline table stays on one line in TOML), and the reference run of its
+# problem: the package's forward simple search, on the same graph.
+[[matrix]]
+layer = ["package"]
+master = ["highspy"]
+instance = ["C101_10"]
+graph = [{ relaxation = "ng", ng_size = 8 }]
+
+[[matrix]]
+layer = ["package", "cpp-bindings", "cpp-native"]
+master = ["highspy", "gurobipy", "highs", "gurobi"]
+instance = [{ name = "C101_25", vehicles = 25 }]
+graph = [{ relaxation = "ng", ng_size = 8 }]
+"pricing.preprocess" = [false]
+"pricing.stages" = [[
+  { algorithm = "greedy", max_solutions = 10, timeout_s = 1 },
+  { algorithm = "tabu", max_iterations = 20 },
+  { algorithm = "simple", direction = "bidirectional", bucket_width = 20, bucket_resource = "time", half_way_point = 600, critical_resource_index = 1 },
+  { algorithm = "pulling", prune_by_incumbent = true },
+]]
+column_generation = [{ relative_gap = 1e-3, tolerances = "relative" }]
+integer = [{ solve = true }]

@@ -15,6 +15,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from column_generation_benchmark import source_tree  # noqa: E402
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--all-features-file",
+        help="the benchmark file test_benchmark_all_features.py runs and checks, instead of its "
+        "quick file (for example all_features.toml, run by hand)",
+    )
+
+
 @pytest.fixture(scope="session")
 def build() -> Path:
     """The build rcspp is imported from: ``RCSPP_BENCHMARK_BUILD``, else the tree's only build.
