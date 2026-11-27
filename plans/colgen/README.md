@@ -414,6 +414,16 @@ check); the second changed `test_benchmark_script.py` only (49 passed). No measu
 (`debug-checks.md`). The large all-features file started on the server by the user on `f0a81cc7` (the first rebase's
 head: the same code). Pushed 2026-11-27 (`8cab04a1`), draft PR #131 on #128's branch (assigned to the user, `run-ci`;
 description `debug-checks-pr.md`, no plan IDs). **Next:** the server's result; CI on #131.
+`T-1.23` (parallel chat) designed and built 2026-11-27 (`analysis-tool.md`, `D-400`-`D-443`; this chat's IDs
+`D-400`+, `F-180`+, `I-80`+): `analysis.py` reads run folders and never solves: a core of pandas tables (rounds,
+iterations, pricers, stages, duals, solutions), commands `compare` (moved from `compare.py`), `convergence`,
+`sweep`, `draw`, each result an analysis folder with `analysis.json` (inputs with digests) and `command.txt`; docs
+in the benchmark's `ANALYSIS.md`. Branch `feature/column-generation-analysis` in `../rcspp-options`, rebased onto
+PR #131's head `8cab04a1` (the debug checks finished first): `a70afbc3` (core), `926c717a` (`compare`), `62bd4189`
+(`convergence`), `a3c0ef71` (`sweep`), `97ec7a7e` (`draw`), each reviewed by the user; plan branch on `97ec7a7e`
+(backup `backup/colgen-plan-before-analysis`). Real runs: `F-180`-`F-187`, the R201_25 ng sweep (LP 449.66 to
+461.30, ng 16 in 129 s). On #131's base: the benchmark's suite 613 passed (`build-python` rebuilt, after a
+reconfigure for #131's new C++ sources). Not pushed. **Next:** the PR on #131's branch (description drafted, no plan IDs).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
@@ -518,6 +528,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
 | `statistics-design.md` | `T-2.5`'s whole design: groups and switches, duals and master values, a pricer's details, the label count, the log, the benchmark's records, commits, checks, as built | working on `T-2.5` |
 | `all-features.md` | `T-1.29`: the all-features test's files, runs, checks and commits | working on `T-1.29` or adding a feature |
+| `analysis-tool.md` | `T-1.23`: the analysis tool's design (topics 1-10), the commands as designed, the drawing, as built | working on the analysis tool or adding a command |
 | `debug-checks.md` (+ `-pr`) | `T-2.7`: setup, commits as built, the overhead, the server run's commands, what is left; the PR description draft | working on `T-2.7` or a check |
 | `post-rebase-runs.md` | the server's check after the rebase onto the kernel stack: commands, files, the comparison | before starting or reading those runs |
 | `home-server-runs.md` | the home server's benchmarks and their analysis (`layers-50`), findings for the benchmark | before reading or running a benchmark there |
