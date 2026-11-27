@@ -108,15 +108,21 @@ column_generation = [
   { threads = 2 },
 ]
 
-# The stops on the lower bound, with a fleet row as large as the customers (the LP stays). Each
-# gap is wide enough to stop before the end; the integer objective stop may not fire here.
+# The stops on the lower bound, with a fleet row as large as the customers (the LP stays). The
+# gaps on C101_25, where they stop well before the end (iteration 16 of 21 on Windows) whatever
+# path the LP solver takes; on C101_10 the bound reaches the LP in one step near the end, and
+# the integer objective stop may not fire.
+[[matrix]]
+layer = ["package", "cpp-native"]
+master = ["highspy", "highs"]
+instance = [{ name = "C101_25", vehicles = 25 }]
+column_generation = [{ absolute_gap = 60 }, { relative_gap = 0.3 }]
+
 [[matrix]]
 layer = ["package", "cpp-native"]
 master = ["highspy", "highs"]
 instance = [{ name = "C101_10", vehicles = 10 }]
 column_generation = [
-  { absolute_gap = 10 },
-  { relative_gap = 0.3 },
   { cutoff = 1 },
   { integer_objective = true },
   { cutoff = 58, integer_objective = true },
