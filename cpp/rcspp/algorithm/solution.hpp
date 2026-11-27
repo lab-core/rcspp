@@ -100,10 +100,11 @@ struct Solution {
         /// @c path_arc_ids is modified directly (e.g., via the Python setter).
         void rehash() noexcept { init_hash(); }
 
-        /// @brief Total cost of the path (sum of arc costs along the route).
+        /// @brief Cost of the path: the cost resource's value at the end of the path.
         ///
-        /// Distinct from @c column.cost, which is the master-LP reduced cost used by
-        /// the pricing step. The two are normally equal but stored separately.
+        /// After @c ResourceGraph::update_reduced_costs, the cost resource holds each arc's
+        /// reduced cost, so this is the path's reduced cost, while @c column.cost stays the sum
+        /// of the arcs' original costs, with no dual. Without duals the two are normally equal.
         /// Defaults to @c +infinity (the RCSPP infeasible/unset sentinel).
         double cost = std::numeric_limits<double>::infinity();
 
