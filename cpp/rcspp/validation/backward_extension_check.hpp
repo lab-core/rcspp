@@ -158,10 +158,10 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// along `b` then `a` must cost what the forward start extended along `a` then `b` costs
         /// (@c arc_pair_probe::is_close). An addition passes; a maximum (a bottleneck) passes too,
         /// as it reads the same in either order; a floor or a ceiling on an addition does not,
-        /// though it may declare @c DirectionalResourceKind::Accumulate (one it declares,
-        /// @c ExtensionFunction::is_clamped, is refused before this, as not additive). Read on the
-        /// composed cost, the quantity the search compares. The model's own arcs are a sample, not
-        /// a proof.
+        /// though it may declare @c DirectionalResourceKind::Accumulate. A clamp the extension
+        /// declares (@c ExtensionFunction::is_clamped) never reaches this check: the model is
+        /// refused before it, as its cost is not additive. The check reads the composed cost, the
+        /// quantity the search compares. The model's own arcs are a sample, not a proof.
         ///
         /// A composition that cannot extend backward is reported elsewhere; this check then skips.
         ///
