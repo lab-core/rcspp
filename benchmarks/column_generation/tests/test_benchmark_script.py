@@ -541,10 +541,22 @@ def test_the_outcome_follows_the_exit_code_and_the_result(
 
 
 @pytest.mark.usefixtures("fake")
-def test_the_end_sample_takes_the_processor_time_the_runner_reports(build: Path, tmp_path: Path):
+def test_the_end_sample_takes_the_processor_time_the_runner_reports(
+    build: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     # More than the machine could give: the other processes then used nothing.
     plan(tmp_path, {FIRST: {"processor_seconds": 1e6}})
 
+    # A machine whose processors are busy for 100 s between two samples: the other
+    # processes always use some, whatever the real machine and its system's accounting.
+    count = 0
+
+    def sample() -> Sample:
+        nonlocal count
+        count += 1
+        return Sample(time.monotonic(), 100.0 * count, 1000.0 * count, 0, None, None)
+
+    monkeypatch.setattr(benchmark, "take_sample", sample)
     assert run(build, tmp_path, TWO_RUNS) == 0
 
     found = folders(tmp_path)
