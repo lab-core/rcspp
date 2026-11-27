@@ -108,3 +108,5 @@ Departures from the plan above, and what the runs showed:
   rebased onto `main` with fixes (`D-374`); #128 is now `723c34c2`, `4ac48ca9` and `5b03395c` (the quick file's gap
   stops on C101_25 with a fleet of 25: `absolute_gap = 60`, `relative_gap = 0.3`; the quick test 8 passed locally).
 - 2026-11-27: a second round of CI fixes (#97's end-sample test, #124's gap check); #128 is now `9617552a`.
+- 2026-11-27: a third round on #97 (the end-sample test on samples of known load, `4cba40de`); #128 is now `e5e94a84`;
+  CI green on every check of #97-#128.

@@ -395,7 +395,13 @@ Fixed on #97 `d1f60ceb` (a busy process during the runs), #124's commit amended 
 places); #97-#128 rebased and pushed (8 branches; #128 `9617552a`), `run-ci` re-added, CI watched; locally package
 705, benchmark 557, the end-sample test 30 of 30. The first of these rebases also moved another chat's local
 `feature/column-generation-analysis` (it pointed into the range): restored at once to `5b03395c` from its reflog.
-Plan branch on `9617552a` (backup `backup/colgen-plan-before-ci-fixes`). **Next:** read CI on #97-#128.
+Plan branch on `9617552a` (backup `backup/colgen-plan-before-ci-fixes`). CI on #97-#128 2026-11-27: the end-sample
+test still failed on macOS with a busy process (3 jobs in 16: the system's processor accounting, not a quiet machine),
+so #97's commit was amended to `4cba40de`: the test gives the benchmark samples of known load (the first run must give
+none, the second some; it fails when the end sample ignores the reported time); validated with a `_core`-only build in
+`../rcspp-rebase` (30 of 30, the file's 47 tests). #97-#128 rebased and pushed again (#128 `e5e94a84`), `run-ci`
+re-added: **every check of #97-#128 green**, so the whole stack passes at every head. The debug-checks chat moved its
+branch (#131) and the plan branch onto `e5e94a84` itself. **Next:** the stack's review and merge order, the user's.
 `T-2.7` designed and built 2026-11-27 (`debug-checks.md`, `D-380`-`D-391`; this chat's IDs `D-380`+, `F-170`+,
 `I-70`+): four switches (`pricer_reduced_costs`, `dual_signs`, `master_reduced_costs`, `objective`), off by default;
 a failed check raises `DebugCheckError`; the whole-master checks keep numpy arrays (`D-385`, the user's `D-16` choice);
