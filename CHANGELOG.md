@@ -381,8 +381,10 @@ New features are summarised, with a pointer to where they are documented.
   and the LP value against its columns' values (`objective`). The first check that fails raises
   `DebugCheckError`. An artificial column's `MasterColumn.solution` now holds its column (its cost
   and its one entry) instead of nothing. The C++ column generation example has the same, in C++
-  (`DebugCheckError` derives from `std::runtime_error`) and through its bindings. See "Checking a
-  master solver or a pricer" in `docs/advanced/column-generation.md`.
+  (`DebugCheckError` derives from `std::runtime_error`) and through its bindings, and the column
+  generation benchmark takes `column_generation.debug_checks`, a list of the checks' names, in its
+  three layers. See "Checking a master solver or a pricer" in
+  `docs/advanced/column-generation.md`.
 
 ### Fixed
 

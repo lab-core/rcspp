@@ -20,6 +20,7 @@ import package_runner
 import pytest
 from column_generation_benchmark import options, record, run_folder, runner, source_tree
 from column_generation_benchmark.instances import SolomonInstance
+from column_generation_benchmark.options.blocks import ColumnGeneration
 
 #: The runner of each layer.
 RUNNERS = {"package": package_runner, "cpp-bindings": cpp_bindings_runner}
@@ -371,6 +372,21 @@ def test_the_solution_covers_every_customer_once(
     # Strong duality: the duals times the right-hand sides give the objective.
     assert len(lp["duals"]) == 11
     assert sum(lp["duals"][1:]) == pytest.approx(lp["objective"])
+
+
+def test_every_debug_check_passes_in_every_layer(layer: str, build: Path, tmp_path: Path):
+    # Both starts: the artificial columns' entries are checked with the rest.
+    every_check = "[" + ", ".join(f'"{check}"' for check in ColumnGeneration.DEBUG_CHECKS) + "]"
+
+    for start in ("artificial", "single-customer"):
+        result = run(
+            layer,
+            build,
+            tmp_path / start,
+            *("--instance", "C101_10", "--start", start),
+            *("--column_generation.debug_checks", every_check),
+        )
+        assert result["status"] == "Optimal"
 
 
 def test_the_solution_can_be_left_out(layer: str, build: Path, tmp_path: Path):

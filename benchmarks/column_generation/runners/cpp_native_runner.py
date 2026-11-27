@@ -165,6 +165,9 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
     if settings.log_frequency:
         arguments += ["--log-frequency", str(settings.log_frequency)]
 
+    if settings.debug_checks:
+        arguments += ["--debug-checks", ",".join(settings.debug_checks)]
+
     # The file itself is given once the run's folder exists (main).
     if run.statistics.iterations:
         arguments += ["--iterations", ",".join(run.statistics.iterations)]
