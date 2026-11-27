@@ -370,15 +370,16 @@ void init_graph(py::module_& m) {
             [](PyAlgorithmParams& p, std::set<size_t> components) {
                 p.dominance_ignored_components = std::move(components);
             },
-            "Relaxed: the resources left out of dominance, by their position in the order they "
-            "were registered (0 is the first, the cost's with the default cost_index). Two labels "
-            "that differ only there compare as equal there. Assign the whole set: the value read "
-            "is a frozenset, a copy, so it has no add(). solve() raises ValueError for a position "
-            "the graph does not have, whatever the rule. Leaving out the bidirectional clock turns "
-            "the half-way point off. Messages from the search number resources the C++ way, by "
-            "type and then by registration order within a type: 'component N' in "
-            "result.bidirectional.half_way_off_reason and in the model checks' messages is in "
-            "that numbering, not in this one.")
+            "The resources that admission_rule Relaxed leaves out of dominance, given by their "
+            "position in the order they were registered (0 is the first, the cost's with the "
+            "default cost_index). Two labels that differ only in these resources compare as "
+            "equal there. Assign the whole set: the value read is a frozenset, a copy, with no "
+            "add(). solve() raises ValueError for a position the graph does not have, whatever "
+            "the rule. Leaving out the bidirectional clock turns the half-way point off. Note "
+            "that messages from the search number resources another way, the C++ way (by type, "
+            "then by registration order within a type): 'component N' in "
+            "result.bidirectional.half_way_off_reason and in the model checks' messages uses "
+            "that numbering, not this one.")
         .def_readwrite("max_admitted_labels_per_node",
                        &PyAlgorithmParams::max_admitted_labels_per_node,
                        "KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 "

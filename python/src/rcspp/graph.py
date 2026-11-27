@@ -582,9 +582,11 @@ class ResourceGraph:
             :class:`SolveResult` with a ``solutions`` list and an
             ``AlgorithmStatus`` indicating why the solver stopped.
 
-            A ``complete`` status alone does not prove the answer optimal: if
-            memory pressure dropped labels, only the labels that were kept were
-            all processed. ``result.proven`` says whether it is a proof, and
+            A ``complete`` status alone does not prove the answer optimal: the
+            search may have finished after dropping labels (memory pressure, an
+            ``admission_rule`` other than ``Exact``, ``prune_by_incumbent`` with
+            no valid completion bound) or after making arcs tabu.
+            ``result.proven`` says whether the answer is a proof, and
             ``result.proof_lost_by`` why not -- see
             :doc:`the algorithms guide </advanced/algorithms>`.
         """

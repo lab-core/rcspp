@@ -8,13 +8,14 @@
 
 namespace rcspp {
 
-/// @brief The components a dominance test leaves out: relaxed dominance compares labels over the
-///        others only, so more labels are dropped.
+/// @brief The components (resources of the model) that the @c Relaxed admission rule leaves out
+///        of dominance. Dominance then compares labels over the other components only, so it
+///        drops more labels.
 ///
-/// Components are numbered as @c AlgorithmBaseParams::dominance_ignored_components numbers them
-/// (and as the model checks' messages do): type slots in the order of the
-/// `ResourceGraph`'s template parameters, then registration order within a type. A component the
-/// mask was not sized for is compared. An empty mask leaves nothing out: dominance is exact.
+/// Components are numbered as @c AlgorithmBaseParams::dominance_ignored_components numbers them,
+/// and as the model checks' messages do: by type, in the order of the `ResourceGraph`'s template
+/// parameters, then in registration order within a type. A component the mask was not sized for
+/// is compared. An empty mask leaves nothing out, so dominance is exact.
 class DominanceMask {
     public:
         DominanceMask() = default;

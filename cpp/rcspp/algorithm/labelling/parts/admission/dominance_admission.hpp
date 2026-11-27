@@ -10,18 +10,21 @@
 
 namespace rcspp::parts {
 
-/// @brief Dominance, by the rule its context names. The rule is chosen at run time, so one
-///        instantiation serves every rule; the exact rule is the default.
+/// @brief The admission by dominance, under the rule its context names
+///        (@c AdmissionContext::rule). The rule is read at run time, so one instantiation
+///        serves every rule; the exact rule is the default.
 ///
-/// - @c Exact: a candidate is kept unless a label at its node dominates it, and evicts the labels
-///   it dominates there.
-/// - @c Relaxed: the same, over the components the context's mask leaves in.
-/// - @c KBest: exact dominance; then, at a node that already holds k labels, the candidate takes
-///   the place of the costliest (evicted, and marked dominated) when it costs less, and is
-///   dropped otherwise.
+/// - @c Exact: a candidate is kept unless a label at its node dominates it. When it is kept,
+///   it evicts the labels it dominates there.
+/// - @c Relaxed: the same, but dominance ignores the resource components the context's mask
+///   leaves out, so more labels are dropped.
+/// - @c KBest: exact dominance first. Then, if the node already holds k labels, the candidate
+///   takes the place of the costliest (which is evicted, and marked dominated) if it costs
+///   less, and is dropped otherwise.
 struct DominanceAdmission {
-        /// @brief Whether the rule keeps every label exact dominance keeps: @c Exact does, and
-        ///        the others at their limit (a mask that leaves nothing out, no limit on k).
+        /// @brief True if the rule keeps every label exact dominance keeps. @c Exact always
+        ///        does. @c Relaxed does when its mask ignores nothing, and @c KBest when k is
+        ///        @c kNoLimit.
         [[nodiscard]] static bool is_exact(const AdmissionContext& context) {
             switch (context.rule) {
                 case AdmissionRule::Exact:
@@ -34,9 +37,10 @@ struct DominanceAdmission {
             return true;
         }
 
-        /// @brief Whether @p candidate is kept at @p node; the labels it dominates there (over
-        ///        the components left in, under @c Relaxed) are evicted when it is, and so is the
-        ///        costliest when it takes its place under @c KBest.
+        /// @brief Returns true if @p candidate is kept at @p node. When it is kept, the labels
+        ///        it dominates there are evicted (under @c Relaxed, dominance over the components
+        ///        the mask leaves in). Under @c KBest, so is the costliest label, if the node was
+        ///        full.
         ///
         /// @param candidate The extended label, feasible and not yet stored.
         /// @param node      The view of the node it would be stored at.

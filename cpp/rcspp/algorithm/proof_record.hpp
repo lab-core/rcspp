@@ -16,21 +16,21 @@ namespace rcspp {
 /// so does a label abandoned by a side of a bidirectional search. The losses listed here are the
 /// ones a search that finished can still have suffered.
 enum class ProofLoss : std::uint8_t {
-    None,  ///< nothing: a complete solve is a proof
-    /// the arc mask set (@c Algorithm::set_arc_mask) is not all open: it leaves hard arcs out, or
-    /// has soft ones (a child filter may drop children along them; a search that reads no soft
-    /// arc loses the proof all the same)
+    None,  ///< nothing was lost: a complete solve is a proof
+    /// The arc mask (@c Algorithm::set_arc_mask) has hard or soft arcs. A hard arc is left out;
+    /// a child filter may drop the children reached along a soft arc. A mask with soft arcs loses
+    /// the proof even for a search that ignores them.
     ArcsMasked,
-    /// the admission rule is not exact (@c Relaxed with a component left out, @c KBest with a
-    /// limit, or a rule of one's own): it may drop a label dominance keeps
+    /// The admission rule is not exact (@c Relaxed with a component left out, @c KBest with a
+    /// limit, or a rule of one's own), so it may drop a label that dominance would keep.
     RelaxedAdmission,
     MemoryPressure,  ///< memory pressure trimmed the labels, and may have released some
-    /// a heuristic changed the search between runs: a tabu search's driver, once it makes an arc
-    /// tabu (DiversificationSearch records it too, but is never proven anyway)
+    /// A heuristic driver changed the search between runs: a tabu search made an arc tabu.
+    /// @c DiversificationSearch records it too, although it is never proven anyway.
     HeuristicDriver,
-    /// the incumbent prune compared a label's cost alone (the completion bound is not valid: the
-    /// cost is not additive, or an arc adds less than its share): it may have dropped the
-    /// cheapest path
+    /// The incumbent prune compared a label's cost alone, because the completion bound is not
+    /// valid (the cost is not additive, or an arc adds less than its share). It may have dropped
+    /// the cheapest path.
     IncumbentPrune,
 };
 

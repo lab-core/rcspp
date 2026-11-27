@@ -218,10 +218,13 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         }
 
         /// @brief Marks and removes all labels @p label dominates over the components @p mask
-        ///        leaves in. The early exits stay: they skip the labels that the bucket and sort
-        ///        resources say cannot be dominated. So when the mask leaves out the bucket or
-        ///        the sort resource, some labels the mask would drop are never compared and are
-        ///        kept: buckets relax less than a @c LabelList with the same mask, never more.
+        ///        leaves in.
+        ///
+        /// It stops early in the same places as the exact test: it uses the bucket resource and
+        /// the sort resource to skip the labels that cannot be dominated. If the mask leaves out
+        /// the bucket or the sort resource, that shortcut may skip labels that @p label
+        /// dominates over the components left in. Those labels are kept. So buckets drop fewer
+        /// labels than a @c LabelList with the same mask, never more.
         ///
         /// @return Number of labels removed.
         size_t remove_dominated_labels(const Label<ResourceType>& label,
@@ -246,7 +249,11 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         }
 
         /// @brief Returns true if any stored label dominates @p label over the components
-        ///        @p mask leaves in, with the same early exits as the exact test.
+        ///        @p mask leaves in.
+        ///
+        /// It stops early in the same places as the exact test. So, as in
+        /// @ref remove_dominated_labels, if the mask leaves out the bucket or the sort resource,
+        /// it may miss a label that dominates @p label, which is then kept.
         [[nodiscard]] bool is_dominated(const Label<ResourceType>& label,
                                         const DominanceMask& mask) const override {
             return is_dominated_with(

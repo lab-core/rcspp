@@ -109,10 +109,13 @@ class LabelList {
                 });
         }
 
-        /// @brief Removes the costliest label when it costs more than @p cost (of labels of equal
-        ///        cost, the last in the container's order), and marks it dominated, as an evicted
-        ///        label is, so that a schedule still holding it releases it when taken instead of
-        ///        extending it.
+        /// @brief Removes the costliest label if it costs more than @p cost, and marks it
+        ///        dominated. The k-best admission rule uses it to make room for a cheaper label.
+        ///
+        /// Of labels of equal cost, the last in the container's order is removed. It is marked
+        /// dominated, as an evicted label is, so that a schedule still holding it releases it
+        /// when it comes up instead of extending it.
+        ///
         /// @return Whether a label was removed.
         bool remove_costliest_above(double cost) {
             auto costliest = labels_.end();
@@ -141,10 +144,13 @@ class LabelList {
             return Direction::template dominates<ResourceType>(lhs, rhs);
         }
 
-        /// @brief Dominance over the components @p mask leaves in: each applies its own rule,
-        ///        in this container's direction, as `CompositionDominanceFunction` does, whatever
-        ///        composition dominance function the model uses. A resource that is not a
-        ///        composition has one component.
+        /// @brief Dominance over the components @p mask leaves in.
+        ///
+        /// Each component left in is compared by its own rule, in this container's direction
+        /// (`<=` forward, `back_dominates` backward), as `CompositionDominanceFunction` does. The
+        /// components left out are skipped. This holds whatever dominance function the model
+        /// gives the composition. A resource that is not a composition counts as one component,
+        /// number 0: if the mask leaves it out, @p lhs always dominates.
         ///
         /// @param lhs  The candidate dominating label.
         /// @param rhs  The label being tested.

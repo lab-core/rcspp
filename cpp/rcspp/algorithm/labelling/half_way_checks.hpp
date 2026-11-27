@@ -116,7 +116,10 @@ template <typename CriticalResourceType, typename ResourceType>
 }
 
 /// @brief The clock's index among all the components of a resource of @p graph, in the numbering
-///        `dominance_ignored_components` uses, found by address on any node's resource.
+///        `dominance_ignored_components` uses.
+///
+/// It is found on the first node that carries a resource, by comparing the clock's address with
+/// the address of each component in turn.
 ///
 /// @return The index, or @c std::nullopt when no node carries a resource or the clock's type is
 ///         absent.
@@ -164,10 +167,15 @@ inline void report_half_way_off(HalfWayOff reason, const std::string& why) {
 /// @brief Why the half-way point must be off on this model, or none; a reason is also reported
 ///        (@ref report_half_way_off).
 ///
-/// The eight checks, in this order: the critical type absent from the model; no
-/// `half_way_point` given; the index out of range; not a threshold; no ceiling at a sink; not
-/// monotone; not increasing in the dominance order; left out of dominance by the relaxed
-/// admission rule.
+/// The eight checks, in this order. The point is turned off when:
+/// - the critical type is absent from the model;
+/// - no `half_way_point` is given;
+/// - `critical_resource_index` is out of range;
+/// - the clock is not a threshold;
+/// - the clock's extension sets no ceiling at a sink;
+/// - the clock is not monotone;
+/// - the clock is not increasing in the dominance order;
+/// - the relaxed admission rule leaves the clock out of dominance.
 ///
 /// These checks never throw. The model checks a bidirectional search needs
 /// (`BackwardExtensionCheck`, `JoinCheck`) already passed before the solve, so the solve is correct

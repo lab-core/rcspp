@@ -402,8 +402,11 @@ class Algorithm {
             dominance_mask_ = admission_mask(*graph);
         }
 
-        /// @brief The mask the relaxed rule compares over, sized for @p graph's resource; empty
-        ///        under any other rule. The k-best rule's k is checked too.
+        /// @brief Builds the mask of the components that the @c Relaxed admission rule leaves out
+        ///        of dominance (@c dominance_ignored_components), sized for @p graph's resource.
+        ///        Under any other rule, the mask is empty.
+        ///
+        /// It also checks that the @c KBest rule keeps at least one label.
         ///
         /// @throws std::invalid_argument when `dominance_ignored_components` names a component
         ///         the model does not have, or when `KBest` would keep no label
@@ -918,9 +921,11 @@ class Algorithm {
         ///        (@c prune_by_incumbent) and the join compare with it.
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
-        const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
+        const ArcMask* arc_mask_ = nullptr;  ///< see @ref set_arc_mask; null for no mask
         bool graph_unchanged_ = false;       ///< see @ref set_graph_unchanged
-        DominanceMask dominance_mask_;  ///< the relaxed rule's, built at the start of each solve
+        /// @brief The components the @c Relaxed rule leaves out of dominance
+        ///        (@ref admission_mask); built again at the start of each solve.
+        DominanceMask dominance_mask_;
 
         /// @brief The first reason this solve is not a proof that its status does not show
         ///        (@c ProofLoss). @ref initialize resets it.
