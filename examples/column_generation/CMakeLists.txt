@@ -22,6 +22,20 @@ target_include_directories(rcspp_column_generation_headers INTERFACE
 
 add_subdirectory(cpp/rcspp/column_generation)
 
+# MARK: Gurobi master solver
+
+# Asked for explicitly, so a missing Gurobi or a missing C++ library is an error, not a skip.
+if(USE_COLUMN_GENERATION_EXAMPLE_GUROBI)
+  set(GUROBI_REQUIRE_CXX ON)
+  find_package(GUROBI REQUIRED)
+  if(NOT TARGET GUROBI::gurobi_cxx)
+    message(FATAL_ERROR
+            "USE_COLUMN_GENERATION_EXAMPLE_GUROBI needs the Gurobi C++ library (gurobi_c++); "
+            "pass -DGUROBI_CXX_LIBRARY=<path>.")
+  endif()
+  add_subdirectory(cpp/rcspp/column_generation/gurobi)
+endif()
+
 # MARK: Tests
 
 if(USE_TESTS)
