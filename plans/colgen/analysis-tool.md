@@ -112,4 +112,4 @@ hand for `summary` and `compare`'s tests.
 | commits | `a70afbc3` the core; `926c717a` `compare` moved, `ANALYSIS.md`; `62bd4189` `convergence`; `a3c0ef71` `sweep`; `97ec7a7e` `draw` (each reviewed by the user) |
 | docs | `ANALYSIS.md` beside the benchmark's README, which keeps a short section and the command table (the user, after commit 4: the README grew too fast) |
 | checks | the benchmark suite 606 passed on #128's base, 613 on #131's; pyright strict and pre-commit clean; `D-440`'s done-when on real runs (folders in the worktree's ignored `results/`) |
-| PR | description drafted (no plan IDs); not pushed |
+| PR | draft #132 on #131's branch, assigned to the user, `run-ci` (no plan IDs) |

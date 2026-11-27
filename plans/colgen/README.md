@@ -423,7 +423,8 @@ PR #131's head `8cab04a1` (the debug checks finished first): `a70afbc3` (core), 
 (`convergence`), `a3c0ef71` (`sweep`), `97ec7a7e` (`draw`), each reviewed by the user; plan branch on `97ec7a7e`
 (backup `backup/colgen-plan-before-analysis`). Real runs: `F-180`-`F-187`, the R201_25 ng sweep (LP 449.66 to
 461.30, ng 16 in 129 s). On #131's base: the benchmark's suite 613 passed (`build-python` rebuilt, after a
-reconfigure for #131's new C++ sources). Not pushed. **Next:** the PR on #131's branch (description drafted, no plan IDs).
+reconfigure for #131's new C++ sources). Pushed 2026-11-27 with the plan branch (force-pushed onto `97ec7a7e`);
+draft PR #132 on #131's branch (assigned to the user, `run-ci`; no plan IDs). **Next:** CI on #132, then review.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
