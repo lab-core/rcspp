@@ -8,6 +8,7 @@ from rcspp._core.cpp_column_generation import ColumnGenerationParams as _CppColu
 from rcspp._core.cpp_column_generation import (
     ConvergenceAction,
     ConvergenceContext,
+    DebugChecks,
     IterationInfo,
     MasterInitialization,
     RelaxationParams,
@@ -49,6 +50,8 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
         on_iteration: Called after every iteration with an :class:`IterationInfo`.
         on_converged: Called after each proven convergence with a
             :class:`ConvergenceContext`; returns a :class:`ConvergenceAction`.
+        debug_checks: Which checks of the master solver and the pricers to make, all off by
+            default; a failed one raises :class:`DebugCheckError`.
 
     The stops on the gap and the cutoff are checked after an iteration that added columns
     and has a lower bound, in this order: the cutoff, the absolute gap, the relative gap, the
@@ -73,6 +76,7 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
         log_frequency: int | None = None,
         on_iteration: Callable[[IterationInfo], None] | None = None,
         on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None,
+        debug_checks: DebugChecks | None = None,
     ) -> None:
         super().__init__()
         if max_iterations is not None:
@@ -93,6 +97,8 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
             self.integer_objective = integer_objective
         if log_frequency is not None:
             self.log_frequency = log_frequency
+        if debug_checks is not None:
+            self.debug_checks = debug_checks
         self.tolerances = make_tolerances(tolerances) if isinstance(tolerances, str) else tolerances
         self.initialization = (
             make_initialization(initialization)

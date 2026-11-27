@@ -12,6 +12,7 @@ import tomllib
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from column_generation_benchmark import options
@@ -971,6 +972,14 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         (RUN + 'statistics = { iterations = ["search"] }\n', "search needs pricers"),
         (RUN + "column_generation = { log_frequency = -1 }\n", "log_frequency must be 0 or more"),
         (RUN + "column_generation = { log_frequency = 2.5 }\n", "2.5 is not a whole number"),
+        (
+            RUN + 'column_generation = { debug_checks = "dual_signs" }\n',
+            "debug_checks is a list of check names",
+        ),
+        (
+            RUN + 'column_generation = { debug_checks = ["signs"] }\n',
+            "debug_checks: 'signs' is not one of pricer_reduced_costs",
+        ),
         (RUN + "pricing = { stages = [] }\n", "non-empty list"),
         (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
         (RUN + '"pricing.preprocess" = "no"\n', "'no' is not true or false"),
@@ -1122,3 +1131,27 @@ def test_the_iterations_groups_keep_one_order_whatever_the_table_gives():
     assert given == ordered
     assert given.to_table()["statistics"]["iterations"] == ["times", "duals"]
     assert options.expand_run({"instance": "C101_25"}).statistics.iterations == ()
+
+
+def test_the_debug_checks_keep_one_order_and_none_leaves_the_name():
+    def expanded(checks: list[str] | None) -> Any:
+        given: dict[str, Any] = {"instance": "C101_25"}
+
+        if checks is not None:
+            given["column_generation"] = {"debug_checks": checks}
+
+        return options.expand_run(given)
+
+    given = expanded(["objective", "dual_signs"])
+    assert given.column_generation.debug_checks == ("dual_signs", "objective")
+    assert given == expanded(["dual_signs", "objective"])
+    assert given.to_table()["column_generation"]["debug_checks"] == ["dual_signs", "objective"]
+    assert given.column_generation.debug_check_switches() == {"dual_signs": True, "objective": True}
+
+    # None, and an empty list, make no check and leave the run's table, and so its name, as
+    # they were.
+    plain = expanded(None)
+    assert plain.column_generation.debug_checks is None
+    assert plain.column_generation.debug_check_switches() == {}
+    assert expanded([]) == plain
+    assert "debug_checks" not in plain.to_table().get("column_generation", {})

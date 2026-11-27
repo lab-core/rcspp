@@ -43,6 +43,7 @@ from rcspp.column_generation import (  # noqa: E402
     ConvergenceAction,
     ConvergenceContext,
     ConvexityRow,
+    DebugChecks,
     GraphPricer,
     IntegerParams,
     IterationInfo,
@@ -283,10 +284,14 @@ def test_every_feature_together_gives_the_lp_and_a_plan(
 
         return ConvergenceAction.Stop
 
+    # Every debug check on: the master solver and the pricers agree at every iteration.
     params = ColumnGenerationParams(
         tolerances="relative",
         on_iteration=seen.append,
         on_converged=on_converged,
+        debug_checks=DebugChecks(
+            pricer_reduced_costs=True, dual_signs=True, master_reduced_costs=True, objective=True
+        ),
     )
     loop = ColumnGeneration(master, params)
     result = loop.run()

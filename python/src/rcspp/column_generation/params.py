@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .convergence import ConvergenceAction, ConvergenceContext
+from .debug_checks import DebugChecks
 from .master_initialization import ArtificialColumns, MasterInitialization
 from .statistics import IterationInfo, StatisticsParams
 from .tolerances import AbsoluteTolerances, Tolerances
@@ -43,6 +44,8 @@ class ColumnGenerationParams:
         on_iteration: Called after every iteration with an :class:`IterationInfo`.
         on_converged: Called after each proven convergence with a
             :class:`ConvergenceContext`; returns a :class:`ConvergenceAction`.
+        debug_checks: Which checks of the master solver and the pricers to make, all off by
+            default; a failed one raises :class:`DebugCheckError`.
 
     The stops on the gap and the cutoff are checked after an iteration that added columns
     and has a lower bound, in this order: the cutoff, the absolute gap, the relative gap, the
@@ -67,6 +70,7 @@ class ColumnGenerationParams:
     log_frequency: int = 0
     on_iteration: Callable[[IterationInfo], None] | None = None
     on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None
+    debug_checks: DebugChecks = field(default_factory=DebugChecks)
 
     def __post_init__(self) -> None:
         # A negative gap would silently never stop the run.

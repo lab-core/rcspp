@@ -18,6 +18,9 @@ timeout = 1800
 instance = "C101_25"
 start = { type = "single-customer" }
 integer = { solve = false }
+# Every run checks that its master solver and its pricer agree: a failed check crashes the run.
+# Merged into each matrix's own column_generation table.
+column_generation = { debug_checks = ["pricer_reduced_costs", "dual_signs", "master_reduced_costs", "objective"] }
 
 # Exact pricing on the package: every algorithm in every direction, plain, with label buckets, and
 # without preprocessing, with no route relaxation and with ng-routes.

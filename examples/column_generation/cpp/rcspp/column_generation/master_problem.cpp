@@ -115,13 +115,17 @@ void MasterProblem::add_artificial_columns(std::span<const size_t> rows,
 
     send_batch();
 
+    // Each keeps its entry, so that its column can be read back like a real one.
     for (size_t i = 0; i < rows.size(); ++i) {
         artificial_column_ids_.push_back(columns_.size());
         artificial_cost_ = cost;
+        Solution solution;
+        solution.column =
+            Column{.cost = cost, .rows = {Row{.index = rows[i], .coefficient = coefficients[i]}}};
         columns_.push_back({.id = columns_.size(),
                             .pricer = no_pricer,
                             .tag = ColumnTag::Artificial,
-                            .solution = {}});
+                            .solution = std::move(solution)});
     }
 }
 

@@ -117,6 +117,7 @@ def build(
         ColumnGeneration,
         ColumnGenerationParams,
         ConvexityRow,
+        DebugChecks,
         GraphPricer,
         MasterProblem,
         NoInitialization,
@@ -174,6 +175,7 @@ def build(
     if settings.log_frequency:
         params.log_frequency = settings.log_frequency
 
+    params.debug_checks = DebugChecks(**settings.debug_check_switches())
     params.statistics = StatisticsParams(**statistics_switches(run.statistics.iterations))
     params.on_iteration = on_iteration
     return instance, master, ColumnGeneration(master, params)

@@ -19,6 +19,7 @@ solver. Tolerances and initializations can also be given by name
 from . import registry
 from .column_generation_loop import ColumnGeneration, ColumnGenerationResult, ColumnGenerationStatus
 from .convergence import ConvergenceAction, ConvergenceContext
+from .debug_checks import DebugCheckError, DebugChecks
 from .graph_pricer import GraphPricer, PricingStage, Search, StageRequest
 from .master_initialization import ArtificialColumns, MasterInitialization, NoInitialization
 from .master_problem import (
@@ -90,6 +91,8 @@ __all__ = [
     "ConvergenceAction",
     "ConvergenceContext",
     "ConvexityRow",
+    "DebugCheckError",
+    "DebugChecks",
     "GraphPricer",
     "GurobipyMasterSolver",
     "HighspyMasterSolver",

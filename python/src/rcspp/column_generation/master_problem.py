@@ -12,7 +12,7 @@ from typing import Any, Protocol, cast
 
 import numpy as np
 
-from .._core.graph import Solution
+from .._core.graph import Column, Row, Solution
 from .master_solver import MasterSolver
 from .pricer import Pricer
 from .types import (
@@ -62,8 +62,8 @@ class MasterColumn:
     #: Index of the pricer it belongs to; ``None`` for an artificial column.
     pricer: int | None
     tag: ColumnTag
-    #: The pricer's solution: for a graph pricer, the path and its column; empty for an
-    #: artificial column.
+    #: The pricer's solution: for a graph pricer, the path and its column. An artificial
+    #: column has no path, and its column holds its cost and its one entry.
     solution: Solution = field(default_factory=Solution)
 
 
@@ -333,8 +333,16 @@ class MasterProblem:
         self._artificial_column_ids.extend(range(len(self._columns), len(self._columns) + count))
         self._artificial_cost = cost
 
-        for _ in range(count):
-            self._columns.append(MasterColumn(len(self._columns), None, ColumnTag.Artificial))
+        # Each keeps its entry, so that its column can be read back like a real one.
+        for row, value in zip(row_indices.tolist(), values.tolist(), strict=True):
+            column = Column()
+            column.cost = cost
+            column.rows = [Row(index=row, coefficient=value)]
+            solution = Solution()
+            solution.column = column
+            self._columns.append(
+                MasterColumn(len(self._columns), None, ColumnTag.Artificial, solution)
+            )
 
     # MARK: What the master holds
 

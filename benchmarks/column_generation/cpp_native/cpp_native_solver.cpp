@@ -40,6 +40,9 @@
 //                                   --integer-column-type binary|integer, --integer-threads N
 //   --solution                      read the last LP's solution
 //   --log-frequency N               log a line every N iterations, the last one and the end
+//   --debug-checks CHECKS           check the master solver and the pricer: a comma list of
+//                                   pricer_reduced_costs, dual_signs, master_reduced_costs,
+//                                   objective; a failed check ends the run with exit code 1
 //   --iterations GROUPS             what each iteration records: a comma list of times, pricers,
 //                                   search (needs pricers), duals, master_values, columns
 //   --iterations-file PATH          where: one JSON line per iteration, flushed as it is written
@@ -222,6 +225,7 @@ struct Options {
         std::optional<int> integer_threads;
         bool solution = false;
         std::optional<size_t> log_frequency;
+        std::set<std::string> debug_checks;
         std::set<std::string> iterations;
         std::string iterations_file;
         bool check = false;
@@ -230,6 +234,10 @@ struct Options {
 // The groups --iterations may list, as the benchmark's statistics.iterations.
 const std::set<std::string> iteration_groups = {
     "times", "pricers", "search", "duals", "master_values", "columns"};
+
+// The checks --debug-checks may list, as the benchmark's column_generation.debug_checks.
+const std::set<std::string> debug_check_names = {
+    "pricer_reduced_costs", "dual_signs", "master_reduced_costs", "objective"};
 
 double to_double(std::string_view what, const std::string& text) {
     if (text == "inf") {
@@ -368,6 +376,14 @@ void check_options(const Options& options) {
     if (!options.iterations_file.empty() && options.iterations.empty()) {
         throw OptionsError("--iterations-file comes with --iterations");
     }
+    for (const std::string& check : options.debug_checks) {
+        if (!debug_check_names.contains(check)) {
+            throw OptionsError(
+                std::format("--debug-checks: '{}' is not one of pricer_reduced_costs, dual_signs, "
+                            "master_reduced_costs, objective",
+                            check));
+        }
+    }
     check_master_options(options);
 }
 
@@ -442,6 +458,14 @@ Options parse_options(const std::vector<std::string>& arguments) {
              }
          }},
         {"--iterations-file", [&] { options.iterations_file = value(); }},
+        {"--debug-checks",
+         [&] {
+             std::istringstream items(value());
+             std::string item;
+             while (std::getline(items, item, ',')) {
+                 options.debug_checks.insert(item);
+             }
+         }},
         {"--check", [&] { options.check = true; }},
     };
 
@@ -1212,6 +1236,12 @@ struct Model {
             params.cutoff = options.cutoff.value_or(params.cutoff);
             params.integer_objective = options.integer_objective;
             params.log_frequency = options.log_frequency.value_or(0);
+
+            const std::set<std::string>& checks = options.debug_checks;
+            params.debug_checks = {.pricer_reduced_costs = checks.contains("pricer_reduced_costs"),
+                                   .dual_signs = checks.contains("dual_signs"),
+                                   .master_reduced_costs = checks.contains("master_reduced_costs"),
+                                   .objective = checks.contains("objective")};
 
             // Each iteration's line is written and flushed as it comes, once the file is given.
             const std::set<std::string>& groups = options.iterations;

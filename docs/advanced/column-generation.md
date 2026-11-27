@@ -379,6 +379,36 @@ params = ColumnGenerationParams(
 )
 ```
 
+#### Checking a master solver or a pricer
+
+A master solver or a pricer of your own can be wrong in ways that still give a run that ends: duals
+of the wrong sign, a pricer that applies them to the wrong rows. `DebugChecks` checks each answer
+against the others, after every LP solve or pricing call, and raises `DebugCheckError` (with the
+check's name and the iteration) at the first that fails. Each check is off by default:
+
+| switch | what must hold | cost per iteration |
+|---|---|---|
+| `pricer_reduced_costs` | each new column's reduced cost (`Solution.cost`) is its cost minus the duals of its rows (the convexity row's left out) | the new columns' entries |
+| `dual_signs` | a `<=` row's dual is at most 0, a `>=` row's at least 0, a row with no bound's 0 | one pass over the rows |
+| `master_reduced_costs` | no column of the master has a negative reduced cost, and those the LP solution uses have 0 | every entry of the master, one read of every column's value |
+| `objective` | the LP value is the cost of its columns' values; checked only when your own variables cost nothing | one read of every column's value |
+
+They all allow the run's reduced-cost tolerance, the larger of the tolerances' `reduced_cost` and
+the master solver's `dual_tolerance()`, scaled by the size of the costs and duals involved. A row
+with two different finite bounds is not checked by `dual_signs`, as its sign depends on the bound
+the LP reaches. Variables you add to the master's model yourself are not seen by
+`master_reduced_costs`, and a constant in your model's objective fails `objective`.
+
+<!-- docs test: fragment -->
+
+```python
+from rcspp.column_generation import DebugChecks
+
+params = ColumnGenerationParams(
+    debug_checks=DebugChecks(pricer_reduced_costs=True, dual_signs=True, master_reduced_costs=True)
+)
+```
+
 ### Several pricers
 
 Each pricer is one block of the master, e.g. one vehicle type: give each its own graph and its own

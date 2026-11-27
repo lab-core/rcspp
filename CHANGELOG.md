@@ -374,6 +374,17 @@ New features are summarised, with a pointer to where they are documented.
   the run goes, with the groups `statistics.iterations` lists, and takes
   `column_generation.log_frequency`. See "What each iteration did" in
   `docs/advanced/column-generation.md`.
+- **Debug checks of a column generation run.** `ColumnGenerationParams.debug_checks` takes a
+  `DebugChecks`, whose switches (all off by default) check each new column's reduced cost against
+  its cost, its rows and the duals (`pricer_reduced_costs`), the duals' signs against their rows'
+  bounds (`dual_signs`), the reduced cost of every column of the master (`master_reduced_costs`),
+  and the LP value against its columns' values (`objective`). The first check that fails raises
+  `DebugCheckError`. An artificial column's `MasterColumn.solution` now holds its column (its cost
+  and its one entry) instead of nothing. The C++ column generation example has the same, in C++
+  (`DebugCheckError` derives from `std::runtime_error`) and through its bindings, and the column
+  generation benchmark takes `column_generation.debug_checks`, a list of the checks' names, in its
+  three layers. See "Checking a master solver or a pricer" in
+  `docs/advanced/column-generation.md`.
 
 ### Fixed
 

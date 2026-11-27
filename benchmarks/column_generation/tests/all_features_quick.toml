@@ -15,6 +15,9 @@ timeout = 300
 instance = "C101_10"
 start = { type = "single-customer" }
 integer = { solve = false }
+# Every run checks that its master solver and its pricer agree: a failed check crashes the run.
+# Merged into each matrix's own column_generation table.
+column_generation = { debug_checks = ["pricer_reduced_costs", "dual_signs", "master_reduced_costs", "objective"] }
 
 # Exact pricing: every algorithm in every direction.
 [[matrix]]

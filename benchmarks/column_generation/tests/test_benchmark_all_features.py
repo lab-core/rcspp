@@ -27,6 +27,7 @@ import benchmark
 import pytest
 from column_generation_benchmark import run_folder, source_tree
 from column_generation_benchmark.instances import SolomonInstance
+from column_generation_benchmark.options.blocks import ColumnGeneration
 from test_benchmark_runners import has_example, has_gurobi
 
 QUICK_FILE = Path(__file__).resolve().parent / "all_features_quick.toml"
@@ -330,6 +331,15 @@ def test_the_integer_solution_passes_its_check_and_costs_at_least_the_lp(
         assert run.result["integer_status"] == "Optimal", run.name
         assert run.result["solution_check"] == "passed", run.name
         assert run.result["integer_objective"] >= lp - TOLERANCE * max(1.0, abs(lp)), run.name
+
+
+def test_every_run_made_every_debug_check(runs: list[Run]):
+    # A failed check crashes its run, which fails the benchmark above; here, that no matrix's
+    # own column_generation table dropped the checks of the file's defaults.
+    every_check = list(ColumnGeneration.DEBUG_CHECKS)
+    wrong = [run.name for run in runs if run.settings.get("debug_checks") != every_check]
+
+    assert not wrong, f"runs without every debug check: {wrong}"
 
 
 def test_a_half_way_point_is_used(runs: list[Run]):

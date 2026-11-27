@@ -279,6 +279,10 @@ def test_the_graph_options_are_flags():
         (["--iterations", "search"], "--iterations: search needs pricers"),
         (["--iterations-file", "out.jsonl"], "--iterations-file comes with --iterations"),
         (["--log-frequency", "-1"], "--log-frequency"),
+        (
+            ["--debug-checks", "dual_signs,signs"],
+            "--debug-checks: 'signs' is not one of pricer_reduced_costs",
+        ),
     ],
 )
 def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):

@@ -273,6 +273,7 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 | `cutoff` | the cost of a known solution: stop (`Cutoff`) when the lower bound reaches it | `inf`: off |
 | `integer_objective` | `true`: costs are integers, the lower bound rounds up, for the cutoff and for a stop (`IntegerObjectiveGap`) when it reaches the LP value rounded up | `false` |
 | `log_frequency` | a line every that many iterations, the last one and how the run ended, in the run's output (`log.txt` under a benchmark): time, LP and pricing times, columns, LP value, bound, gap; 0 or more | 0: none |
+| `debug_checks` | checks that the master solver and the pricer agree, after every LP solve and pricing call, a list of names in any order: `pricer_reduced_costs` (each new column's reduced cost against its cost, rows and the duals), `dual_signs` (the duals' signs against their rows), `master_reduced_costs` (no column of the master with a negative reduced cost; 0 for those in use), `objective` (the LP value against its columns' values); a failed check stops the run (`crashed`) with the check, the iteration and the values in its output. Each costs time: every entry of the master for `master_reduced_costs` | `[]`: none |
 
 The lower bound is the Lagrangian bound of each iteration (`result.json`'s `lower_bound`, the best of the run); the
 stops are checked after an iteration that added columns and has a bound, in the order of the table, the first reached

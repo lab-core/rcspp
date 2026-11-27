@@ -17,6 +17,7 @@
 #pragma once
 
 #include "rcspp/column_generation/column_generation.hpp"
+#include "rcspp/column_generation/debug_checks.hpp"
 #include "rcspp/column_generation/graph_pricer.hpp"
 #include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"

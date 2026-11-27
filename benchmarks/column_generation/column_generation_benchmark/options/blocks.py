@@ -308,6 +308,9 @@ class ColumnGeneration(Block):
     goes to every master solve; 0 lets the solver choose. `absolute_gap`, `relative_gap`,
     `cutoff` and `integer_objective` stop the run early on its lower bound. `log_frequency`
     prints a line every that many iterations into the run's output; 0 prints none.
+    `debug_checks` lists the checks of the master solver and the pricers the run makes, kept
+    in the order of ``DEBUG_CHECKS`` whatever order the table gives; None (or an empty list)
+    makes none.
     """
 
     max_iterations: int | None = None
@@ -319,6 +322,15 @@ class ColumnGeneration(Block):
     cutoff: float | None = None
     integer_objective: bool | None = None
     log_frequency: int | None = None
+    debug_checks: tuple[str, ...] | None = None
+
+    #: The checks ``debug_checks`` may list: the fields of ``DebugChecks`` in each layer.
+    DEBUG_CHECKS: ClassVar = (
+        "pricer_reduced_costs",
+        "dual_signs",
+        "master_reduced_costs",
+        "objective",
+    )
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
@@ -332,6 +344,7 @@ class ColumnGeneration(Block):
             "cutoff",
             "integer_objective",
             "log_frequency",
+            "debug_checks",
         )
         only_keys(given, names, "column_generation", where)
         max_iterations = integer(given.get("max_iterations"), where)
@@ -383,7 +396,40 @@ class ColumnGeneration(Block):
             cutoff,
             integer_objective,
             log_frequency,
+            cls.read_debug_checks(given.get("debug_checks"), where),
         )
+
+    @classmethod
+    def read_debug_checks(cls, listed: Any, where: str) -> tuple[str, ...] | None:
+        """The checks a run lists, in the order of ``DEBUG_CHECKS``; None when it lists
+        none, so that a run without checks keeps its name."""
+        if listed is None:
+            return None
+
+        if not isinstance(listed, list):
+            raise OptionsError(f"{where}: column_generation.debug_checks is a list of check names")
+
+        for check in cast(list[Any], listed):
+            if check not in cls.DEBUG_CHECKS:
+                raise OptionsError(
+                    f"{where}: column_generation.debug_checks: {check!r} is not one of "
+                    f"{', '.join(cls.DEBUG_CHECKS)}"
+                )
+
+        checks = tuple(check for check in cls.DEBUG_CHECKS if check in listed)
+        return checks or None
+
+    def to_table(self) -> dict[str, Any]:
+        table = super().to_table()
+
+        if self.debug_checks is not None:
+            table["debug_checks"] = list(self.debug_checks)
+
+        return table
+
+    def debug_check_switches(self) -> dict[str, bool]:
+        """The checks listed, as the keyword arguments of a layer's ``DebugChecks``."""
+        return {check: True for check in self.debug_checks or ()}
 
 
 @dataclass(frozen=True)

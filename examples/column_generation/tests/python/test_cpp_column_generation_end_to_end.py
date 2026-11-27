@@ -30,9 +30,11 @@ if not hasattr(_core, "cpp_column_generation"):
 import cpp_column_generation as column_generation  # noqa: E402
 from cpp_column_generation import (  # noqa: E402
     ColumnGeneration,
+    ColumnGenerationParams,
     ColumnGenerationResult,
     ColumnGenerationStatus,
     ConvexityRow,
+    DebugChecks,
     GraphPricer,
     IntegerParams,
     MasterProblem,
@@ -379,5 +381,28 @@ def test_routes_that_visit_each_customer_once(make_model: Callable[[], UserModel
     graph = routing_graph(FourCustomers.capacity, FourCustomers.demands, FourCustomers.distances)
     result = from_scratch(make_model(), graph, len(FourCustomers.demands))
 
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
+
+
+def test_every_debug_check_passes_on_a_real_master(make_model: Callable[[], UserModel]) -> None:
+    # The master solver and the graph pricer agree at every iteration, with and without a
+    # fleet row (the pricer's convexity row).
+    every_check = DebugChecks(
+        pricer_reduced_costs=True, dual_signs=True, master_reduced_costs=True, objective=True
+    )
+    params = ColumnGenerationParams(debug_checks=every_check)
+
+    graph = routing_graph(Toy.capacity, Toy.demands, Toy.distances)
+    with_fleet = ColumnGeneration(
+        master_from_scratch(make_model(), graph, Toy.customers, 2.0), params
+    )
+    result = with_fleet.run()
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == pytest.approx(Toy.lp, abs=TOLERANCE)
+
+    graph = routing_graph(FourCustomers.capacity, FourCustomers.demands, FourCustomers.distances)
+    master = master_from_scratch(make_model(), graph, len(FourCustomers.demands))
+    result = ColumnGeneration(master, params).run()
     assert result.status == ColumnGenerationStatus.Optimal
     assert result.objective == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
