@@ -142,7 +142,7 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         bool run_loop(size_t max_steps) {
             size_t iteration = 0;
             while (number_of_waiting_labels() > 0 && iteration < max_steps &&
-                   !this->should_end_loop()) {
+                   !this->should_stop()) {
                 if (this->check_memory(memory_steps_)) {
                     break;
                 }

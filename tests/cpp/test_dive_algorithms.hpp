@@ -437,6 +437,31 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsBestPath) {
     EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
 }
 
+/// @brief ImprovingTabu with max_iterations 0 runs its construction alone, and returns its path.
+///
+/// max_iterations counts the episodes after the construction. The solve's loop used to read 0 as a
+/// budget spent before the first run, and ran nothing.
+TEST(ImprovingTabuSearchTest, ZeroIterationsRunsTheConstructionAlone) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 0;
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
+    EXPECT_EQ(result.solutions.size(), 1U);
+    // The construction's start labels wait again once it is over: the budget is spent.
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+    EXPECT_FALSE(result.proven);
+}
+
+/// @brief Tabu with max_iterations 0 runs no episode: max_iterations counts every dive.
+TEST(TabuStatusTest, TabuWithZeroIterationsRunsNoEpisode) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 0;
+    const auto result = g->solve<strategy::Tabu>(params);
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
 // ============================================================================
 // DiversificationSearch tests
 // ============================================================================

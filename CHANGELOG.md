@@ -42,7 +42,10 @@ New features are summarised, with a pointer to where they are documented.
   and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
   conditions before each label they take (every 4096 steps before). The memory is read every
   `memory_check_interval` labels the solve's episodes take together (50,000 by default), so
-  episodes shorter than that still reach a check. A solve that made an arc tabu
+  episodes shorter than that still reach a check. With `max_iterations = 0`, Improving Tabu runs
+  its construction alone and returns its path, as documented; it ran nothing, since the solve's
+  loop read 0 as a budget spent before the first run (Tabu still runs no episode). A solve that
+  made an arc tabu
   is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
   `proven`, true only when its first dive proves that no path exists below the upper bound (none
   at all, with no upper bound). `TabuSearchAlgorithm`,

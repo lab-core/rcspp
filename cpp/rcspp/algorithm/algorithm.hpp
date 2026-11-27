@@ -132,7 +132,7 @@ class Algorithm {
         ///
         /// A solve checks the direction and the model, resets this algorithm's state
         /// (@ref initialize) and creates the start labels (@ref initialize_labels). Then it
-        /// repeats runs until no label waits or a stop applies (@ref should_end_loop): each run
+        /// repeats runs until no label waits or a stop applies (@ref should_stop): each run
         /// extends labels (@ref main_loop), records the paths at the end nodes
         /// (@ref record_remaining_solutions), and asks @ref prepare_next_run whether another run
         /// follows (the next phase, or a driver's next run). It then puts back the labels still
@@ -173,8 +173,11 @@ class Algorithm {
             // initialize labels
             this->initialize_labels();
 
+            // A run takes at most max_iterations steps, so with 0 a run would take none: no run
+            // is made. Unless max_iterations counts the runs (a driver's), which then decides.
+            const bool no_run = params_.max_iterations == 0 && !max_iterations_counts_runs();
             size_t number_of_runs = 0;
-            while (!should_end_loop() && number_of_waiting_labels() > 0) {
+            while (!no_run && !should_stop() && number_of_waiting_labels() > 0) {
                 // main labeling loop
                 main_loop();
 
@@ -653,6 +656,16 @@ class Algorithm {
         /// @c max_iterations count and record the paths at the end nodes again.
         [[nodiscard]] virtual size_t max_phases() const { return params_.max_phases; }
 
+        /// @brief Whether @c max_iterations counts the runs of the solve's loop, rather than the
+        ///        steps inside each run.
+        ///
+        /// False by default: each run takes at most @c max_iterations steps (labels taken, nodes
+        /// visited, inner solves), so with @c max_iterations 0 the solve makes no run. A driven
+        /// search answers true (@c detail::Driven): its driver counts the runs against
+        /// @c max_iterations, and a run takes as many steps as it needs. With 0, it is then the
+        /// driver that decides whether a first run is made.
+        [[nodiscard]] virtual bool max_iterations_counts_runs() const { return false; }
+
         /// @brief Prepares the next run of the solve's loop, and says whether there is one.
         ///
         /// The default starts the next phase while @ref max_phases allows it: the labels stored
@@ -772,17 +785,24 @@ class Algorithm {
             return timed_out_;
         }
 
-        /// @brief Whether a loop must stop: @p iteration has reached @c max_iterations (0, the
-        ///        default, skips this check), @c max_solutions solutions are held, the time limit
-        ///        has passed, or the caller's @c should_stop callback asks to stop
-        ///        (@ref is_interrupted).
+        /// @brief Whether a loop that counts its iterations must stop: @p iteration has reached
+        ///        @c max_iterations, or @ref should_stop answers true.
         ///
-        /// Every loop asks it: @ref solve's loop over phases, and each algorithm's own loop.
-        ///
-        /// @param iteration The loop's iteration count (0 skips the iteration check).
+        /// @param iteration How many iterations the loop has made. Left out, it is 0: the loop
+        ///                  then stops at once when @c max_iterations is 0. A loop that counts no
+        ///                  iterations asks @ref should_stop instead.
         bool should_end_loop(size_t iteration = 0) {
-            return iteration >= params_.max_iterations ||
-                   solutions_.size() >= params_.max_solutions || is_time_out() || is_interrupted();
+            return iteration >= params_.max_iterations || should_stop();
+        }
+
+        /// @brief Whether the solve must stop, whatever loop asks: @c max_solutions solutions
+        ///        are held, the time limit has passed, or the caller's @c should_stop callback
+        ///        asks to stop (@ref is_interrupted).
+        ///
+        /// @ref solve's loop over runs asks it, and so does a labelling search's loop over steps,
+        /// which counts its steps against @c max_iterations itself.
+        bool should_stop() {
+            return solutions_.size() >= params_.max_solutions || is_time_out() || is_interrupted();
         }
 
         LabelPool<ResourceType> label_pool_;

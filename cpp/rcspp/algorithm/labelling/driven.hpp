@@ -134,6 +134,9 @@ class Driven : public Base {
             in_run_ = false;
         }
 
+        /// @brief True: the driver counts the runs against @c max_iterations, if it reads it.
+        [[nodiscard]] bool max_iterations_counts_runs() const override { return true; }
+
         bool prepare_next_run(size_t number_of_runs) override {
             return !refused_ && driver_.after_run(*this, number_of_runs);
         }
