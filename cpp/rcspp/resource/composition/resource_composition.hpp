@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -260,6 +261,28 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         /// @return `true` if this resource backward-dominates @p rhs_resource.
         [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
             return this->dominance_function_->check_back_dominance(*this, rhs_resource);
+        }
+
+        /// @brief The dominance function's promise on the cost (@c DominanceFunction::
+        ///        cost_order_tolerance): an @c eps such that `*this <= other` implies
+        ///        `get_cost() <= other.get_cost() + eps`; empty when it promises nothing.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] auto cost_order_tolerance() const -> std::optional<double> {
+            return this->dominance_function_->cost_order_tolerance();
+        }
+
+        /// @brief The same promise for @ref back_dominates
+        ///        (@c DominanceFunction::back_cost_order_tolerance).
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] auto back_cost_order_tolerance() const -> std::optional<double> {
+            return this->dominance_function_->back_cost_order_tolerance();
+        }
+
+        /// @brief The dominance function's type, as a message names it.
+        [[nodiscard]] auto dominance_function_name() const -> std::string {
+            return short_type_name(*this->dominance_function_);
         }
 
         /// @brief Returns the total cost of this composed resource.

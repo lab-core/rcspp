@@ -445,7 +445,9 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 
 6. **Label containers** — `LabelList` (default) is O(N) per dominance check.
    Use `LabelBuckets` + `BucketAlgorithmParams` for problems with many labels
-   per node (e.g. > 100 non-dominated labels).
+   per node (e.g. > 100 non-dominated labels). `CostOrderedLabelList` keeps
+   the labels in cost order and, when the composition dominance function
+   declares `cost_order_tolerance()`, skips the tests the costs rule out.
 
 7. **`clone()` is not free** — it deep-copies all nodes, arcs, and the
    resource factory.  Prefer `remove_arcs` / `restore_arcs` over clone-per-node

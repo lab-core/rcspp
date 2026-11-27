@@ -249,13 +249,20 @@ inline InstanceDraw draw_instance(const InstanceConfig& config) {
 ///
 /// Components, in order: cost, optional time window, optional capacity. The capacity is a threshold
 /// so that, without a time window, it can be the clock: an addition is not a threshold.
-inline GeneratedInstance build_instance(const InstanceConfig& config) {
+///
+/// @param config The instance to build.
+/// @param empty  A graph with no resource yet, built with the composed functions a test wants (a
+///               dominance function that declares a cost order, say); null: the default graph.
+inline GeneratedInstance build_instance(
+    const InstanceConfig& config,
+    std::unique_ptr<rcspp::ResourceGraph<rcspp::RealResource>> empty = nullptr) {
     using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
     const InstanceDraw draw = draw_instance(config);
 
     GeneratedInstance built;
-    built.graph = std::make_unique<ResourceGraph<RealResource>>();
+    built.graph =
+        empty != nullptr ? std::move(empty) : std::make_unique<ResourceGraph<RealResource>>();
 
     built.graph->add_resource<RealResource>(
         std::make_unique<AdditionExtensionFunction<RealResource>>(),
@@ -402,14 +409,20 @@ inline std::map<size_t, std::set<size_t>> ng_neighborhoods(size_t num_nodes, siz
 ///
 /// @param config The instance to build. @c with_ng_path decides whether the ng component
 ///               constrains anything; it is registered either way.
+/// @param empty  A graph with no resource yet, as for @ref build_instance; null: the default graph.
 /// @return The graph and the clock configuration.
-inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
+inline NgGeneratedInstance build_ng_instance(
+    const InstanceConfig& config,
+    std::unique_ptr<rcspp::ResourceGraph<rcspp::RealResource, rcspp::SizeTBitsetResource>> empty =
+        nullptr) {
     using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
     const InstanceDraw draw = draw_instance(config);
 
     NgGeneratedInstance built;
-    built.graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+    built.graph = empty != nullptr
+                      ? std::move(empty)
+                      : std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
 
     built.graph->add_resource<RealResource>(
         std::make_unique<AdditionExtensionFunction<RealResource>>(),

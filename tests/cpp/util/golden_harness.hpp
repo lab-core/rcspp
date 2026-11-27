@@ -109,8 +109,13 @@ inline Instance generate(const Spec& spec) {
 
 /// @brief The graph for @p in, with three resources: an additive cost, a time window and a
 ///        capacity.
-inline std::unique_ptr<ResourceGraph<RealResource>> build(const Instance& in) {
-    auto g = std::make_unique<ResourceGraph<RealResource>>();
+///
+/// @param in    The instance.
+/// @param empty A graph with no resource yet, built with the composed functions a test wants (a
+///              dominance function that declares a cost order, say); null: the default graph.
+inline std::unique_ptr<ResourceGraph<RealResource>> build(
+    const Instance& in, std::unique_ptr<ResourceGraph<RealResource>> empty = nullptr) {
+    auto g = empty != nullptr ? std::move(empty) : std::make_unique<ResourceGraph<RealResource>>();
     g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
                                   std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                                   std::make_unique<ValueCostFunction<RealResource>>(),

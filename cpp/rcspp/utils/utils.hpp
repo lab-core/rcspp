@@ -30,6 +30,20 @@ inline constexpr bool kVerifyCostCache = true;
 inline constexpr bool kVerifyCostCache = false;
 #endif
 
+/// @brief Whether `CostOrderedLabelList` also tests the pairs of labels its cost order lets it
+///        skip, and throws when one is a dominance: true when built with `RCSPP_VERIFY_COST_ORDER`,
+///        as the Debug builds of the test suite are.
+///
+/// A dominance function's cost-order declaration (`cost_order_tolerance`) is a promise the
+/// container cannot check otherwise: a wrong one keeps labels dominance would have removed, which
+/// makes an exact search slower but never wrong. Read as a constant, as @ref kVerifyCostCache is,
+/// and with the same rule: every translation unit of a program must agree on the macro.
+#ifdef RCSPP_VERIFY_COST_ORDER
+inline constexpr bool kVerifyCostOrder = true;
+#else
+inline constexpr bool kVerifyCostOrder = false;
+#endif
+
 /// @brief Returns a human-readable type name for the given `std::type_info`.
 ///
 /// On GCC and Clang (non-MSVC), uses `abi::__cxa_demangle` to convert the

@@ -25,8 +25,9 @@ namespace search_memory_test {
 using rcspp::RealResource;
 using Graph = rcspp::ResourceGraph<RealResource>;
 inline constexpr double kInfinity = std::numeric_limits<double>::infinity();
-using Params =
-    rcspp::AlgorithmParams<rcspp::LabelList<rcspp::ResourceTypeComposition<RealResource>>>;
+using Composed = rcspp::ResourceTypeComposition<RealResource>;
+using List = rcspp::LabelList<Composed>;
+using CostOrdered = rcspp::CostOrderedLabelList<Composed>;
 
 /// @brief A source (0), @p layers layers of @p width nodes with every arc between consecutive
 ///        layers, and a sink. Component 0 is the cost; component 1 a time that trades off with it,
@@ -80,12 +81,12 @@ inline std::unique_ptr<Graph> trade_off_layers(size_t layers, size_t width) {
 /// so that no solution is recorded: a recorded solution allocates its path.
 ///
 /// @param labels Set to the number of labels the algorithm holds.
-template <typename Strategy>
+template <typename Strategy, typename ContainerType = List>
 size_t allocations_of_a_repeat_solve(size_t layers, size_t* labels) {
     auto graph = trade_off_layers(layers, /*width=*/4);
-    Params params;
+    rcspp::AlgorithmParams<ContainerType> params;
     params.release_after_solve = false;
-    auto kept = graph->create_algorithm<Strategy>(params);
+    auto kept = graph->create_algorithm<Strategy, ContainerType>(params);
     const auto first = graph->solve(kept.get(), /*upper_bound=*/0.0, false);
     EXPECT_TRUE(first.solutions.empty());
     const auto second = graph->solve(kept.get(), /*upper_bound=*/0.0, false);
@@ -104,13 +105,16 @@ size_t allocations_of_a_repeat_solve(size_t layers, size_t* labels) {
 /// @brief A repeat solve allocates as many times on a graph of 6 layers (about 500 labels) as on
 ///        one of 10 (about 1,600), a handful (the solve's own bookkeeping: 4 in a Release build
 ///        with MSVC, more in a Debug build): no label, no queue node, no container node, and no
-///        copy of the end-node labels.
-template <typename Strategy>
+///        copy of the end-node labels. On @p ContainerType: a @c LabelList keeps its list nodes, a
+///        @c CostOrderedLabelList the capacity of its vector.
+template <typename Strategy, typename ContainerType = List>
 void check_repeat_solves_allocate_nothing_per_label() {
     size_t fewer_labels = 0;
     size_t more_labels = 0;
-    const size_t on_fewer = allocations_of_a_repeat_solve<Strategy>(/*layers=*/6, &fewer_labels);
-    const size_t on_more = allocations_of_a_repeat_solve<Strategy>(/*layers=*/10, &more_labels);
+    const size_t on_fewer =
+        allocations_of_a_repeat_solve<Strategy, ContainerType>(/*layers=*/6, &fewer_labels);
+    const size_t on_more =
+        allocations_of_a_repeat_solve<Strategy, ContainerType>(/*layers=*/10, &more_labels);
     ASSERT_GT(fewer_labels, 300U) << "the graph should keep many labels";
     ASSERT_GT(more_labels, 2 * fewer_labels);
     EXPECT_EQ(on_more, on_fewer) << fewer_labels << " and " << more_labels << " labels";
@@ -158,6 +162,16 @@ TEST(SearchMemory, ARepeatSolveAllocatesNothingPerLabel) {
     {
         SCOPED_TRACE("Pulling");
         smt::check_repeat_solves_allocate_nothing_per_label<rcspp::strategy::Pulling>();
+    }
+    {
+        SCOPED_TRACE("Simple, CostOrderedLabelList");
+        smt::check_repeat_solves_allocate_nothing_per_label<rcspp::strategy::Simple,
+                                                            smt::CostOrdered>();
+    }
+    {
+        SCOPED_TRACE("Pulling, CostOrderedLabelList");
+        smt::check_repeat_solves_allocate_nothing_per_label<rcspp::strategy::Pulling,
+                                                            smt::CostOrdered>();
     }
 }
 

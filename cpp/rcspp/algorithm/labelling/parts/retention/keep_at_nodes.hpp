@@ -114,8 +114,9 @@ class KeepAtNodes {
             }
         }
 
-        /// @brief The labels stored at node position @p pos.
-        [[nodiscard]] const auto& labels_at(size_t pos) const {
+        /// @brief The labels stored at node position @p pos, as the container gives them: a
+        ///        reference to its list (@c LabelList), or a view (@c CostOrderedLabelList).
+        [[nodiscard]] decltype(auto) labels_at(size_t pos) const {
             return containers_.at(pos).get_labels();
         }
 
