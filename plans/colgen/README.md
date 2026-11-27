@@ -28,7 +28,10 @@ how to run them: `benchmark-results/colgen/HANDOFF.md`.
 
 ### Chats in progress
 
-None recorded yet.
+- **`T-2.1` design (main line, 2026-11-27):** `pricing-schedule.md`; a schedule tree (search, sequence, parallel,
+  budget, phase), visitors, the tuner in mind, a label cap in the engine (`D-450`-`D-455`); open PRs that help:
+  #120, #119, #83, #85, #86, #43, #115 (`F-190`-`F-196`); open `Q-80`-`Q-83`; idea task `T-2.8`. No code; code
+  goes in `../rcspp-dev`. **Next:** each feature designed alone (§10's order), then the bundle.
 
 ## New chat
 
@@ -126,6 +129,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `meeting-2026-11-25.md` | the roadmap pass's output: the colleagues' questions, what exists, what Python lacks, the all-features test | before the meeting, `T-1.21` or `T-1.29` |
 | `features-and-options.md` | `T-1.21`'s table: every feature and option of the engine, the bindings, the package, the C++ example layer, the benchmark and the colleague's PRs, with `path:line`, and the decision on each | before adding an option, binding a feature, or `T-1.29` |
 | `phase-2-design.md` | phase 2's frame (three layers, `D-308`), `T-2.3`'s full design (bound, stops, outputs, commits, tests), the other tasks' open questions | before coding or designing a phase 2 task |
+| `pricing-schedule.md` | `T-2.1`: why, what exists, the schedule tree, visitors, limits and the label cap, restart or resume, parallel, the tuner, open PRs that help, the split | working on `T-2.1` or a pricing feature |
 | `statistics-design.md` | `T-2.5`'s whole design: groups and switches, duals and master values, a pricer's details, the label count, the log, the benchmark's records, commits, checks, as built | working on `T-2.5` |
 | `all-features.md` | `T-1.29`: the all-features test's files, runs, checks and commits | working on `T-1.29` or adding a feature |
 | `analysis-tool.md` | `T-1.23`: the analysis tool's design (topics 1-10), the commands as designed, the drawing, as built | working on the analysis tool or adding a command |
