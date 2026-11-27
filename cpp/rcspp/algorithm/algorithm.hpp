@@ -20,7 +20,9 @@
 
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/arc_mask.hpp"
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
+#include "rcspp/algorithm/labelling/parts/admission/admission.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/proof_record.hpp"
@@ -364,9 +366,10 @@ class Algorithm {
 
         /// @brief Starts a solve: stores the graph and the upper bound, sets the incumbent to
         ///        the upper bound, clears the pool and the solutions, resets the counters, the
-        ///        quota, the pressure flag and the proof record, and records the proof losses
-        ///        known at the start (an arc mask, an incumbent prune with no valid completion
-        ///        bound, @ref refresh_completion_bound_validity).
+        ///        quota, the pressure flag and the proof record, records the proof losses known
+        ///        at the start (an arc mask, an incumbent prune with no valid completion bound,
+        ///        @ref refresh_completion_bound_validity), and builds the relaxed rule's mask
+        ///        (@ref admission_mask).
         ///
         /// An override calls this first, then sets up its own search(es).
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
@@ -396,6 +399,65 @@ class Algorithm {
                 proof_.record(ProofLoss::IncumbentPrune);
                 warn_about_share_shortfall();
             }
+            dominance_mask_ = admission_mask(*graph);
+        }
+
+        /// @brief Builds the mask of the components that the @c Relaxed admission rule leaves out
+        ///        of dominance (@c dominance_ignored_components), sized for @p graph's resource.
+        ///        Under any other rule, the mask is empty.
+        ///
+        /// It also checks that the @c KBest rule keeps at least one label.
+        ///
+        /// @throws std::invalid_argument when `dominance_ignored_components` names a component
+        ///         the model does not have, or when `KBest` would keep no label
+        ///         (`max_admitted_labels_per_node` 0).
+        [[nodiscard]] DominanceMask admission_mask(const Graph<ResourceType>& graph) const {
+            if (params_.admission_rule == parts::AdmissionRule::KBest &&
+                params_.max_admitted_labels_per_node == 0) {
+                throw std::invalid_argument(
+                    "max_admitted_labels_per_node is 0, so the KBest rule would keep no label; "
+                    "give it at least 1");
+            }
+            const auto& ignored = params_.dominance_ignored_components;
+            if (params_.admission_rule != parts::AdmissionRule::Relaxed || ignored.empty()) {
+                return {};
+            }
+            const size_t count = number_of_components(graph);
+            if (*ignored.rbegin() >= count) {
+                throw std::invalid_argument(
+                    "dominance_ignored_components names component " +
+                    std::to_string(*ignored.rbegin()) + ", but the model has " +
+                    std::to_string(count) +
+                    " component(s), numbered from 0 in the order of the ResourceGraph's type "
+                    "parameters, then registration order within a type");
+            }
+            DominanceMask mask(count);
+            for (const size_t component : ignored) {
+                mask.ignore(component);
+            }
+            return mask;
+        }
+
+        /// @brief How many components a resource of @p graph has, read off any node's resource.
+        ///
+        /// @return The count: 1 for a resource that is not a composition, 0 when no node carries
+        ///         a resource.
+        [[nodiscard]] static size_t number_of_components(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if constexpr (requires { node->resource->get_components(); }) {
+                    size_t count = 0;
+                    node->resource->for_each_component(
+                        [&count](const auto& /*component*/) { ++count; });
+                    return count;
+                } else {
+                    return 1;
+                }
+            }
+            return 0;
         }
 
         /// @brief Decides whether a prune may add the completion bound on @p graph, when a prune
@@ -567,7 +629,9 @@ class Algorithm {
                 .incumbent = &incumbent_,
                 .quota = &quota_,
                 .solutions = &solutions_,
-                .admission = {},
+                .admission = {.rule = params_.admission_rule,
+                              .dominance_mask = &dominance_mask_,
+                              .max_labels_per_node = params_.max_admitted_labels_per_node},
                 .completion_bound = &search.completion_bound,
                 .arc_mask = arc_mask_,
                 .role = role,
@@ -857,8 +921,11 @@ class Algorithm {
         ///        (@c prune_by_incumbent) and the join compare with it.
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
-        const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
+        const ArcMask* arc_mask_ = nullptr;  ///< see @ref set_arc_mask; null for no mask
         bool graph_unchanged_ = false;       ///< see @ref set_graph_unchanged
+        /// @brief The components the @c Relaxed rule leaves out of dominance
+        ///        (@ref admission_mask); built again at the start of each solve.
+        DominanceMask dominance_mask_;
 
         /// @brief The first reason this solve is not a proof that its status does not show
         ///        (@c ProofLoss). @ref initialize resets it.

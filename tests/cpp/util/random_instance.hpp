@@ -47,6 +47,10 @@ struct InstanceConfig {
         /// @brief Whether the capacity actually binds, or is set far above any path's load.
         bool capacity_binds = false;
 
+        /// @brief Whether the capacity takes part in dominance; with false, its dominance function
+        ///        is trivial, so the instance is solved as a relaxed rule leaving it out would be.
+        bool capacity_in_dominance = true;
+
         /// @brief Lets arc costs go negative, as reduced costs do during pricing.
         bool mixed_sign_costs = false;
 
@@ -272,11 +276,17 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
         ++next_slot;
     }
     if (config.with_capacity) {
+        std::unique_ptr<DominanceFunction<RealResource>> capacity_dominance;
+        if (config.capacity_in_dominance) {
+            capacity_dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
+        } else {
+            capacity_dominance = std::make_unique<TrivialDominanceFunction<RealResource>>();
+        }
         built.graph->add_resource<RealResource>(
             std::make_unique<CapacityExtensionFunction<RealResource>>(draw.capacity),
             std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, draw.capacity),
             std::make_unique<TrivialCostFunction<RealResource>>(),
-            std::make_unique<ValueDominanceFunction<RealResource>>());
+            std::move(capacity_dominance));
         if (!built.clock_is_usable) {
             built.clock_index = next_slot;
             built.clock_upper_bound = draw.capacity;
@@ -420,11 +430,17 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
         ++next_slot;
     }
     if (config.with_capacity) {
+        std::unique_ptr<DominanceFunction<RealResource>> capacity_dominance;
+        if (config.capacity_in_dominance) {
+            capacity_dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
+        } else {
+            capacity_dominance = std::make_unique<TrivialDominanceFunction<RealResource>>();
+        }
         built.graph->add_resource<RealResource>(
             std::make_unique<CapacityExtensionFunction<RealResource>>(draw.capacity),
             std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, draw.capacity),
             std::make_unique<TrivialCostFunction<RealResource>>(),
-            std::make_unique<ValueDominanceFunction<RealResource>>());
+            std::move(capacity_dominance));
         if (!built.clock_is_usable) {
             built.clock_index = next_slot;
             built.clock_upper_bound = draw.capacity;
