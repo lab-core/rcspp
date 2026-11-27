@@ -339,6 +339,11 @@ New features are summarised, with a pointer to where they are documented.
   rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
   summarises a benchmark folder, and `compare.py` compares two runs with an optional time rule.
   See `benchmarks/column_generation/README.md`.
+- **A Python VRP example with several vehicle types** (`examples/python/solve_vehicle_types.py`):
+  one pricing graph and one pricer per type, each type with its capacity, fixed cost per route,
+  cost per distance, and optionally a longest route and a vehicle limit; the integer plan says how
+  many vehicles of each type to use. `pricing_graph` in the VRP example takes a vehicle's capacity
+  and costs; its defaults build the same graph as before. See `examples/python/vrp/README.md`.
 
 ### Fixed
 

@@ -41,14 +41,14 @@ python examples/python/solve_vrp.py C101_5 --subproblem-only
 
 An instance is a file, or the name of one in `instances/`.
 
-| option | meaning |
-|---|---|
-| `--master highspy` or `gurobipy` | the master's LP solver; required, there is no default |
-| `--max-solutions N` | the most routes a pricing call returns; all improving routes found by default |
-| `--timeout S` | column generation's time limit, in seconds; none by default |
-| `--integer`, `--no-integer` | solve the integer plan after the LP, or not; on by default |
-| `--integer-timeout S` | the integer solve's time limit; 60 s by default |
-| `--subproblem-only` | price once with zero duals and print the routes found: no master, no LP solver needed |
+| option                           | meaning                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `--master highspy` or `gurobipy` | the master's LP solver; required, there is no default                                 |
+| `--max-solutions N`              | the most routes a pricing call returns; all improving routes found by default         |
+| `--timeout S`                    | column generation's time limit, in seconds; none by default                           |
+| `--integer`, `--no-integer`      | solve the integer plan after the LP, or not; on by default                            |
+| `--integer-timeout S`            | the integer solve's time limit; 60 s by default                                       |
+| `--subproblem-only`              | price once with zero duals and print the routes found: no master, no LP solver needed |
 
 ## Output
 
@@ -79,16 +79,74 @@ Integer solve: Optimal, 3 routes, distance 191.8136 (0.12 s)
 The number of iterations and of routes depends on the LP solver: HiGHS and Gurobi can give different duals at the
 same LP optimum, and pricing then finds other routes. The LP value is the same.
 
+## Several vehicle types
+
+`solve_vehicle_types.py` solves the same problem with a fleet of several vehicle types: one pricing graph and one
+pricer per type, all over the same customer rows. The master chooses the routes, and so the fleet: how many vehicles
+of each type are worth using.
+
+```bash
+python examples/python/solve_vehicle_types.py C101_25 --master highspy
+python examples/python/solve_vehicle_types.py C101_25 --master highspy --fleet three-sizes
+python examples/python/solve_vehicle_types.py R101_25 --master gurobipy --vehicle-type "truck capacity=100% fixed=100 per-distance=1.2" --vehicle-type "van capacity=30% fixed=20 max=4"
+```
+
+A route costs its vehicle's fixed cost (paid once per route: what using one more vehicle costs, whatever it drives)
+plus its cost per distance times the distance. Each `--vehicle-type` is a name and its settings:
+
+| setting        | meaning                                                                                | default        |
+| -------------- | -------------------------------------------------------------------------------------- | -------------- |
+| `capacity`     | the most load a route carries: a number, or a share of the instance's capacity (`30%`) | the instance's |
+| `fixed`        | the cost of each route                                                                 | 0              |
+| `per-distance` | the cost of each unit of distance                                                      | 1              |
+| `max-distance` | the longest route                                                                      | none           |
+| `max`          | the most vehicles of the type in the plan, a convexity row                             | none           |
+
+Without `--vehicle-type`, a ready-made fleet, `--fleet`:
+
+| fleet                     | types                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `single`                  | one vehicle, the instance's capacity: the plain VRP, the same LP as `solve_vrp.py` |
+| `truck-and-van` (default) | a truck (full capacity, fixed 100, 1.2 per distance) and a van (30 %, fixed 20)    |
+| `three-sizes`             | the same truck and van, and a bike (10 %, fixed 10, routes up to 60 long)          |
+
+The other options are `solve_vrp.py`'s. The output lists the types, the iterations, then the plan's fleet and each
+route with its type:
+
+```text
+C101_25: 25 customers
+  truck: capacity 200, fixed cost 100, 1.2 per distance
+  van: capacity 60, fixed cost 20, 1 per distance
+  iteration    1  LP      1632.1979  +  182 routes      0.01 s
+  ...
+Optimal: LP 475.0388, lower bound 475.0388
+14 iterations, 711 routes generated, 0.06 s (master 0.02 s, pricing 0.04 s)
+Integer solve: Optimal, cost 485.7166 (0.11 s)
+Fleet: 2 truck, 2 van
+       truck  cost   215.0617  distance   95.8847  load    190  [13, 17, 18, 19, 15, 16, 14, 12]
+       truck  cost   171.3859  distance   59.4882  load    160  [5, 3, 7, 8, 10, 11, 9, 6, 4, 2, 1]
+         van  cost    54.2426  distance   34.2426  load     60  [24, 25, 23]
+         van  cost    45.0265  distance   25.0265  load     50  [20, 22, 21]
+```
+
+The larger vehicle pays off only where its load saves routes: on C101_25 the plan mixes trucks and vans; on R101_25,
+whose time windows keep the routes short and light, it takes vans only.
+
+The starting routes serve one customer each, on the cheapest type without a vehicle limit that can drive it. When a
+customer has none (every type that can serve it is limited), the master starts from artificial columns instead.
+
 ## Files
 
-| file | contents |
-|---|---|
-| `../solve_vrp.py` | the command line: reads the instance, runs column generation, prints |
-| `instance.py` | `read_solomon`: the instance as `Instance` and `Customer` dataclasses |
-| `graph.py` | `pricing_graph`: the resources (distance, time, load), the nodes and the arcs, each arc with its master row |
-| `column_generation.py` | the master over highspy or gurobipy, the starting routes, the loop and the integer plan |
+| file                        | contents                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `../solve_vrp.py`           | the command line: reads the instance, runs column generation, prints                                                                                                                 |
+| `../solve_vehicle_types.py` | the command line with several vehicle types                                                                                                                                          |
+| `instance.py`               | `read_solomon`: the instance as `Instance` and `Customer` dataclasses                                                                                                                |
+| `graph.py`                  | `pricing_graph`: the resources (cost, time, load, and the distance when routes have a maximum), the nodes and the arcs, each arc with its master row; a vehicle's capacity and costs |
+| `column_generation.py`      | the master over highspy or gurobipy, the starting routes, the loop and the integer plan                                                                                              |
+| `vehicle_types.py`          | `VehicleType`, reading one from text, the fleets, the master with one pricer per type and the plan by type                                                                           |
 
-The tests are in `tests/python/test_vrp.py`.
+The tests are in `tests/python/test_vrp.py` and `tests/python/test_vrp_vehicle_types.py`.
 
 ## Going further
 
@@ -99,6 +157,7 @@ The tests are in `tests/python/test_vrp.py`.
   `column_generation`, give the `GraphPricer` a `PricingStage("tabu", params)` before the `"simple"` one, with a
   finite `params.max_iterations`: the exact search then runs only when the heuristic finds nothing.
 - **A fleet limit.** The instance's number of vehicles is not used. `problem.add_pricer(pricer,
-  ConvexityRow(max_paths=instance.vehicles))` adds the row "at most that many routes".
+ConvexityRow(max_paths=instance.vehicles))` adds the row "at most that many routes"; `solve_vehicle_types.py`
+  does so for each type with a `max`.
 - **The master's model.** `master_solver` builds a plain highspy or gurobipy model: add rows, variables or solver
   options there before the run.

@@ -45,10 +45,12 @@ MASTERS = ("highspy", "gurobipy")
 
 @dataclass(frozen=True)
 class Route:
-    """A route of the integer solution: the customers in the order visited."""
+    """A route of the integer solution: the customers in the order visited, its cost (the
+    distance, unless the pricing graph says otherwise), and the pricer that found it."""
 
     customers: list[int]
     distance: float
+    pricer: int = 0
 
 
 def master_solver(master: str, customers: int) -> MasterSolver:
@@ -172,6 +174,6 @@ def integer_routes(
     for column, value in zip(columns, values):
         if value > 0.5:
             path = list(column.solution.path_node_ids)
-            routes.append(Route(path[1:-1], column.solution.column.cost))
+            routes.append(Route(path[1:-1], column.solution.column.cost, column.pricer))
 
     return status, routes
