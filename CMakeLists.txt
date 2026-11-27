@@ -81,8 +81,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .a, .lib
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .so, .dylib
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")   # executables
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin")   # .pdb (Windows)
-set(BUILD_INCLUDE_DIR          "${CMAKE_BINARY_DIR}/include")   # for headers
-file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
@@ -150,15 +148,67 @@ install(TARGETS rcspp
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY ${BUILD_INCLUDE_DIR}/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# The headers, from the source folder (the umbrella header rcspp.hpp is generated there too).
+install(DIRECTORY cpp/rcspp/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp
+    FILES_MATCHING PATTERN "*.hpp"
+)
 
-# set cmake file for package
-# to be used with:
+# The CMake package, to be used with:
 # find_package(rcspp)
 # target_link_libraries(app PRIVATE rcspp::rcspp)
+include(CMakePackageConfigHelpers)
+set(RCSPP_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/rcspp)
 install(EXPORT rcsppTargets
     FILE rcsppTargets.cmake
     NAMESPACE rcspp::
-    DESTINATION lib/cmake/rcspp
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
+configure_package_config_file(cmake/rcsppConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    INSTALL_DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+get_target_property(RCSPP_VERSION rcspp VERSION)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    VERSION ${RCSPP_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+
+# A check that the installed package works: install into a folder of the build, then build a small
+# program against it with find_package(rcspp). rcspp's own build only: a project that adds rcspp
+# with FetchContent does not get it.
+if(USE_TESTS AND PROJECT_IS_TOP_LEVEL)
+  # With the column generation example on, the check also builds it on its own against the
+  # install, as its users would, and runs its tests: the layer only (its master solvers would fetch
+  # and build HiGHS a second time), with the googletest already downloaded.
+  set(example_check_arguments)
+  if(USE_COLUMN_GENERATION_EXAMPLE)
+    set(example_configure_arguments
+        -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=${FETCHCONTENT_BASE_DIR}/googletest-src
+        -DCMAKE_CXX_CLANG_TIDY=)
+    list(JOIN example_configure_arguments "|" example_configure_arguments)
+    set(example_check_arguments
+        -DEXAMPLE_SOURCE_DIR=${PROJECT_SOURCE_DIR}/examples/column_generation
+        -DEXAMPLE_BUILD_DIR=${PROJECT_BINARY_DIR}/install-check/example
+        "-DEXAMPLE_ARGUMENTS=${example_configure_arguments}")
+  endif()
+  add_test(NAME install_and_find_package
+      COMMAND ${CMAKE_COMMAND}
+          -DBUILD_DIR=${PROJECT_BINARY_DIR}
+          -DCONFIG=$<CONFIG>
+          -DPREFIX=${PROJECT_BINARY_DIR}/install-check/prefix
+          -DCONSUMER_SOURCE_DIR=${PROJECT_SOURCE_DIR}/tests/find_package
+          -DCONSUMER_BUILD_DIR=${PROJECT_BINARY_DIR}/install-check/build
+          -DGENERATOR=${CMAKE_GENERATOR}
+          -DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
+          -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+          ${example_check_arguments}
+          -P ${PROJECT_SOURCE_DIR}/tests/find_package/check_install.cmake
+  )
+endif()
 endif()

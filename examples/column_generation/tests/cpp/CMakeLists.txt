@@ -28,6 +28,14 @@ function(add_column_generation_test name)
   target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(${name} PRIVATE
       ${RCSPP_EXAMPLE_CORE} rcspp_column_generation_objects ${arg_LIBRARIES} GTest::gtest_main)
+  # Built on its own on Windows, the test links rcspp's DLL, which is not on PATH: copied next to
+  # the executable, so that the test discovery below and the tests themselves find it.
+  if(WIN32 AND NOT TARGET rcspp_objects)
+    add_custom_command(TARGET ${name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:${name}>
+                $<TARGET_FILE_DIR:${name}>
+        COMMAND_EXPAND_LISTS)
+  endif()
   gtest_discover_tests(${name} DISCOVERY_TIMEOUT 30)
 endfunction()
 
