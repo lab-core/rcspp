@@ -21,10 +21,10 @@ class CommandError(Exception):
     """A command that cannot do what it was asked: the data it needs is missing."""
 
 
-def add_run_arguments(parser: argparse.ArgumentParser) -> None:
+def add_run_arguments(parser: argparse.ArgumentParser, required: bool = True) -> None:
     parser.add_argument(
         "runs",
-        nargs="+",
+        nargs="+" if required else "*",
         metavar="RUNS",
         help="a benchmark folder, a folder of run folders, a run folder, or <folder>:<run name> "
         "(a run's name or its start)",

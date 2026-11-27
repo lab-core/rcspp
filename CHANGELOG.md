@@ -346,6 +346,14 @@ New features are summarised, with a pointer to where they are documented.
   matrices, rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
   summarises a benchmark folder, and `analysis.py compare` compares two runs with an optional time rule.
   See `benchmarks/column_generation/README.md`.
+- **The analysis of the benchmark's output** (`benchmarks/column_generation/analysis.py`, its own
+  requirements: pandas and matplotlib): commands that read run folders and never run a solve.
+  `compare` compares two runs; `convergence` draws runs' objective and best bound iteration after
+  iteration, from their recorded iterations; `sweep` draws result fields against an option's values,
+  a line per instance, with a table; `draw` draws a Solomon instance, alone or with a run's integer
+  routes and their time windows, or its LP's flow on each arc. Each analysis writes a folder with
+  its figures, their data, and a record of what it read and the command that makes it again. See
+  `benchmarks/column_generation/ANALYSIS.md`.
 - **A Python VRP example with several vehicle types** (`examples/python/solve_vehicle_types.py`):
   one pricing graph and one pricer per type, each type with its capacity, fixed cost per route,
   cost per distance, and optionally a longest route and a vehicle limit; the integer plan says how

@@ -312,6 +312,7 @@ writes.
 | `compare`     | the comparison of two runs, with an optional time rule               |
 | `convergence` | the objective and the best bound of runs, iteration after iteration |
 | `sweep`       | one option swept: result fields against its values, a line per instance |
+| `draw`        | an instance, alone or with a run's solution and its time windows       |
 
 ## Tests
 

@@ -10,6 +10,7 @@ commands, `python analysis.py <command> --help` a command's options.
 | `compare`     | the comparison of two runs, with an optional time rule               |
 | `convergence` | the objective and the best bound of runs, iteration after iteration |
 | `sweep`       | one option swept: result fields against its values, a line per instance |
+| `draw`        | an instance, alone or with a run's solution and its time windows       |
 
 The commands but `compare` take the same runs and output options:
 
@@ -165,3 +166,36 @@ Each field gives `sweep-<field>.<format>`, its data `sweep-<field>.csv` (a point
 benchmark folder, `run`, `rounds`, `median`, `min`, `max`) and a table `sweep-<field>.md` (a line per row, a value
 per column, the medians). A swept option or a field no run has is an error (exit code 2). A run with no finished
 round, rounds that disagree on a field that should match, and an option with one value only warn.
+
+## Draw
+
+`python analysis.py draw --instance NAME` draws a Solomon instance of the tree (`instances/NAME.txt`): the depot as a
+square, each customer as a dot of area by its demand, their numbers up to 30 customers. `python analysis.py draw RUNS`
+draws each run's instance with its solution, from its first round that wrote `solution.json` (the statistic
+`solution`, on by default).
+
+```bash
+python analysis.py draw --instance R201_25
+python analysis.py draw results/my_benchmark:R201_25 --solution lp
+```
+
+| option | what |
+| --- | --- |
+| `--instance NAME` | the instance alone, without runs; runs or `--instance`, one of the two |
+| `--solution` | `auto` (default): the integer solution when the run has one, else the last LP; `integer`: its routes, a colour each, and a second figure of their time windows; `lp`: the flow on each arc (the values of the columns that take it, summed), by width and shade; `none`: the instance alone |
+| `--labels` | the customers' numbers: `auto` (default, up to 30 customers), `on` or `off` |
+
+The customers no integer route visits are marked with a red cross, with a warning: the integer master left them to
+artificial columns. The time-window chart has a row per route: each customer's window as a light bar, its service as
+a dark one from its start, its arrival as a dot, the depot's due time as a dashed line; the times are the solution
+check's (the service starts at the arrival, or at the ready time if later).
+
+Each run gives `draw-<run>.<format>`, and for routes `draw-<run>-windows.<format>` and `draw-<run>-routes.csv` (each
+visit's `route`, `position`, `customer`, `ready_time`, `due_time`, `arrival`, `start`, `end`), for an LP
+`draw-<run>-arcs.csv` (each arc's `from`, `to`, `value`; node `n + 1` is the sink, at the depot). A run without
+`solution.json`, or without the solution asked for, is left out with a warning; none at all is an error (exit code 2),
+as is an instance file that cannot be read.
+
+The drawing is the instance, then overlays drawn on it, each a function of
+`column_generation_analysis/vrp/drawing.py` with its own data (`draw_paths`, `draw_arc_values`, `draw_node_marks`):
+a new view, such as the columns an iteration added, is new data for one of them or one more such function.
