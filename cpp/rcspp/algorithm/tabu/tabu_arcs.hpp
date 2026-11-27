@@ -51,7 +51,7 @@ class TabuArcs {
         }
 
         /// @brief Makes the arcs of a path tabu, all but those with an exempt end
-        ///        (@c tabu_exempt_node_ids).
+        ///        (@c tabu_exempt_node_ids) and any id @p graph has no arc for.
         ///
         /// @param graph The graph being solved.
         /// @param arc_ids The path's arc ids.
@@ -62,7 +62,8 @@ class TabuArcs {
             bool made_tabu = false;
             for (const size_t arc_id : arc_ids) {
                 const auto* arc = graph.get_arc(arc_id);
-                if (exempt.contains(arc->origin->id) || exempt.contains(arc->destination->id)) {
+                if (arc == nullptr || exempt.contains(arc->origin->id) ||
+                    exempt.contains(arc->destination->id)) {
                     continue;
                 }
                 tabu_.add(arc_id, params_->tabu_tenure, params_->tabu_random_noise);

@@ -1174,3 +1174,16 @@ TEST(DrivenSearch, TheMemoryCheckCountsTheStepsOfEveryRun) {
     EXPECT_LT(improving_limited,
               solve_counting_extensions<strategy::ImprovingTabu>(*g, unlimited).second);
 }
+
+/// @brief A path naming an arc id the graph has no arc for makes nothing tabu for it, and does
+///        not crash; a real arc of the same path still becomes tabu.
+TEST(TabuArcsTest, AnIdTheGraphHasNoArcForIsSkipped) {
+    auto g = make_two_path_graph();
+    const AlgorithmBaseParams params;
+    detail::TabuArcs tabu(params, ArcMask::State::Soft);
+    tabu.begin(*g, nullptr);
+    const size_t unknown = g->get_arc_id_bound() + 1;
+    EXPECT_FALSE(tabu.add(*g, {unknown}));
+    EXPECT_TRUE(tabu.add(*g, {unknown, 0}));
+    EXPECT_TRUE(tabu.mask().is_soft(0));
+}
