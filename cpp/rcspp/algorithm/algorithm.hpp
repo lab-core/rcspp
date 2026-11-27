@@ -679,11 +679,9 @@ class Algorithm {
             const size_t limit = params_.memory_pressure_max_labels_per_node;
             quota_ = std::min(quota_, limit);
             if (memory_pressure_triggered_) {
-                search.schedule.release_stored_aside(
-                    context,
-                    [&search](const LabelIterator<ResourceType>& position) {
-                        search.erase(position);
-                    });
+                search.schedule.release_stored_aside(context, [&search](const auto& stored) {
+                    search.erase(stored);
+                });
             }
             memory_pressure_triggered_ = true;
             search.schedule.trim(context, limit);

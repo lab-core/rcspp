@@ -102,7 +102,7 @@ class DepthFirstSchedule {
         /// longer at its node, so it is released without being erased again. A dropped child was
         /// admitted first, so labels it dominated at its node were evicted and stay evicted.
         ///
-        /// @param erase Callable `(const LabelIterator&)` erasing a label from its node.
+        /// @param erase Callable `(const StoredLabel&)` erasing a label from its node.
         template <typename EraseCallable>
         void place_children(detail::SearchContext<ResourceType>& context,
                             const EraseCallable& erase) {
@@ -110,7 +110,7 @@ class DepthFirstSchedule {
             filter_.select(children_, rejected_, context);
             for (const auto& stored : rejected_) {
                 if (!stored.label->dominated) {
-                    erase(stored.position);
+                    erase(stored);
                 }
                 context.pool->release_with_ref_count(stored.label);
             }

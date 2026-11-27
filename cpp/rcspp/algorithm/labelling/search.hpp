@@ -280,7 +280,7 @@ struct Search {
                     }
                     return;
                 case Verdict::EraseAndRelease:
-                    labels.erase(taken.position);
+                    labels.erase(taken);
                     [[fallthrough]];
                 case Verdict::Release:
                     pool->release_with_ref_count(taken.label);
@@ -289,7 +289,7 @@ struct Search {
         }
 
         /// @brief Takes a stored label out of its node's container, releasing nothing.
-        void erase(const LabelIterator<ResourceType>& position) { labels.erase(position); }
+        void erase(const parts::StoredLabel<ResourceType>& stored) { labels.erase(stored); }
 
         /// @brief Calls @p visit on each label stored at the end nodes of @p Direction (sinks
         ///        forward, sources backward), end node by end node, without copying them.

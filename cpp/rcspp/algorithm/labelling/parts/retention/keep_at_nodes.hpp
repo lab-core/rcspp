@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
+#include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp::parts {
@@ -95,10 +96,22 @@ class KeepAtNodes {
             return containers_.at(pos).add_label(label);
         }
 
-        /// @brief Takes a stored label out of its node's container.
-        template <typename IteratorType>
-        void erase(const IteratorType& position) {
-            containers_.at((*position)->get_end_node()->pos()).erase_label(position);
+        /// @brief Takes a stored label out of its node's container, found through the label's node.
+        ///
+        /// A container that declares @c erase_label(const StoredLabel&) is handed the stored
+        /// label, which it may find by the label rather than by the position (a container that
+        /// keeps its labels in another order than a list's); the others, as @c LabelList and
+        /// @c LabelBuckets, erase at the position.
+        ///
+        /// @param stored The label and its position in its node's container.
+        template <typename ResourceType>
+        void erase(const StoredLabel<ResourceType>& stored) {
+            auto& container = containers_.at(stored.label->get_end_node()->pos());
+            if constexpr (requires { container.erase_label(stored); }) {
+                container.erase_label(stored);
+            } else {
+                container.erase_label(stored.position);
+            }
         }
 
         /// @brief The labels stored at node position @p pos.

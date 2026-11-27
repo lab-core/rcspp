@@ -131,6 +131,16 @@ New features are summarised, with a pointer to where they are documented.
   `insert_label` and `remove_label`, which reuse the kept nodes; one that inserts into `labels_`
   itself must erase from it itself, and its own `clear()` must leave it as `copy()` would (see "A
   container of your own" in `docs/advanced/algorithms.md`).
+- **A stored label is erased by the stored label, not by its list position.** A retention's
+  `erase`, the `Retention` concept, `Search::erase`, `parts::IgnoreErase` and the erase callable a
+  schedule's `release_stored_aside` and `place_children` are handed take a
+  `const parts::StoredLabel&` (the label and its position at its node) instead of the position
+  alone. A schedule of your own whose `release_stored_aside` called `erase(stored.position)` must
+  call `erase(stored)`; one that only forwards the callable to `parts::StoredAsideLabels` is
+  unchanged. `KeepAtNodes` finds the node through the label, and hands the stored label to a
+  container that declares `erase_label(const parts::StoredLabel&)`; `LabelList` and `LabelBuckets`
+  erase at the position, as before. No result changes: this lets a container keep its labels
+  without list positions (see "A container of your own" in `docs/advanced/algorithms.md`).
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

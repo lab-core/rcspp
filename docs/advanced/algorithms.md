@@ -1041,6 +1041,13 @@ kept across solves (`release_after_solve` false) asks two more things of it:
   `insert_label` and `remove_label`, which take and give back the kept nodes. Otherwise the nodes its
   erasures keep are never taken back, and pile up from solve to solve.
 
+The search erases a stored label (a label pruned by the incumbent or of infinite cost, one dropped
+under memory pressure) through its node's container. It calls `erase_label(position)`, the label's
+place in the list `add_label` returned, unless the container declares
+`erase_label(const rcspp::parts::StoredLabel<ResourceType>&)`: it is then handed the stored label,
+the label and that position, and may find the label by the label, as a container that keeps its
+labels in another order than a list's must.
+
 ## How the labelling algorithms are built
 
 Every exact labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and
@@ -1313,7 +1320,8 @@ the contract:
   abandoned and counted); or released under memory pressure, which the solve reports.
 - **A part touches only what its interface gives it.** An admission rule reads and evicts through
   the node view (`is_dominated`, `evict_dominated_by`, `size`); a schedule releases through the pool
-  and erases through the callable it is handed. The reference counts depend on it.
+  and erases through the callable it is handed, which takes the `parts::StoredLabel` the schedule
+  holds (`erase(stored)`). The reference counts depend on it.
 
 **Testing a strategy.** `rcspp::test_support::optimum_problem<Strategy>(graph, params)`
 (`rcspp/test_support/optimum_problem.hpp`) solves `graph` with the strategy in every direction it

@@ -213,7 +213,7 @@ constexpr void check_parts() {
     static_assert(parts::Retention<Retention, ResourceType, ContainerType>,
                   "the strategy's retention does not satisfy rcspp::parts::Retention: it needs "
                   "reset(number_of_nodes, prototype), clear(), node(pos), store(pos, label), "
-                  "erase(position), labels_at(pos), containers() and a static constexpr bool "
+                  "erase(stored), labels_at(pos), containers() and a static constexpr bool "
                   "records_at_take");
     static_assert(parts::Admission<typename PartsType::admission,
                                    ResourceType,

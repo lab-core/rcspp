@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
+#include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp::parts {
@@ -50,8 +51,8 @@ class KeepWhileWaiting {
         }
 
         /// @brief Erases nothing: no label is stored.
-        template <typename IteratorType>
-        void erase(const IteratorType& /*position*/) {}
+        template <typename ResourceType>
+        void erase(const StoredLabel<ResourceType>& /*stored*/) {}
 
         /// @brief The labels stored at node position @p pos: none.
         [[nodiscard]] const labels_type& labels_at(size_t /*pos*/) const { return none_; }
