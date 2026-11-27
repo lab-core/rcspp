@@ -9,13 +9,13 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        files: ^(cpp|python|tests|examples)/.*
+        files: ^(cpp|python|tests|examples|benchmarks)/.*
       - id: end-of-file-fixer
-        files: ^(cpp|python|tests|examples)/.*
+        files: ^(cpp|python|tests|examples|benchmarks)/.*
       - id: mixed-line-ending
-        files: ^(cpp|python|tests|examples)/.*
+        files: ^(cpp|python|tests|examples|benchmarks)/.*
       - id: check-added-large-files
-        files: ^(cpp|python|tests|examples)/.*
+        files: ^(cpp|python|tests|examples|benchmarks)/.*
 
   # -------------------------
   # Python Formatter: Black
@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: black
         name: Black Python Formatter
-        files: ^(python|tests|examples/column_generation)/.*\.pyi?$
+        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
         additional_dependencies: []
 
   # -------------------------
@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: isort
         name: Python Import Sorter
-        files: ^(python|tests|examples/column_generation)/.*\.pyi?$
+        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
 
   # -------------------------
   # Python Linter: flake8
@@ -46,7 +46,7 @@ repos:
     hooks:
       - id: flake8
         name: Python Linter
-        files: ^(python|tests|examples/column_generation)/.*\.pyi?$
+        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.pyi?$
         # Naming checks; .flake8 selects their codes (N, A).
         additional_dependencies: [pep8-naming==0.15.1, flake8-builtins==3.2.0]
 
@@ -57,7 +57,7 @@ repos:
     rev: 1.9.3
     hooks:
       - id: bandit
-        files: ^(python|tests|examples/column_generation)/.*\.py$
+        files: ^(python|tests|examples/column_generation|benchmarks)/.*\.py$
         args: ["-ll"]
 
   # -------------------------
@@ -75,7 +75,7 @@ repos:
     hooks:
     - id: docformatter
       args: ["--in-place", "--black"]
-      files: ^(python|tests)/.*\.py$
+      files: ^(python|tests|benchmarks)/.*\.py$
 
   # # -------------------------
   # # numpydoc-validation
@@ -108,7 +108,7 @@ repos:
       - id: retired-names
         name: Names retired by renames
         language: pygrep
-        files: ^(cpp|python|tests|examples|docs)/|^(AGENT|README)\.md$
+        files: ^(cpp|python|tests|examples|benchmarks|docs)/|^(AGENT|README)\.md$
         entry: 'BackwardKind|backward_kind|BackwardForm|backward_form|[Bb]ackward form|\bThresholdForm|TranslationThresholdForm|ArcEndpointsForm|DisjointJoinForm|\b(threshold|arc_endpoints|join)_form\b|CriticalRC|ClockResourceType|FwdContainer|BwdContainer|CostRC\b|SelectCostRC|ContainDominanceFunction|InclusionDominanceFunction|SubtractExtensionFunction|(contain|inclusion)_dominance_function|subtract_extension_function|forbidden_tabu|range_buckets|suggest_range|stop_after_X_solutions|num_max_phases|num_labels_to_extend_by_node|prune_based_on_upper_bound|track_modifications|get_labels_at_sinks|process_feasibility|prepareNextPhase|connectivityMatrix|SimpleFrontier|\bBackwardSimple\b|CostForm|cost_form|backward_reversed|DeclaresDirectionalResourceKind|AlgorithmStatus::(COMPLETE|TIMEOUT|MAX_SOLUTIONS|MAX_PHASES|INTERRUPTED|MEMORY_LIMIT)|ComponentTypeIndex_v|ComponentInitializerTypeTuple_t|\bMaxPhases\b|get_labels_at_terminals|\bnumber_of_labels\b|extract_remaining_solutions|memory_limit_reached|best_cost_upper_bound_|\bcost_upper_bound_\b|effective_max_labels_per_node_|\bMAX_INT\b|\bis_terminal\b|\bapply_start\b|split_off_excess_labels|diversification_tenure|bounded_by_half_way|rebind_direction|RebindsDirection|\bprune_by_upper_bound\b'
       - id: retired-python-names
         name: Python names retired by renames

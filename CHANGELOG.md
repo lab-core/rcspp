@@ -317,6 +317,14 @@ New features are summarised, with a pointer to where they are documented.
   `cpp_column_generation` over them (in the example's folder, not in rcspp), with master solvers
   over a user's highspy or gurobipy model and a column generation loop written in Python. It also
   builds on its own over an installed rcspp; see `examples/column_generation/README.md`.
+- **A column generation benchmark** (`benchmarks/column_generation/`), in the source tree only:
+  not installed, not in the wheel. A runner per layer (`rcspp.column_generation`, and the C++
+  example through its bindings when it is built) does one run from options or a TOML file and
+  writes its folder: the options, a record of the source, build, versions and machine, the result
+  and the solution. `benchmark.py` makes many runs from a benchmark file (named blocks, a matrix,
+  rounds), each in its own process, and can resume, stop and time out runs. `summary.py`
+  summarises a benchmark folder, and `compare.py` compares two runs with an optional time rule.
+  See `benchmarks/column_generation/README.md`.
 
 ### Fixed
 

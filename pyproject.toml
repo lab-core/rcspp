@@ -93,6 +93,9 @@ extraPaths = [
   "tests/python",
   "examples/column_generation/python",
   "examples/column_generation/tests/python",
+  "benchmarks/column_generation",
+  "benchmarks/column_generation/runners",
+  "benchmarks/column_generation/tests",
 ]
 # The stubs of the column generation example's bindings (rcspp._core.cpp_column_generation, built
 # with USE_COLUMN_GENERATION_EXAMPLE): kept in the example; pyright reads them with rcspp's own

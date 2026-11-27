@@ -1,0 +1,30 @@
+# The building blocks every benchmark can name, and the options of a run unless a file or the
+# command line sets them. This file holds only named blocks and [defaults]. A run's own files hold
+# the expanded values, so changing a preset here does not change how a recorded run runs again.
+
+[defaults]
+layer = "package"
+master = "highspy"
+pricing = "exact"
+start = "artificial"
+graph = {}
+column_generation = {}
+integer = {}
+statistics = {}
+
+# MARK: Pricing
+
+# The exact search alone: every iteration ends with a proof. Other presets are added once agreed on
+# with the users of the benchmark; a file can define its own, such as a capped heuristic stage first.
+[pricing.exact]
+stages = [{ algorithm = "simple" }]
+
+# MARK: Start
+
+# Big-M: one artificial column per row, each costing cost_factor times the largest arc cost (at
+# least 1). 1e4 is the package's own factor (ArtificialColumns): a larger cost gives large duals,
+# on which HiGHS's warm-started dual simplex can fail; a smaller one misses the solutions whose
+# columns cost more than it per row they cover.
+[start.artificial]
+type = "artificial"
+cost_factor = 1e4
