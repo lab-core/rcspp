@@ -25,10 +25,10 @@ namespace rcspp {
 ///
 /// With a @p min_value, the step is not a sum: an arc takes off less from a value near the floor
 /// than from a higher one, and a backward label meets the floor at the other end of the path. So
-/// the function says it clamps (@ref is_clamped), and a priced component with a floor has no
-/// additive cost: it gets no completion-bound prune (@c prune_by_incumbent compares the cost
-/// alone, @c prune_by_threshold refuses to start), and a backward or bidirectional search refuses
-/// the model, whatever arcs the model has.
+/// the function declares that it clamps (@ref is_clamped), and a priced component with a floor
+/// has no additive cost, whatever arcs the model has. As a result, @c prune_by_incumbent
+/// compares the cost alone, without the completion bound; @c prune_by_threshold throws when the
+/// solve starts; and a backward or bidirectional search refuses the model.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.

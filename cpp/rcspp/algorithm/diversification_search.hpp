@@ -220,8 +220,8 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         detail::TabuArcs tabu_;  ///< the tabu arcs, hard in the mask the inner algorithm reads
         ResourceFactory<ResourceType>* resource_factory_;
         size_t inner_max_iterations_ = 0;  // the budget algo_ was built with
-        bool prune_by_incumbent_;          ///< the params', for the inner algorithm only
-        bool prune_by_threshold_;          ///< the params', for the inner algorithm only
+        bool prune_by_incumbent_;          ///< the caller's setting, given to the inner algorithm
+        bool prune_by_threshold_;          ///< the caller's setting, given to the inner algorithm
 
         /// @brief @p params with both prunes off: this algorithm's own.
         static AlgorithmParams<LabelContainerType> without_prunes(

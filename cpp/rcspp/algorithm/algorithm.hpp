@@ -364,14 +364,22 @@ class Algorithm {
         ///        (@ref set_graph_unchanged).
         [[nodiscard]] bool is_graph_unchanged() const { return graph_unchanged_; }
 
-        /// @brief Starts a solve: stores the graph and the upper bound, sets the incumbent to
-        ///        the upper bound, clears the pool and the solutions, resets the counters, the
-        ///        quota, the pressure flag and the proof record, records the proof losses known
-        ///        at the start (an arc mask, an incumbent prune with no valid completion bound,
-        ///        @ref refresh_completion_bound_validity), and builds the relaxed rule's mask
-        ///        (@ref admission_mask).
+        /// @brief Resets the algorithm for a new solve of @p graph under @p cost_upper_bound.
         ///
-        /// An override calls this first, then sets up its own search(es).
+        /// It stores the graph and the upper bound, and sets the incumbent to the upper bound. It
+        /// empties the label pool and the solutions, and resets the counters, the per-node quota,
+        /// the memory-pressure flag and the proof record. It then records the proof losses known
+        /// before the search starts: an arc mask that is not empty, and an incumbent prune with
+        /// no valid completion bound (@ref refresh_completion_bound_validity). Last, it builds the
+        /// mask of the @c Relaxed admission rule (@ref admission_mask), and checks that
+        /// @c prune_by_threshold has a valid completion bound
+        /// (@ref require_valid_completion_bound).
+        ///
+        /// An override calls this first, then sets up its own search or searches.
+        ///
+        /// @throws std::runtime_error when the graph's sorted nodes are out of order.
+        /// @throws std::invalid_argument when the params cannot be honoured on this graph (see
+        ///         @ref admission_mask and @ref require_valid_completion_bound).
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
                 LOG_FATAL(

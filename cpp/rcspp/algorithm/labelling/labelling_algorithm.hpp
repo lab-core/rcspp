@@ -62,10 +62,13 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
     protected:
-        /// @brief Starts the solve: an empty search and its context, and the completion bound
-        ///        when the schedule's order, the incumbent prune or the threshold prune reads it
-        ///        (@ref compute_completion_bound). An admission rule that is not exact loses the
-        ///        proof (@c ProofLoss::RelaxedAdmission).
+        /// @brief Starts a solve: builds an empty search and its context, and computes the
+        ///        completion bound if something reads it.
+        ///
+        /// The bound is read by the schedule's order (A*), by the threshold prune, and by the
+        /// incumbent prune when the bound is valid (@ref compute_completion_bound). If the
+        /// admission rule is not exact, the result is marked as not a proof
+        /// (@c ProofLoss::RelaxedAdmission).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
             memory_steps_ = 0;

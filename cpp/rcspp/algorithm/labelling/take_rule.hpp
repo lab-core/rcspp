@@ -140,22 +140,31 @@ struct TakeRule {
             return {};
         }
 
-        /// @brief Whether no path through @p label can cost less than the upper bound: its cost
-        ///        plus its completion bound is at or above it, with a margin of the params'
-        ///        tolerance, relative to the upper bound when that is above 1 in magnitude.
+        /// @brief True if no path through @p label can cost less than the upper bound, so that
+        ///        the threshold prune (@c prune_by_threshold) may drop it.
         ///
-        /// Dropping such a label loses no path below the upper bound, the bound being valid (the
-        /// solve refuses the prune otherwise, @c Algorithm::require_valid_completion_bound). The
-        /// bound is consistent: at each arc, the bound at the tail is at most the arc's share plus
-        /// the bound at the head. So every label extended from it would be out of reach too. Under
-        /// the exact admission rule, every label it evicted at admission cost at least as much at
-        /// the same node, so it was out of reach too; under a heuristic rule the solve is not a
-        /// proof anyway. A bound of -infinity (a negative-cost cycle) puts nothing out of reach;
-        /// one of +infinity (no end node reached) puts the label out of reach of any upper bound.
+        /// The test: the label's cost plus its completion bound is at or above the upper bound
+        /// plus a margin. The margin is the params' @c tolerance (0 if negative) times the larger
+        /// of 1 and the upper bound's magnitude. The margin only makes the prune more cautious:
+        /// it never drops a path that costs less than the upper bound.
         ///
-        /// With no finite upper bound, only a label whose bound is +infinity is out of reach: the
-        /// margin is not computed, as the tolerance times infinity would be NaN, or infinite. A
-        /// negative tolerance counts as 0, so the margin never cuts a path below the upper bound.
+        /// Why dropping such a label loses no path below the upper bound:
+        /// - the completion bound is a lower bound on the cost still to pay. The solve refuses
+        ///   the prune when it is not (@c Algorithm::require_valid_completion_bound);
+        /// - the bound is consistent: at each arc, the bound at the tail is at most the arc's
+        ///   share plus the bound at the head. So every label extended from this one would be
+        ///   out of reach too;
+        /// - under the exact admission rule, each label this one evicted when it was admitted
+        ///   cost at least as much at the same node, so it was out of reach too. Under another
+        ///   rule the result is not a proof anyway.
+        ///
+        /// Infinite values:
+        /// - a completion bound of -infinity (a negative-cost cycle) puts nothing out of reach;
+        /// - a completion bound of +infinity (no end node can be reached) puts the label out of
+        ///   reach of any upper bound;
+        /// - with no finite upper bound, only a label whose bound is +infinity is out of reach.
+        ///   The margin is not computed then: the tolerance times infinity would be infinite, or
+        ///   NaN.
         [[nodiscard]] static bool is_out_of_reach(const Label<ResourceType>& label,
                                                   const SearchContext<ResourceType>& context) {
             const double bound = (*context.completion_bound)(label);
