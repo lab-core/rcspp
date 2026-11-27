@@ -229,10 +229,10 @@ struct AlgorithmBaseParams {
         /// @brief Number of main-loop iterations between consecutive RSS checks.
         ///
         /// Larger values reduce measurement overhead; smaller values react
-        /// faster to memory spikes.  Must be > 0. Counted like max_iterations, within one phase
-        /// (or one run of a driver): a phase or run shorter than this never reads the memory.
-        /// Diversification reads it after each of its inner solves instead, whatever this
-        /// interval.
+        /// faster to memory spikes.  Must be > 0. Counted like max_iterations, within one phase:
+        /// a phase shorter than this never reads the memory. A driven search (the tabu searches)
+        /// counts the labels of all its runs in the solve together. Diversification reads it after
+        /// each of its inner solves instead, whatever this interval.
         size_t memory_check_interval = kDefaultMemoryCheckInterval;
 
         /// @brief Pressure threshold as a fraction of the effective memory limit.

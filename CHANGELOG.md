@@ -40,9 +40,9 @@ New features are summarised, with a pointer to where they are documented.
   order, and return the same paths and status as before; `max_iterations` still counts episodes.
   Like every labelling search, they now apply `max_extended_labels_per_node`, `prune_by_incumbent`
   and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
-  conditions before each label they take (every 4096 steps before). Memory pressure is read every
-  `memory_check_interval` labels an episode takes (50,000 by default), the count restarting each
-  episode, so an episode shorter than that never reads it. A solve that made an arc tabu
+  conditions before each label they take (every 4096 steps before). The memory is read every
+  `memory_check_interval` labels the solve's episodes take together (50,000 by default), so
+  episodes shorter than that still reach a check. A solve that made an arc tabu
   is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
   `proven`, true only when its first dive proves that no path exists below the upper bound (none
   at all, with no upper bound). `TabuSearchAlgorithm`,

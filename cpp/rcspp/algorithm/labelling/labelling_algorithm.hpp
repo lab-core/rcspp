@@ -68,6 +68,7 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         ///        proof (@c ProofLoss::RelaxedAdmission).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
+            memory_steps_ = 0;
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
@@ -119,16 +120,21 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return search_.schedule.size();
         }
 
-        /// @brief One phase: at most `max_iterations` steps. Each phase has its own count.
-        void main_loop() override { run_loop(this->params_.max_iterations); }
+        /// @brief One phase: at most `max_iterations` steps. Each phase has its own count, for
+        ///        the steps and for the memory check (@ref memory_steps_).
+        void main_loop() override {
+            memory_steps_ = 0;
+            run_loop(this->params_.max_iterations);
+        }
 
         /// @brief Runs @ref step until no label waits, a stop applies, or @p max_steps steps are
         ///        done.
         ///
         /// A step takes one label or, with a pulling schedule, visits one node. Before each step
         /// the memory check runs (@c Algorithm::check_memory). It reads the memory only every
-        /// `memory_check_interval` iterations of this call, and the count restarts at each call, so
-        /// a driven run shorter than that interval never reads it.
+        /// `memory_check_interval` steps of @ref memory_steps_, which a phase of a search that is
+        /// not driven restarts (@ref main_loop), and a driven search keeps over its runs, so that
+        /// runs shorter than that interval still add up to a check.
         ///
         /// @param max_steps The most steps this call takes: `max_iterations` for a phase,
         ///                   @c kNoLimit for a driven run.
@@ -137,10 +143,11 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             size_t iteration = 0;
             while (number_of_waiting_labels() > 0 && iteration < max_steps &&
                    !this->should_end_loop()) {
-                if (this->check_memory(iteration)) {
+                if (this->check_memory(memory_steps_)) {
                     break;
                 }
                 ++iteration;
+                ++memory_steps_;
                 if (step(
                         search_,
                         context_,
@@ -208,6 +215,9 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         SearchContext<ResourceType> context_;
         /// @brief The graph @c search_.completion_bound was computed on; null when it holds none.
         const Graph<ResourceType>* completion_bound_graph_ = nullptr;
+        /// @brief The steps the memory check counts (@ref run_loop): since the phase began, or,
+        ///        for a driven search, since the solve began, whatever its runs and phases.
+        size_t memory_steps_ = 0;
 };
 
 }  // namespace rcspp::detail

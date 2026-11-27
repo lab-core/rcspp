@@ -1102,3 +1102,44 @@ TEST(DrivenSearch, ARunEndsAtItsFirstPathWhateverTheRetention) {
     EXPECT_TRUE(driven_runs()[0].recorded);
     EXPECT_DOUBLE_EQ(driven_runs()[0].cost, -1.0);
 }
+
+namespace {
+
+/// @brief Solves @p g with @p Strategy and @p params.
+///
+/// @return The status, and how many labels the solve extended.
+template <typename Strategy>
+std::pair<AlgorithmStatus, size_t> solve_counting_extensions(ResourceGraph<RealResource>& g,
+                                                             const AlgorithmBaseParams& params) {
+    auto algorithm = g.create_algorithm<Strategy>(
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto result = g.solve(algorithm.get());
+    return {result.status, algorithm->get_number_of_extended_labels()};
+}
+
+}  // namespace
+
+/// @brief A driven search counts the steps of all its runs for the memory check: each episode
+///        here takes three labels, fewer than the interval of 10, yet the check runs within the
+///        fourth and stops the solve at the limit. Before, no episode reached the interval, and
+///        the solve ran all its episodes.
+TEST(DrivenSearch, TheMemoryCheckCountsTheStepsOfEveryRun) {
+    constexpr size_t kEpisodes = 50;
+    constexpr size_t kCheckInterval = 10;
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams unlimited;
+    unlimited.max_iterations = kEpisodes;
+    unlimited.memory_check_interval = kCheckInterval;
+    AlgorithmBaseParams limited = unlimited;
+    limited.max_memory_gb = 1e-9;  // always exceeded
+
+    const auto [tabu_status, tabu_limited] = solve_counting_extensions<strategy::Tabu>(*g, limited);
+    EXPECT_EQ(tabu_status, AlgorithmStatus::MemoryLimit);
+    EXPECT_LT(tabu_limited, solve_counting_extensions<strategy::Tabu>(*g, unlimited).second);
+
+    const auto [improving_status, improving_limited] =
+        solve_counting_extensions<strategy::ImprovingTabu>(*g, limited);
+    EXPECT_EQ(improving_status, AlgorithmStatus::MemoryLimit);
+    EXPECT_LT(improving_limited,
+              solve_counting_extensions<strategy::ImprovingTabu>(*g, unlimited).second);
+}
