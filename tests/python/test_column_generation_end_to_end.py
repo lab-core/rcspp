@@ -36,6 +36,7 @@ from rcspp.column_generation import (  # noqa: E402
     GurobipyMasterSolver,
     HighspyMasterSolver,
     IntegerParams,
+    IterationInfo,
     MasterProblem,
     MasterSolver,
     PricingStage,
@@ -375,6 +376,38 @@ def test_the_toy_with_a_fleet_limit(make_model: Callable[[], UserModel]) -> None
     # One vehicle is not: the three customers weigh 15, more than its capacity.
     with_one = from_scratch(make_model(), graph, Toy.customers, 1.0)
     assert with_one.status == ColumnGenerationStatus.Infeasible
+
+
+def test_the_lagrangian_bound_stays_below_the_lp(make_model: Callable[[], UserModel]) -> None:
+    graph = routing_graph(FourCustomers.capacity, FourCustomers.demands, FourCustomers.distances)
+    master = master_from_scratch(make_model(), graph, len(FourCustomers.demands), 3.0)
+    seen: list[IterationInfo] = []
+    result = ColumnGeneration(master, ColumnGenerationParams(on_iteration=seen.append)).run()
+
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
+
+    # Every bound is below its LP and the optimum; the last one is the LP value.
+    bounds = [info.lower_bound for info in seen]
+    assert all(bound <= FourCustomers.lp + TOLERANCE for bound in bounds)
+    assert all(info.lower_bound <= info.objective + TOLERANCE for info in seen)
+    assert bounds[-1] == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
+    assert -math.inf < min(bounds) < FourCustomers.lp - 1.0  # a bound before the end
+    assert result.lower_bound == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
+
+
+def test_a_gap_stop_ends_with_the_lp_optimum_between_its_values(
+    make_model: Callable[[], UserModel],
+) -> None:
+    graph = routing_graph(FourCustomers.capacity, FourCustomers.demands, FourCustomers.distances)
+    master = master_from_scratch(make_model(), graph, len(FourCustomers.demands), 3.0)
+    params = ColumnGenerationParams(absolute_gap=1e9)
+    result = ColumnGeneration(master, params).run()
+
+    assert result.status == ColumnGenerationStatus.AbsoluteGapLimit
+    assert result.objective is not None
+    assert result.lower_bound <= FourCustomers.lp + TOLERANCE
+    assert FourCustomers.lp <= result.objective + TOLERANCE
 
 
 def test_routes_that_visit_each_customer_once(make_model: Callable[[], UserModel]) -> None:

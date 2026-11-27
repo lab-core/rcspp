@@ -7,6 +7,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -55,6 +56,24 @@ struct ColumnGenerationParams {
         std::shared_ptr<MasterInitialization> initialization;
         /// @brief Which statistics to collect.
         StatisticsParams statistics;
+        /// @brief Stop (@c AbsoluteGapLimit) when the LP value minus the lower bound
+        ///        (@c IterationInfo::lower_bound) is at most this; 0 is off.
+        double absolute_gap = 0.0;
+        /// @brief Stop (@c RelativeGapLimit) when the LP value minus the lower bound is at most
+        ///        this times the LP value's magnitude; 0 is off.
+        double relative_gap = 0.0;
+        /// @brief The cost of a solution already known: stop (@c Cutoff) when the lower bound
+        ///        reaches it, as nothing here costs less; infinity is off.
+        double cutoff = std::numeric_limits<double>::infinity();
+        /// @brief Every solution has an integer cost: the lower bound is rounded up, for the
+        ///        cutoff and for a stop (@c IntegerObjectiveGap) when it reaches the LP value
+        ///        rounded up.
+        ///
+        /// The stops are checked after an iteration that added columns and has a lower bound, in
+        /// this order: the cutoff, the absolute gap, the relative gap, the integer objective; the
+        /// first one reached gives the status. They compare with the reduced-cost tolerance's
+        /// margin.
+        bool integer_objective = false;
         /// @brief Called after every iteration; read-only.
         std::function<void(const IterationInfo&)> on_iteration;
         /// @brief Called after each proven convergence; may change a pricer and ask to continue.
@@ -78,7 +97,20 @@ enum class ColumnGenerationStatus {
     Unbounded,
     TimeLimit,       ///< stopped by @c ColumnGenerationParams::timeout_s, in LP or pricing
     IterationLimit,  ///< stopped by @c ColumnGenerationParams::max_iterations
-    SolverError,     ///< an LP solve failed for another reason (numerical trouble, interruption…)
+    /// Stopped by @c ColumnGenerationParams::cutoff: the lower bound reached the cutoff, so no
+    /// solution here costs less than it. Checked first of the early stops.
+    Cutoff,
+    /// Stopped by @c ColumnGenerationParams::absolute_gap: the LP value minus the lower bound is
+    /// at most the gap. Checked after @c Cutoff.
+    AbsoluteGapLimit,
+    /// Stopped by @c ColumnGenerationParams::relative_gap: the LP value minus the lower bound is
+    /// at most the gap times the LP value's magnitude. Checked after @c AbsoluteGapLimit.
+    RelativeGapLimit,
+    /// Stopped by @c ColumnGenerationParams::integer_objective: the lower bound rounded up
+    /// reached the LP value rounded up, so more iterations cannot raise what it proves about an
+    /// integer solution. Checked last.
+    IntegerObjectiveGap,
+    SolverError,  ///< an LP solve failed for another reason (numerical trouble, interruption…)
 };
 
 /// @brief Result of a run.
@@ -87,7 +119,9 @@ struct ColumnGenerationResult {
         ColumnGenerationStatus status = ColumnGenerationStatus::SolverError;
         /// @brief Value of the last master LP solved.
         double objective = std::numeric_limits<double>::infinity();
-        /// @brief A proven lower bound on the master LP optimum (`−∞` when none).
+        /// @brief A proven lower bound on the master LP optimum: the objective when @c Optimal,
+        ///        else the best Lagrangian bound of the run's iterations (-infinity when none is
+        ///        known; see @c IterationInfo::lower_bound).
         double lower_bound = -std::numeric_limits<double>::infinity();
         /// @brief Number of iterations (LP solves).
         size_t iterations = 0;
@@ -106,6 +140,7 @@ class ColumnGeneration {
         ///
         /// @param master The master, with its rows, pricers and any starting columns.
         /// @param params Options.
+        /// @throws std::invalid_argument When a gap is negative or not a number.
         explicit ColumnGeneration(MasterProblem& master, ColumnGenerationParams params = {});
 
         /// @brief Runs column generation until convergence or a limit, then has the master
@@ -132,6 +167,9 @@ class ColumnGeneration {
         struct PricingRound {
                 size_t new_columns;
                 bool proven;
+                // What the pricers add to the LP value to give the Lagrangian bound (-infinity
+                // when unknown).
+                double bound_terms;
         };
 
         // The loop itself: solve, price, add columns, until convergence or a limit.
@@ -143,7 +181,17 @@ class ColumnGeneration {
 
         // Prices every pricer once and adds what they find.
         PricingRound price(std::span<const double> duals, const Timer& total_timer,
-                           double reduced_cost_tolerance);
+                           double reduced_cost_tolerance, std::span<const double> paths_allowed);
+
+        // How many paths each pricer's convexity row allows: its upper bound, infinity without a
+        // row. Read once per run and after a restart, as a master solver may copy its model to
+        // answer.
+        [[nodiscard]] std::vector<double> paths_allowed() const;
+
+        // The status of a stop on the cutoff or the gap, or none to go on.
+        [[nodiscard]] std::optional<ColumnGenerationStatus> early_stop(double objective,
+                                                                       double bound,
+                                                                       double tolerance) const;
 
         // At least 1: the largest pricer cost scale, starting column cost and cost of the user's
         // own variables.

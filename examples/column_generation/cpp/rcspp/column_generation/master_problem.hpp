@@ -50,6 +50,11 @@ struct RowRange {
 /// @brief The convexity row of a pricer: "at most `max_paths` columns of this pricer".
 ///
 /// Set at most one of the two fields. Neither set: the pricer has no convexity row.
+///
+/// The row's upper bound is how many of the pricer's paths the Lagrangian bound
+/// (@c IterationInfo::lower_bound) counts. For an @c existing_row, that holds when its other terms
+/// are nonnegative (variables at least 0 with coefficients at least 0); a row with no upper bound,
+/// or no convexity row, gives a bound only when the pricer's best reduced cost is not negative.
 struct ConvexityRow {
         /// @brief A row the user already built, e.g. in a wrapped model.
         std::optional<size_t> existing_row;

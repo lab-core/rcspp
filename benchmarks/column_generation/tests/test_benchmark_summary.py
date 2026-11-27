@@ -160,7 +160,7 @@ def test_rounds_that_differ_are_flagged_and_shown(tmp_path: Path):
 
     write_summary(tmp_path)
     text = summary_text(tmp_path)
-    assert "| Optimal x2, TimeLimit x1 | 191.814 | 16..18 |" in text
+    assert "| Optimal x2, TimeLimit x1 | 191.814 | 191.814 | 16..18 |" in text
 
 
 def test_fields_a_runner_adds_are_summarised_too(tmp_path: Path):

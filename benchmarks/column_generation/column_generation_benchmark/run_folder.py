@@ -62,10 +62,12 @@ INTERRUPTED = "interrupted"
 RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
 
 #: The fields of every ``result.json``, with their kinds; ``objective`` is null when no master
-#: LP was solved, the integer solve's fields when it is off.
+#: LP was solved, ``lower_bound`` when no bound is known, the integer solve's fields when it is
+#: off.
 RESULT_FIELDS: dict[str, str] = {
     "status": "string",
     "objective": "number or null",
+    "lower_bound": "number or null",
     "iterations": "integer",
     "columns": "integer",
     "artificial_columns": "integer",

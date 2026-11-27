@@ -17,12 +17,21 @@ from .command_line import (
     benchmark_from_arguments,
     run_from_arguments,
 )
-from .run import LAYERS, RUN_OPTIONS, MasterNotOnLayerError, Run, RunOptions
+from .run import (
+    LAYERS,
+    RUN_OPTIONS,
+    STOPS_WITHOUT_FLEET,
+    MasterNotOnLayerError,
+    Run,
+    RunOptions,
+    stops_without_fleet,
+)
 
 __all__ = [
     "BLOCKS",
     "LAYERS",
     "RUN_OPTIONS",
+    "STOPS_WITHOUT_FLEET",
     "Benchmark",
     "Expansion",
     "MasterNotOnLayerError",
@@ -38,4 +47,5 @@ __all__ = [
     "read_presets",
     "read_toml",
     "run_from_arguments",
+    "stops_without_fleet",
 ]

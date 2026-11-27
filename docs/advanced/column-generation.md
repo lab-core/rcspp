@@ -290,11 +290,56 @@ again on the same loop after such changes.
 | `RestrictedMasterInfeasible` | the master LP has no solution with its columns so far (no initialization) |
 | `Unbounded` | the master LP is unbounded: look for a missing convexity row or bound |
 | `TimeLimit`, `IterationLimit` | stopped by `timeout_s` or `max_iterations` |
+| `Cutoff` | stopped by `cutoff`: nothing here costs less than the cutoff |
+| `AbsoluteGapLimit`, `RelativeGapLimit` | stopped by `absolute_gap` or `relative_gap`: the bound is close enough |
+| `IntegerObjectiveGap` | stopped by `integer_objective`: the bound rounded up reached the LP value rounded up |
 | `SolverError` | an LP solve failed for another reason |
 
-`result.objective` is the last master LP value, `result.lower_bound` a proven lower bound, and
-`result.statistics` holds the number of columns generated and the time spent in LP solves and in
-pricing.
+`result.objective` is the last master LP value, `result.lower_bound` a proven lower bound (below),
+and `result.statistics` holds the number of columns generated and the time spent in LP solves and
+in pricing.
+
+#### The lower bound and early stops
+
+Each master LP value is an upper bound on the LP optimum over every column: the master only has
+some of them. Pricing gives a lower bound too, the Lagrangian bound. Any solution's cost is the LP
+value plus each column's reduced cost times its value; a pricer's columns each cost at least its
+best reduced cost, and its convexity row limits how many a solution uses. So
+
+```text
+lower bound = LP value
+            + sum over the pricers of (convexity row's upper bound) * min(0, best reduced cost)
+```
+
+`IterationInfo.lower_bound` is this bound at each iteration, and `result.lower_bound` the best
+one of the run (the LP value when `Optimal`). It is `-inf` when a pricer gives no bound (a
+heuristic stage, a search stopped early: only a finished exact search knows its best reduced
+cost) or has no convexity row with an upper bound. A pricer written in Python gives its bound in
+`PricingResult.min_reduced_cost_bound`.
+
+The bound lets a run stop before the last iterations, which often improve the LP value very
+little:
+
+<!-- docs test: fragment -->
+
+```python
+params = ColumnGenerationParams(
+    relative_gap=0.001,       # stop when the LP value is within 0.1 % of the bound
+    absolute_gap=0.5,         # or within 0.5
+    integer_objective=True,   # costs are integers: the bound rounds up
+    cutoff=1250.0,            # a known solution costs 1250: stop once nothing here is cheaper
+)
+```
+
+All are off by default and are checked after an iteration that added columns and has a bound, in
+this order: `cutoff` (status `Cutoff`), `absolute_gap` (`AbsoluteGapLimit`), `relative_gap`
+(`RelativeGapLimit`), `integer_objective` (`IntegerObjectiveGap`); the first one reached gives
+the status. Each leaves the last LP value in `result.objective`: the LP optimum lies between
+`result.lower_bound` and it. With `integer_objective`, the run stops once the bound
+rounded up reaches the LP value rounded up: more iterations could not change what the LP proves
+about an integer solution. A `cutoff` is the cost of a solution already known, from a heuristic
+or another search: once the bound reaches it, no solution here is cheaper, which proves the known
+one optimal or, in a branch-and-price tree, prunes a node.
 
 ### Several pricers
 
@@ -313,7 +358,8 @@ small = master.add_pricer(GraphPricer(small_vehicle_graph), ConvexityRow(max_pat
 - **A pricer:** subclass `Pricer` and implement `price(duals, request)`, returning a
   `PricingResult` with the new columns (`Solution`s with their `column`) and a `PricingStatus`.
   Only an exact call (`exact_stage=True`) that ends `Optimal` or `Infeasible` proves that no
-  improving column exists.
+  improving column exists. Its `min_reduced_cost_bound`, a lower bound on the reduced cost of any
+  of its columns without the convexity dual, gives the lower bound; leave it `-inf` when unknown.
 - **A master solver:** subclass `MasterSolver` for another LP solver. The loop trusts its
   answers, so check it with `master_solver_self_test(minimizing, maximizing)`: it solves small
   LPs with known optima, duals and integer solutions through the interface, and reports every

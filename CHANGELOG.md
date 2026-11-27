@@ -328,8 +328,8 @@ New features are summarised, with a pointer to where they are documented.
   HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
   With `USE_PYTHON`, its bindings in `rcspp._core.cpp_column_generation` and the Python package
   `cpp_column_generation` over them (in the example's folder, not in rcspp), with master solvers
-  over a user's highspy or gurobipy model and a column generation loop written in Python. It also
-  builds on its own over an installed rcspp; see `examples/column_generation/README.md`.
+  over a user's highspy or gurobipy model. It also builds on its own over an installed rcspp; see
+  `examples/column_generation/README.md`.
 - **A column generation benchmark** (`benchmarks/column_generation/`), in the source tree only:
   not installed, not in the wheel. A runner per layer (`rcspp.column_generation`; when it is built,
   the C++ example through its bindings, and the same example in a C++ program of the benchmark,
@@ -344,6 +344,16 @@ New features are summarised, with a pointer to where they are documented.
   cost per distance, and optionally a longest route and a vehicle limit; the integer plan says how
   many vehicles of each type to use. `pricing_graph` in the VRP example takes a vehicle's capacity
   and costs; its defaults build the same graph as before. See `examples/python/vrp/README.md`.
+- **A lower bound and early stops in column generation.** Each iteration of
+  `rcspp.column_generation` gives the Lagrangian bound (`IterationInfo.lower_bound`), built from
+  the pricers' `min_reduced_cost_bound` and their convexity rows; `ColumnGenerationResult.lower_bound`
+  is the best of the run. `ColumnGenerationParams` stops a run on `cutoff`, `absolute_gap`,
+  `relative_gap` or `integer_objective`, all off by default, each with its own status (`Cutoff`,
+  `AbsoluteGapLimit`, `RelativeGapLimit`, `IntegerObjectiveGap`). The C++ column generation
+  example has the same, in C++ and through its bindings. The column generation benchmark takes the
+  four as `column_generation` options, with `instance.vehicles`, the row limiting the routes that
+  the bound needs, and records `lower_bound` in `result.json`. See "The lower bound and early
+  stops" in `docs/advanced/column-generation.md`.
 
 ### Fixed
 

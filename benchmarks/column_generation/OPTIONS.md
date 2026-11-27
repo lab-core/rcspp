@@ -142,7 +142,13 @@ then `"master.parameters.Method" = 0` gives both parameters.
 
 | type | parameters | name alone |
 |---|---|---|
-| `solomon` | `name`: a file `instances/<name>.txt` of the tree, in Solomon's VRPTW format | `instance = "C101_25"` |
+| `solomon` | `name`: a file `instances/<name>.txt` of the tree, in Solomon's VRPTW format; `vehicles`: the master row "at most that many routes", 1 or more (absent: no such row, any number of routes) | `instance = "C101_25"` |
+
+`vehicles` gives the column generation's lower bound the limit on the routes it needs: without it, the bound is unknown
+until the end, so the `column_generation` stops on the bound never fire (the run is as without them; the runner and
+`benchmark.py` warn). As many vehicles as customers or more leaves the LP value as it is, though not always the
+iterations (the row can be tight at a degenerate LP, and its dual then changes the pricing); fewer is another problem,
+with a fleet. A run with `vehicles` has `-vehicles_<N>` after the instance in its name.
 
 ### `layer`
 
@@ -219,6 +225,15 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 | `timeout_s` | the run's wall-clock limit, in seconds | no limit |
 | `tolerances` | `absolute` or `relative`, by name or as a table with `reduced_cost`, `feasibility`, `optimality_gap` | the layer's (the package's: `absolute`) |
 | `threads` | the master solver's threads in every solve, a whole number; 0 lets the solver choose | 0 (1 in a benchmark of more than one process) |
+| `absolute_gap` | stop (`AbsoluteGapLimit`) when the LP value minus the lower bound is at most this; 0 or more | 0: off |
+| `relative_gap` | stop (`RelativeGapLimit`) when the LP value minus the lower bound is at most this times the LP value's magnitude; 0 or more | 0: off |
+| `cutoff` | the cost of a known solution: stop (`Cutoff`) when the lower bound reaches it | `inf`: off |
+| `integer_objective` | `true`: costs are integers, the lower bound rounds up, for the cutoff and for a stop (`IntegerObjectiveGap`) when it reaches the LP value rounded up | `false` |
+
+The lower bound is the Lagrangian bound of each iteration (`result.json`'s `lower_bound`, the best of the run); the
+stops are checked after an iteration that added columns and has a bound, in the order of the table, the first reached
+giving the status. They need `instance.vehicles`, the row that limits the routes: without it they never fire, and
+the runner and `benchmark.py` warn.
 
 `tolerances = "relative"` is `{ type = "relative" }`, and merges as that table:
 `"column_generation.tolerances.reduced_cost" = 1e-7` over it keeps the type. `{ type = "absolute", reduced_cost =

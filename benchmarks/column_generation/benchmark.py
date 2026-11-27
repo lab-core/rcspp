@@ -61,6 +61,7 @@ from column_generation_benchmark.load import (  # noqa: E402
     tree_processor_seconds,
 )
 from column_generation_benchmark.options import (  # noqa: E402
+    STOPS_WITHOUT_FLEET,
     Benchmark,
     Expansion,
     OptionsError,
@@ -71,6 +72,7 @@ from column_generation_benchmark.options import (  # noqa: E402
     folder_name,
     read_toml,
     run_from_arguments,
+    stops_without_fleet,
 )
 from column_generation_benchmark.record import make_record  # noqa: E402
 from column_generation_benchmark.run_folder import BENCHMARK_FILE, RUNS_FOLDER  # noqa: E402
@@ -392,6 +394,17 @@ def list_runs(expansion: Expansion, output: Path) -> None:
     """Prints the matrix points dropped, then each run and its folders."""
     for dropped in expansion.dropped:
         print(f"dropped: {dropped}")
+
+    # Once for the benchmark: each run's own runner warns in its log too.
+    without_fleet = [run.name for run in expansion.runs if stops_without_fleet(run)]
+
+    if without_fleet:
+        count = len(without_fleet)
+        print(
+            f"warning: {count} run{'s' * (count > 1)} set a column generation stop "
+            f"({', '.join(without_fleet)}); {STOPS_WITHOUT_FLEET}",
+            file=sys.stderr,
+        )
 
     rounds = expansion.repeats
     print(f"{len(expansion.runs)} runs, {rounds} round{'s' * (rounds > 1)}, into {output}:")

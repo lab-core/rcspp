@@ -35,6 +35,7 @@ def result(**changes: Any) -> dict[str, Any]:
     found: dict[str, Any] = {
         "status": "Optimal",
         "objective": 191.8136,
+        "lower_bound": 191.8136,
         "iterations": 16,
         "columns": 599,
         "artificial_columns": 25,

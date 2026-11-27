@@ -48,6 +48,7 @@ def result(**changes: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "status": "Optimal",
         "objective": 191.8136,
+        "lower_bound": 191.8136,
         "iterations": 23,
         "columns": 661,
         "artificial_columns": 0,

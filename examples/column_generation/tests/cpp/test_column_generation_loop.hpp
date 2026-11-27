@@ -176,7 +176,8 @@ TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
         ColumnGeneration loop(master);
         const ColumnGenerationResult result = loop.run();
         EXPECT_EQ(result.status, ColumnGenerationStatus::NotProven);
-        EXPECT_EQ(result.lower_bound, -infinity);
+        // A pricer's bound holds whatever its status: 0 bounds the LP by its own value.
+        EXPECT_EQ(result.lower_bound, result.objective);
     }
 }
 
@@ -229,7 +230,8 @@ TEST(ColumnGenerationLoop, InfeasibleWhenAnArtificialColumnStays) {
     ColumnGeneration loop(master);
     const ColumnGenerationResult result = loop.run();
     EXPECT_EQ(result.status, ColumnGenerationStatus::Infeasible);
-    EXPECT_EQ(result.lower_bound, -infinity);
+    // Pricing proved its LP optimal, artificial column included: a bound on the master's LP.
+    EXPECT_EQ(result.lower_bound, result.objective);
 }
 
 TEST(ColumnGenerationLoop, ConvergenceHookCanRestartTheLoop) {

@@ -44,6 +44,10 @@ class IterationInfo:
     iteration: int
     #: Value of the master LP at this iteration.
     objective: float
+    #: The Lagrangian bound at this iteration's duals: a lower bound on the LP value of the
+    #: master with every column. ``-inf`` when unknown: a pricer without a bound (a heuristic
+    #: stage, a search stopped early) or without a convexity row that limits its paths.
+    lower_bound: float
     #: Columns the pricers added at this iteration.
     new_columns: int
     #: Columns in the master after this iteration, artificial ones included.

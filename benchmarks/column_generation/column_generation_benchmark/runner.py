@@ -31,12 +31,14 @@ from . import run_folder, source_tree
 from .collectors import collect
 from .instances import Instance, InstanceError
 from .options import (
+    STOPS_WITHOUT_FLEET,
     OptionsError,
     Run,
     add_run_options,
     expand_run,
     read_toml,
     run_from_arguments,
+    stops_without_fleet,
 )
 from .record import make_record
 
@@ -159,6 +161,11 @@ def read_run(arguments: argparse.Namespace, layer: str) -> tuple[Run, Path]:
 
     if run.layer != layer:
         raise OptionsError(f"this runner runs layer {layer}, not {run.layer}")
+
+    stops = stops_without_fleet(run)
+
+    if stops:
+        print(f"warning: {', '.join(stops)}: {STOPS_WITHOUT_FLEET}", file=sys.stderr)
 
     lp_threads = run.column_generation.threads or 0
     integer_threads = run.integer.threads

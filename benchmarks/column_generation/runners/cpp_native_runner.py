@@ -43,6 +43,7 @@ LAYER = "cpp-native"
 RESULT_FIELDS = (
     "status",
     "objective",
+    "lower_bound",
     "iterations",
     "columns",
     "artificial_columns",
@@ -108,6 +109,9 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
 
     arguments += ["--start", run.start.type]
 
+    if run.instance.vehicles is not None:
+        arguments += ["--vehicles", str(run.instance.vehicles)]
+
     if run.start.type == "artificial":
         assert run.start.cost_factor is not None
         arguments += ["--artificial-cost-factor", repr(float(run.start.cost_factor))]
@@ -129,6 +133,18 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
 
     if settings.threads is not None:
         arguments += ["--threads", str(settings.threads)]
+
+    if settings.absolute_gap is not None:
+        arguments += ["--absolute-gap", flag_value(float(settings.absolute_gap))]
+
+    if settings.relative_gap is not None:
+        arguments += ["--relative-gap", flag_value(float(settings.relative_gap))]
+
+    if settings.cutoff is not None:
+        arguments += ["--cutoff", flag_value(float(settings.cutoff))]
+
+    if settings.integer_objective:
+        arguments += ["--integer-objective"]
 
     integer = run.integer
 

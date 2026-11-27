@@ -74,6 +74,12 @@ class ConvexityRow:
     sum of the pricer's columns at most ``max_paths`` (a fleet size, a number of
     crews...). Set at most one; neither: no convexity row, any number of paths.
 
+    The row's upper bound is how many of the pricer's paths the Lagrangian bound
+    (:attr:`IterationInfo.lower_bound`) counts. For an ``existing_row``, that holds when its
+    other terms are nonnegative (variables at least 0 with coefficients at least 0); a row
+    with no upper bound, or no convexity row, gives a bound only when the pricer's best
+    reduced cost is not negative.
+
     Raises:
         ValueError: When both are set.
         TypeError: When ``existing_row`` is not an integer.

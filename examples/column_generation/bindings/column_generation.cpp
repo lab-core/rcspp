@@ -385,6 +385,10 @@ void init_column_generation(py::module_& m) {
         .value("Unbounded", ColumnGenerationStatus::Unbounded)
         .value("TimeLimit", ColumnGenerationStatus::TimeLimit)
         .value("IterationLimit", ColumnGenerationStatus::IterationLimit)
+        .value("Cutoff", ColumnGenerationStatus::Cutoff)
+        .value("AbsoluteGapLimit", ColumnGenerationStatus::AbsoluteGapLimit)
+        .value("RelativeGapLimit", ColumnGenerationStatus::RelativeGapLimit)
+        .value("IntegerObjectiveGap", ColumnGenerationStatus::IntegerObjectiveGap)
         .value("SolverError", ColumnGenerationStatus::SolverError);
 
     // ── Constants ─────────────────────────────────────────────────────────────
@@ -876,6 +880,9 @@ void init_column_generation(py::module_& m) {
     py::class_<IterationInfo>(m, "IterationInfo", "What the iteration hook sees (a copy).")
         .def_readonly("iteration", &IterationInfo::iteration)
         .def_readonly("objective", &IterationInfo::objective)
+        .def_readonly("lower_bound",
+                      &IterationInfo::lower_bound,
+                      "The Lagrangian bound at this iteration's duals; -inf when unknown.")
         .def_readonly("new_columns", &IterationInfo::new_columns)
         .def_readonly("total_columns", &IterationInfo::total_columns)
         .def_readonly("elapsed_seconds", &IterationInfo::elapsed_seconds);
@@ -910,6 +917,10 @@ void init_column_generation(py::module_& m) {
                          std::shared_ptr<MasterInitialization>
                              initialization,
                          StatisticsParams statistics,
+                         double absolute_gap,
+                         double relative_gap,
+                         double cutoff,
+                         bool integer_objective,
                          std::function<void(IterationInfo)>
                              on_iteration,
                          std::function<ConvergenceAction(ConvergenceContext&)>
@@ -920,6 +931,10 @@ void init_column_generation(py::module_& m) {
                                                .tolerances = std::move(tolerances),
                                                .initialization = std::move(initialization),
                                                .statistics = statistics,
+                                               .absolute_gap = absolute_gap,
+                                               .relative_gap = relative_gap,
+                                               .cutoff = cutoff,
+                                               .integer_objective = integer_objective,
                                                .on_converged = std::move(on_converged)};
                  set_iteration_hook(params, std::move(on_iteration));
                  return params;
@@ -931,6 +946,10 @@ void init_column_generation(py::module_& m) {
              py::arg("tolerances") = py::none(),
              py::arg("initialization") = py::none(),
              py::arg("statistics") = params_defaults.statistics,
+             py::arg("absolute_gap") = params_defaults.absolute_gap,
+             py::arg("relative_gap") = params_defaults.relative_gap,
+             py::arg("cutoff") = params_defaults.cutoff,
+             py::arg("integer_objective") = params_defaults.integer_objective,
              py::arg("on_iteration") = py::none(),
              py::arg("on_converged") = py::none())
         .def_readwrite("max_iterations", &ColumnGenerationParams::max_iterations)
@@ -952,6 +971,22 @@ void init_column_generation(py::module_& m) {
                        &ColumnGenerationParams::initialization,
                        "None: ArtificialColumns.")
         .def_readwrite("statistics", &ColumnGenerationParams::statistics)
+        .def_readwrite("absolute_gap",
+                       &ColumnGenerationParams::absolute_gap,
+                       "Stop (AbsoluteGapLimit) when the LP value minus the lower bound is at most "
+                       "this; 0 is off.")
+        .def_readwrite("relative_gap",
+                       &ColumnGenerationParams::relative_gap,
+                       "Stop (RelativeGapLimit) when the LP value minus the lower bound is at most "
+                       "this times the LP value's magnitude; 0 is off.")
+        .def_readwrite("cutoff",
+                       &ColumnGenerationParams::cutoff,
+                       "The cost of a known solution: stop (Cutoff) when the lower bound reaches "
+                       "it; inf is off.")
+        .def_readwrite("integer_objective",
+                       &ColumnGenerationParams::integer_objective,
+                       "Integer costs: the lower bound rounds up, for the cutoff and for a stop "
+                       "(IntegerObjectiveGap) when it reaches the LP value rounded up.")
         .def_property(
             "on_iteration",
             [](const ColumnGenerationParams& params) { return params.on_iteration; },

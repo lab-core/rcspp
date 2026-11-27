@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 
 namespace rcspp::column_generation {
 
@@ -37,6 +38,11 @@ struct IterationInfo {
         size_t iteration = 0;
         /// @brief Value of the master LP at this iteration.
         double objective = 0.0;
+        /// @brief The Lagrangian bound at this iteration's duals: a lower bound on the LP value
+        ///        of the master with every column. -infinity when unknown: a pricer without a
+        ///        bound (a heuristic stage, a search stopped early) or without a convexity row
+        ///        that limits its paths.
+        double lower_bound = -std::numeric_limits<double>::infinity();
         /// @brief Columns the pricers added at this iteration.
         size_t new_columns = 0;
         /// @brief Columns in the master after this iteration, artificial ones included.

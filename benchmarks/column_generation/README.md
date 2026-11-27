@@ -126,7 +126,7 @@ reads the LP solution, solves the integer master and writes the folder, in that 
 | `command.txt` | the command line that started the run |
 | `metadata.json` | start and end; the process's processor time (`processor_seconds`); the commit and whether it had uncommitted changes, the build, its type and its compiler, the versions of Python, rcspp, numpy and the solvers (`highs`: the HiGHS that solves; `highspy_highs`: highspy's own), the machine's label, processor, cores and memory; the processes sharing the machine and the solver's threads in the LP solves and in the integer solve (`benchmark`) |
 | `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
-| `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
+| `result.json` | `status`, `objective`, `lower_bound` (null when unknown), `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
 `result.json` is written last: a folder that has one holds a finished run.
 

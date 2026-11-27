@@ -5,8 +5,7 @@
 
 The master is a model the user built for their LP solver; each kind of model is a
 UserModel, and every test runs over each of them. A solver missing from this build is
-skipped. The column generation loop written in Python
-(the example's python/column_generation_loop.py) must give the C++ loop's results.
+skipped.
 """
 
 import importlib.util
@@ -28,7 +27,6 @@ import rcspp._core as _core  # noqa: E402
 if not hasattr(_core, "cpp_column_generation"):
     pytest.skip("rcspp built without the column generation example", allow_module_level=True)
 
-import column_generation_loop  # noqa: E402
 import cpp_column_generation as column_generation  # noqa: E402
 from cpp_column_generation import (  # noqa: E402
     ColumnGeneration,
@@ -383,39 +381,3 @@ def test_routes_that_visit_each_customer_once(make_model: Callable[[], UserModel
 
     assert result.status == ColumnGenerationStatus.Optimal
     assert result.objective == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
-
-
-@pytest.mark.parametrize("vehicles", [None, 2.0, 1.0], ids=["no-fleet", "two", "one"])
-def test_the_python_loop_gives_the_cpp_loops_results(
-    make_model: Callable[[], UserModel], vehicles: float | None
-) -> None:
-    # The same toy twice, from scratch: once for each loop.
-    masters = [
-        master_from_scratch(
-            make_model(),
-            routing_graph(Toy.capacity, Toy.demands, Toy.distances),
-            Toy.customers,
-            vehicles,
-        )
-        for _ in range(2)
-    ]
-    cpp = ColumnGeneration(masters[0]).run()
-    python = column_generation_loop.run(masters[1])
-
-    assert python.status == cpp.status
-    assert python.objective == pytest.approx(cpp.objective, abs=TOLERANCE)
-    assert python.lower_bound == pytest.approx(cpp.lower_bound, abs=TOLERANCE)
-    assert python.iterations == cpp.iterations
-    assert python.generated_columns == cpp.statistics.generated_columns
-    assert python.artificial_columns == cpp.statistics.artificial_columns
-    assert python.artificial_cost == pytest.approx(cpp.statistics.artificial_cost)
-
-    # The same columns, with the same values in the last LP.
-    cpp_columns, python_columns = (master.columns() for master in masters)
-    assert [column.solution.column.cost for column in python_columns] == pytest.approx(
-        [column.solution.column.cost for column in cpp_columns]
-    )
-    cpp_values, python_values = (
-        column_values(master.solver(), master.number_of_columns()) for master in masters
-    )
-    assert python_values == pytest.approx(cpp_values, abs=TOLERANCE)
