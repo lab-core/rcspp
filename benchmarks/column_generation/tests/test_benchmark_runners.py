@@ -803,9 +803,13 @@ def test_every_layer_gives_the_same_run_over_gurobi(build: Path, tmp_path: Path,
 
 
 def test_every_layer_stops_on_the_same_bound(build: Path, tmp_path: Path):
-    """With a fleet row, every layer stops at a relative gap of 5 % with a bound below
+    """With a fleet row, every layer stops at a relative gap of 30 % with a bound below
     the LP optimum; the layers over the example's HiGHS build stop at the same iteration
-    with the same bound."""
+    with the same bound.
+
+    The gap is wide so that the stop comes well before the last iteration whatever path
+    the LP solver takes: 5 % was reached only at the last one on Linux.
+    """
     runs = [("package", "highspy")]
 
     if has_example():
@@ -814,6 +818,7 @@ def test_every_layer_stops_on_the_same_bound(build: Path, tmp_path: Path):
     if has_cpp_native(build):
         runs.append(("cpp-native", "highs"))
 
+    gap = 0.3
     fleet = ("--instance", "C101_25", "--instance.vehicles", "25")
     optimal = run_layer("package", build, tmp_path / "optimal", *fleet)
     results = {
@@ -822,7 +827,7 @@ def test_every_layer_stops_on_the_same_bound(build: Path, tmp_path: Path):
             build,
             tmp_path / f"{layer}-{master}",
             *fleet,
-            *("--master", master, "--column_generation.relative_gap", "0.05"),
+            *("--master", master, "--column_generation.relative_gap", str(gap)),
         )
         for layer, master in runs
     }
@@ -833,7 +838,7 @@ def test_every_layer_stops_on_the_same_bound(build: Path, tmp_path: Path):
         assert result["status"] == "RelativeGapLimit"
         assert result["iterations"] < optimal["iterations"]
         assert result["lower_bound"] <= optimal["objective"] + 1e-6 <= result["objective"] + 2e-6
-        assert result["objective"] - result["lower_bound"] <= 0.05 * result["objective"]
+        assert result["objective"] - result["lower_bound"] <= gap * result["objective"]
 
     if not has_example():
         return
