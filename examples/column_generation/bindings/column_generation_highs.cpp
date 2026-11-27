@@ -249,6 +249,12 @@ py::tuple model_rows(const OwnedHighsMasterSolver& solver, HighsInt first) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void init_column_generation_highs(py::module_& m) {
+    m.def(
+        "highs_version",
+        []() { return std::string(highsVersion()); },
+        "The version of the HiGHS this module links, which HighsMasterSolver and "
+        "HighspyMasterSolver solve with; highspy's own HiGHS can be another.");
+
     py::class_<OwnedHighsMasterSolver, MasterSolver, py::smart_holder>(
         m,
         "HighsMasterSolver",

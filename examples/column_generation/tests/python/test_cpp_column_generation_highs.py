@@ -58,6 +58,13 @@ def test_the_module_exports_no_highs_symbol() -> None:
     assert hasattr(module, "PyInit__core")
 
 
+def test_the_module_gives_the_highs_it_links() -> None:
+    version = column_generation.highs_version()
+
+    assert version.count(".") == 2
+    assert all(part.isdigit() for part in version.split("."))
+
+
 def test_passes_the_master_solver_self_test() -> None:
     report = master_solver_self_test(
         column_generation.HighsMasterSolver(), column_generation.HighsMasterSolver(maximize=True)

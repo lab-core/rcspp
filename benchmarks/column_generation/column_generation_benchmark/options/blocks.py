@@ -159,17 +159,18 @@ class Master(Block):
     type: str
     parameters: dict[str, Any]
 
-    TYPES: ClassVar = ("highspy", "gurobipy", "highs")
+    TYPES: ClassVar = ("highspy", "gurobipy", "highs", "gurobi")
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
         only_keys(given, ("type", "parameters"), "master", where)
         master = kind(given, cls.TYPES, "master", where)
         parameters = table(given.get("parameters", {}), where)
-        set_by_every_solve = SET_BY_EVERY_SOLVE["gurobi" if master == "gurobipy" else "highs"]
+        gurobi = master in ("gurobipy", "gurobi")
+        set_by_every_solve = SET_BY_EVERY_SOLVE["gurobi" if gurobi else "highs"]
 
         for name in parameters:
-            key = name.lower() if master == "gurobipy" else name
+            key = name.lower() if gurobi else name
 
             if key in set_by_every_solve:
                 option = set_by_every_solve[key]

@@ -188,6 +188,14 @@ New features are summarised, with a pointer to where they are documented.
   `--master highspy` or `--master gurobipy`, and solves the integer plan after the LP unless
   `--no-integer` is given; `python -m vrp` is gone, and so are the example's `VRP` class and
   `InstanceReader`. See `examples/python/vrp/README.md`.
+- **The C++ VRP example (`examples/cpp/`) runs on the C++ column generation example**
+  (`examples/column_generation/`) instead of its own loop over its own Gurobi master, and reads like
+  the Python one. Its program is `rcspp-vrp`, which needs `--master highs` or `--master gurobi` and
+  chooses the route relaxation at run time (`--relaxation none|ng|elementary`, `--ng-size`); it
+  builds with `USE_COLUMN_GENERATION_EXAMPLE` and one of its master solvers. **`USE_VRP` is gone**,
+  and so are the example's `VRP` class, `InstanceReader` and the engine benchmarks built on them
+  (`rcspp-vrp-benchmark`, `rcspp-vrp-benchmark-large`, `rcspp-ng-cg-comparison`, the Boost
+  subproblem) with their workflow. See `examples/cpp/vrp/README.md`.
 
 ### Added
 
@@ -323,8 +331,9 @@ New features are summarised, with a pointer to where they are documented.
   over a user's highspy or gurobipy model and a column generation loop written in Python. It also
   builds on its own over an installed rcspp; see `examples/column_generation/README.md`.
 - **A column generation benchmark** (`benchmarks/column_generation/`), in the source tree only:
-  not installed, not in the wheel. A runner per layer (`rcspp.column_generation`, and the C++
-  example through its bindings when it is built) does one run from options or a TOML file and
+  not installed, not in the wheel. A runner per layer (`rcspp.column_generation`; when it is built,
+  the C++ example through its bindings, and the same example in a C++ program of the benchmark,
+  `cpp-native-solver`, with HiGHS or Gurobi from C++) does one run from options or a TOML file and
   writes its folder: the options, a record of the source, build, versions and machine, the result
   and the solution. `benchmark.py` makes many runs from a benchmark file (named blocks, a matrix,
   rounds), each in its own process, and can resume, stop and time out runs. `summary.py`

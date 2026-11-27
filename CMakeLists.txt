@@ -7,12 +7,11 @@ project(rcspp-lib LANGUAGES CXX)
 include(GNUInstallDirs)
 
 option(CXX "enable C++ compilation" ON)
-option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 option(USE_COLUMN_GENERATION_EXAMPLE
-       "Build the C++ column generation example (examples/column_generation) and, with USE_PYTHON, its bindings"
+       "Build the C++ column generation example (examples/column_generation), the C++ VRP example on it (examples/cpp) and, with USE_PYTHON, its bindings"
        OFF)
 option(USE_COLUMN_GENERATION_EXAMPLE_GUROBI
        "Build the column generation example's Gurobi master solver (needs Gurobi)" OFF)
@@ -90,18 +89,14 @@ add_subdirectory(cpp/rcspp)
 # python/CMakeLists.txt adds its bindings to the Python module.
 if(USE_COLUMN_GENERATION_EXAMPLE)
   add_subdirectory(examples/column_generation)
+  # The VRP example on it, with a master solver built.
+  add_subdirectory(examples/cpp)
+  # The column generation benchmark's cpp-native layer, on it too.
+  add_subdirectory(benchmarks/column_generation/cpp_native)
 elseif(USE_COLUMN_GENERATION_EXAMPLE_GUROBI OR USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
   message(FATAL_ERROR "USE_COLUMN_GENERATION_EXAMPLE_GUROBI and "
                       "USE_COLUMN_GENERATION_EXAMPLE_HIGHS build master solvers of the column "
                       "generation example: they need USE_COLUMN_GENERATION_EXAMPLE.")
-endif()
-
-# VRP column generation example + benchmarks -----------------------------------
-# The VRP application is an example consumer of the rcspp library; it and its
-# benchmark drivers live entirely under examples/cpp/.
-if(USE_VRP)
-  message("Building vrp column generation example")
-  add_subdirectory(examples/cpp)
 endif()
 
 # Python bindings --------------------------------------------------------------

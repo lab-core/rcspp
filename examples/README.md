@@ -1,23 +1,24 @@
 # Examples
 
-Demonstration programs that use the `rcspp` library and the VRP column-generation
-solver. They are not part of the installable packages.
+Demonstration programs that use the `rcspp` library: a vehicle routing problem solved by column
+generation, in C++ and in Python, and a column generation layer in C++. They are not part of the
+installable packages.
 
 ## C++ (`examples/cpp/`)
 
-Benchmark drivers for the VRP solver over the Solomon and Gehring & Homberger
-instances under [`../instances/`](../instances). They link the reusable
-`rcspp-vrp-lib` target and require Gurobi (and optionally Boost).
-
-Build and run (from the repository root):
+[`solve_vrp.cpp`](cpp/solve_vrp.cpp) is the Python example below written in C++: it solves a VRPTW
+instance by column generation with the C++ column generation example (`examples/column_generation/`),
+over a HiGHS or Gurobi master, then picks an integer set of routes. Build it with the example and one
+of its master solvers, then run (from the repository root):
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_VRP=ON
-cmake --build build --target rcspp-vrp-benchmark
-./build/bin/rcspp-vrp-benchmark 2          # 2 instances per C1/R1/RC1 family
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_COLUMN_GENERATION_EXAMPLE=ON     -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON
+cmake --build build --config Release --target rcspp-vrp
+build/bin/rcspp-vrp instances/C101_25.txt --master highs
 ```
 
-The large benchmark target is `rcspp-vrp-benchmark-large`.
+The build options, the program's options (also ng-routes and elementary routes), the output and how
+to extend the model: [`cpp/vrp/README.md`](cpp/vrp/README.md).
 
 ## Python (`examples/python/`)
 

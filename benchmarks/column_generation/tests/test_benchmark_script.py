@@ -503,8 +503,8 @@ def test_the_example_file_expands_and_its_instances_read(
 
     assert benchmark.main(arguments) == 0
     printed = capsys.readouterr().out
-    assert printed.count("dropped:") == 4
-    assert "22 runs, 2 rounds, into" in printed
+    assert printed.count("dropped:") == 12
+    assert "26 runs, 2 rounds, into" in printed
     assert "RC201_12-package-highspy-exact-single-customer-r<1..2>" in printed
     assert not output.exists()
 

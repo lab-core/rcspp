@@ -5,9 +5,11 @@ record has every group."""
 
 import dataclasses
 import importlib
+import json
 import math
 import os
 import shlex
+import subprocess  # nosec B404: this interpreter, for a process of its own
 import sys
 import tomllib
 from pathlib import Path
@@ -19,6 +21,9 @@ from column_generation_benchmark.load import Load, Sample
 from column_generation_benchmark.options import OptionsError
 
 pytestmark = pytest.mark.usefixtures("build")
+
+#: The benchmark's folder, which its package is imported from.
+BENCHMARK_FOLDER = Path(__file__).resolve().parents[1]
 
 BENCHMARK = """
 [pricing.heuristics-first]
@@ -220,6 +225,57 @@ def test_the_code_record_has_the_core_file(build: Path):
     core = record.code_record(build)["core_file"]
 
     assert core["bytes"] > 0 and core["modified"]
+
+
+def test_the_code_record_has_the_build_type(build: Path):
+    # From the build's cache, or from _core when the generator keeps it out (Visual Studio).
+    assert record.code_record(build)["build_type"]
+
+
+def versions_in_a_process(build: Path, imports: str) -> dict[str, Any]:
+    """The versions a process that imported only `imports` records: pytest's own process
+    has imported highspy."""
+    script = f"""
+import json, sys
+sys.path.insert(0, {str(BENCHMARK_FOLDER)!r})
+from column_generation_benchmark import record, source_tree
+source_tree.use_tree({str(build)!r})
+source_tree.use_example()
+{imports}
+print(json.dumps(record.version_record()))
+"""
+    completed = subprocess.run(  # nosec B603: this interpreter, a fixed script
+        [sys.executable, "-c", script], capture_output=True, text=True, check=True
+    )
+    versions: dict[str, Any] = json.loads(completed.stdout.splitlines()[-1])
+    return versions
+
+
+def test_the_highs_that_solves_is_the_example_s_on_cpp_bindings(build: Path):
+    import rcspp._core
+
+    bindings = getattr(rcspp._core, "cpp_column_generation", None)
+
+    if not hasattr(bindings, "highs_version"):
+        pytest.skip("rcspp built without the column generation example's HiGHS part")
+
+    assert bindings is not None
+    linked = bindings.highs_version()
+    alone = versions_in_a_process(build, "import cpp_column_generation")
+    both = versions_in_a_process(build, "import cpp_column_generation, highspy")
+
+    assert alone["highs"] == linked and "highspy" not in alone
+    assert both["highs"] == linked
+    assert both["highspy_highs"] and both["highspy"]
+
+
+def test_the_highs_that_solves_is_highspy_s_on_the_package(build: Path):
+    pytest.importorskip("highspy")
+
+    versions = versions_in_a_process(build, "import highspy")
+
+    assert versions["highs"] == versions["highspy_highs"]
+    assert versions["highspy"]
 
 
 def test_a_missing_build_cache_records_nothing(tmp_path: Path):

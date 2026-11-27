@@ -56,6 +56,10 @@ endif()
 # Add include directories for project sources
 target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
 
+# The build's configuration, as _core.build_config: empty for a single-configuration build without
+# CMAKE_BUILD_TYPE.
+target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_BUILD_CONFIG="$<CONFIG>")
+
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
 # The C++ column generation example's bindings, from its own folder: not part of the library.

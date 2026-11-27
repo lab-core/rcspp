@@ -236,6 +236,37 @@ def use_example(tree: Path = TREE) -> None:
     put_first_on_path(str(tree / "examples" / "column_generation" / "python"))
 
 
+#: The cpp-native layer's program, built with the column generation example.
+CPP_NATIVE_PROGRAM = "cpp-native-solver"
+
+
+def cpp_native_program(build: Path) -> Path:
+    """The cpp-native layer's program in `build`: in ``bin/<configuration>`` for a
+    multi-configuration generator (Visual Studio), the configuration ``_core`` was built
+    in, else in ``bin``.
+
+    Raises:
+        SourceTreeError: When the build has not the program.
+    """
+    import rcspp._core
+
+    name = CPP_NATIVE_PROGRAM + (".exe" if sys.platform == "win32" else "")
+    configuration: str = getattr(rcspp._core, "build_config", "")
+    candidates = [build / "bin" / configuration / name] if configuration else []
+    candidates.append(build / "bin" / name)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    raise SourceTreeError(
+        f"the build {build} has no {CPP_NATIVE_PROGRAM}: build it with "
+        "USE_COLUMN_GENERATION_EXAMPLE=ON and one of its master solvers, then "
+        f"cmake --build {build} --target {CPP_NATIVE_PROGRAM} (see "
+        "benchmarks/column_generation/README.md)"
+    )
+
+
 def put_first_on_path(folder: str) -> None:
     """Puts `folder` first on ``sys.path``, moving it there when it is already on it."""
     if folder in sys.path:

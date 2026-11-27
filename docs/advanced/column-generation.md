@@ -346,6 +346,9 @@ Gurobi and HiGHS master solvers and Python bindings: `examples/column_generation
 example to read or copy, not part of the library or of the Python package; its README tells how
 to build it and run its tests.
 
+The vehicle routing example above is also written in C++ on it, in `examples/cpp/`: its README,
+`examples/cpp/vrp/README.md`, tells how to build and run it.
+
 ---
 
 ## Concept

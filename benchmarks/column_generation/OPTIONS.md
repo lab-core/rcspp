@@ -146,7 +146,8 @@ then `"master.parameters.Method" = 0` gives both parameters.
 
 ### `layer`
 
-`package` (the shipped pure-Python package) or `cpp-bindings` (the C++ example through its Python bindings). Not a
+`package` (the shipped pure-Python package), `cpp-bindings` (the C++ example through its Python bindings) or
+`cpp-native` (the C++ example in a C++ program, without Python; Solomon instances only). Not a
 block: a name only. A runner runs its own layer: when neither its run file nor its command line names one, the run's
 layer is the runner's; one that names another layer is refused. `--layer` on the command line goes over the run
 file's, so a run of one layer runs again on another.
@@ -157,7 +158,8 @@ file's, so a run of one layer runs again on another.
 |---|---|---|
 | `highspy` | HiGHS through its Python package; on `cpp-bindings` the model is copied to C++ and solved there | `package`, `cpp-bindings` |
 | `gurobipy` | Gurobi through its Python package; needs a licence | `package`, `cpp-bindings` |
-| `highs` | HiGHS from C++, the example's own master; needs the example built with HiGHS | `cpp-bindings` |
+| `highs` | HiGHS from C++, the example's own master; needs the example built with HiGHS | `cpp-bindings`, `cpp-native` |
+| `gurobi` | Gurobi's C++ API, the example's own master; needs the example built with Gurobi, and a licence | `cpp-native` |
 
 `parameters` (a table, empty by default) goes to the solver as it is: `{ Presolve = 1, Method = 0 }` for Gurobi. A
 `[matrix]` point whose layer and master do not go together is dropped and listed before the first run, wherever the
@@ -171,7 +173,7 @@ options instead.
 | solver | refused | instead |
 |---|---|---|
 | HiGHS (`highspy`, `highs`) | `threads`, `time_limit`, `output_flag`, `solve_relaxation`, `mip_rel_gap` | `column_generation.threads`, `column_generation.timeout_s`, `integer.relative_gap` |
-| Gurobi (`gurobipy`; names in any case) | `Threads`, `TimeLimit`, `OutputFlag`, `MIPGap` | `column_generation.threads`, `column_generation.timeout_s`, `integer.relative_gap` |
+| Gurobi (`gurobipy`, `gurobi`; names in any case) | `Threads`, `TimeLimit`, `OutputFlag`, `MIPGap` | `column_generation.threads`, `column_generation.timeout_s`, `integer.relative_gap` |
 
 ### `pricing`
 

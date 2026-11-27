@@ -7,8 +7,8 @@
 #include <string>
 
 #include "rcspp/rcspp.hpp"
-#include "vrp/instance.hpp"
-#include "vrp/instance_reader.hpp"
+#include "vrp_subproblem/instance.hpp"
+#include "vrp_subproblem/instance_reader.hpp"
 #include "vrp_subproblem/vrp_subproblem.hpp"
 
 using namespace rcspp;

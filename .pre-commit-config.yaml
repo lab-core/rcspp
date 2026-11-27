@@ -152,8 +152,9 @@ repos:
       # Clang Tidy
       # -------------------------
       - id: clang-tidy
-        # The core library and the column generation example's layer.
-        files: ^(cpp|examples/column_generation/cpp)/rcspp/.*\.(cpp|hpp)$
+        # The core library, the column generation example's layer, the C++ VRP example and the
+        # column generation benchmark's C++ program.
+        files: ^((cpp|examples/column_generation/cpp)/rcspp/.*|examples/cpp/(solve_vrp|vrp/[^/]*)|benchmarks/column_generation/cpp_native/[^/]*)\.(cpp|hpp)$
         # The example's master solvers need their solver's headers, which these arguments do not
         # give; the build lints them (CMAKE_CXX_CLANG_TIDY) when they are built.
         exclude: ^examples/column_generation/cpp/rcspp/column_generation/(gurobi|highs)/
@@ -165,13 +166,15 @@ repos:
           - -extra-arg=cpp
           - -extra-arg=-I
           - -extra-arg=examples/column_generation/cpp
+          - -extra-arg=-I
+          - -extra-arg=examples/cpp
 
       # -------------------------
       # Cppcheck
       # -------------------------
       - id: cppcheck
         entry: cppcheck
-        files: ^(cpp|examples/column_generation/cpp)/rcspp/.*\.(cpp|hpp|c|h)$
+        files: ^((cpp|examples/column_generation/cpp)/rcspp/.*|examples/cpp/(solve_vrp|vrp/[^/]*)|benchmarks/column_generation/cpp_native/[^/]*)\.(cpp|hpp|c|h)$
         # As clang-tidy.
         exclude: ^examples/column_generation/cpp/rcspp/column_generation/(gurobi|highs)/
         args:
@@ -185,12 +188,14 @@ repos:
           - cpp
           - -I
           - examples/column_generation/cpp
+          - -I
+          - examples/cpp
 
       # -------------------------
       # Cpplint
       # -------------------------
       - id: cpplint
-        files: ^(cpp|examples/column_generation/cpp)/rcspp/.*\.(cpp|hpp|c|h)$
+        files: ^((cpp|examples/column_generation/cpp)/rcspp/.*|examples/cpp/(solve_vrp|vrp/[^/]*)|benchmarks/column_generation/cpp_native/[^/]*)\.(cpp|hpp|c|h)$
         args:
           - --linelength=100
           - --filter=-whitespace/indent

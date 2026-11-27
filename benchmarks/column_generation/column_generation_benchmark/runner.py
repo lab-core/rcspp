@@ -22,7 +22,7 @@ import argparse
 import math
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -57,6 +57,25 @@ LAST_LP_FINISHED = ("Optimal", "NotProven", "Infeasible")
 
 #: The masters over HiGHS, which keeps the thread count of a process's first solve.
 HIGHS_MASTERS = ("highspy", "highs")
+
+
+# MARK: A program
+
+
+@dataclass(frozen=True)
+class ProgramReport:
+    """What a runner's program measured and recorded, for a layer that solves in a
+    program of its own (``cpp-native``): the record and the process statistics are then
+    that program's, not the runner's."""
+
+    #: The solvers' versions the program links, over the runner's (``highs``, ``gurobi``).
+    versions: dict[str, Any] = field(default_factory=dict[str, Any])
+    #: The program: its path, size and time, configuration and compiler; ``code.program``.
+    code: dict[str, Any] = field(default_factory=dict[str, Any])
+    #: Its ``process`` statistic's fields, over the runner's.
+    process: dict[str, Any] = field(default_factory=dict[str, Any])
+    #: Its processor time, added to the runner's in ``metadata.json``.
+    processor_seconds: float = 0.0
 
 
 # MARK: Master rows
@@ -241,10 +260,12 @@ def finish_folder(
     build: Path,
     result: Mapping[str, Any],
     solution: Mapping[str, Any] | None,
+    program: ProgramReport | None = None,
 ) -> None:
     """The end, the process's processor time and the record in ``metadata.json``, the
     solution in ``solution.json`` when it was read, then ``result.json`` with the
-    collectors' fields.
+    collectors' fields; with `program`, what the runner's program measured and recorded
+    goes over the runner's own.
 
     The processor time is the benchmark's: it cannot read it once the process has ended.
     """
@@ -254,7 +275,15 @@ def finish_folder(
     record = make_record(
         build, arguments.machine, solver_threads=lp_threads, integer_threads=integer_threads
     )
-    end = {"end": now(), "processor_seconds": processor_seconds()}
+    seconds = processor_seconds()
+
+    if program is not None:
+        fields.update({name: value for name, value in program.process.items() if name in fields})
+        record["versions"].update(program.versions)
+        record["code"]["program"] = program.code
+        seconds += program.processor_seconds
+
+    end = {"end": now(), "processor_seconds": seconds}
     run_folder.update_metadata(folder, {**end, **record})
 
     if solution is not None:
