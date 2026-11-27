@@ -197,13 +197,16 @@ class Master(Block):
 @dataclass(frozen=True)
 class Pricing(Block):
     """The pricing: its stages, in order; each is ``algorithm`` and any field of
-    ``rcspp.graph.AlgorithmParams``."""
+    ``rcspp.graph.AlgorithmParams``. `preprocess`: whether each search reduces the graph
+    first; None for the layer's default (on)."""
 
     stages: list[dict[str, Any]]
+    preprocess: bool | None = None
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("stages",), "pricing", where)
+        only_keys(given, ("stages", "preprocess"), "pricing", where)
+        preprocess = boolean(given.get("preprocess"), where)
         stages = given.get("stages")
 
         if stages is None:
@@ -220,7 +223,7 @@ class Pricing(Block):
 
             make_algorithm_params(cast(dict[str, Any], stage), f"{where}: stages[{index}]")
 
-        return cls(cast(list[dict[str, Any]], copy.deepcopy(items)))
+        return cls(cast(list[dict[str, Any]], copy.deepcopy(items)), preprocess)
 
 
 @dataclass(frozen=True)
@@ -258,12 +261,43 @@ class Start(Block):
 
 @dataclass(frozen=True)
 class Graph(Block):
-    """The pricing graph's options: none yet."""
+    """The routes pricing searches.
+
+    `relaxation`: ``none`` (None too: routes may visit a customer again), ``ng``
+    (ng-routes: no return to a customer the route still remembers, each customer's
+    `ng_size` nearest remembered) or ``elementary`` (no customer twice).
+    """
+
+    relaxation: str | None = None
+    ng_size: int | None = None
+
+    RELAXATIONS: ClassVar = ("none", "ng", "elementary")
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, (), "graph", where)
-        return cls()
+        only_keys(given, ("relaxation", "ng_size"), "graph", where)
+        relaxation = string(given.get("relaxation"), where)
+        ng_size = integer(given.get("ng_size"), where)
+
+        if relaxation is not None and relaxation not in cls.RELAXATIONS:
+            raise OptionsError(
+                f"{where}: relaxation {relaxation!r} is not one of {', '.join(cls.RELAXATIONS)}"
+            )
+
+        if relaxation == "ng" and ng_size is None:
+            raise OptionsError(f"{where}: relaxation ng needs graph.ng_size")
+
+        if relaxation != "ng" and ng_size is not None:
+            raise OptionsError(f"{where}: graph.ng_size is for relaxation ng only")
+
+        # A neighbourhood of the customer alone forgets it as soon as the route leaves it.
+        if ng_size is not None and ng_size < 2:
+            raise OptionsError(
+                f"{where}: graph.ng_size must be at least 2 (1 gives the routes of "
+                'relaxation = "none")'
+            )
+
+        return cls(relaxation, ng_size)
 
 
 @dataclass(frozen=True)
@@ -435,16 +469,29 @@ BLOCKS: dict[str, Any] = {
 
 # MARK: Checks with rcspp
 
+# The graph's real resources, in the order the instance adds them: a bucket key names one.
+BUCKET_RESOURCES = ("cost", "time", "load")
+
+
+def bucket_resource(value: Any, where: str) -> int:
+    """The position of the resource a bucket key names."""
+    if value not in BUCKET_RESOURCES:
+        raise OptionsError(f"{where}: {value!r} is not one of {', '.join(BUCKET_RESOURCES)}")
+
+    return BUCKET_RESOURCES.index(value)
+
 
 def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[str, Any]:
     """The algorithm's name and the ``AlgorithmParams`` of a pricing stage;
-    ``direction`` by name, a set as a list.
+    ``direction`` by name, a set as a list. A stage with ``bucket_width``,
+    ``bucket_resource`` or ``sort_resource`` keeps its labels in buckets
+    (``BucketAlgorithmParams``), the resources by name.
 
     Raises:
         OptionsError: For an unknown algorithm or field, or a value the field refuses.
     """
     from rcspp._core.graph import AlgorithmParams, SearchDirection
-    from rcspp.graph import ALGORITHMS
+    from rcspp.graph import ALGORITHMS, BucketAlgorithmParams
 
     algorithm = stage.get("algorithm")
 
@@ -453,7 +500,31 @@ def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[
             f"{where}: algorithm {algorithm!r} is not one of {', '.join(ALGORITHMS)}"
         )
 
-    params = AlgorithmParams()
+    stage = dict(stage)
+    buckets = {
+        name: stage.pop(name)
+        for name in ("bucket_width", "bucket_resource", "sort_resource")
+        if name in stage
+    }
+    params: Any = AlgorithmParams()
+
+    if buckets:
+        # The heuristics keep their own path and never read the label container.
+        if algorithm in ("greedy", "tabu"):
+            raise OptionsError(f"{where}: a {algorithm} stage keeps no label buckets")
+
+        width = integer(buckets.get("bucket_width", 100), f"{where}: bucket_width")
+        assert width is not None
+
+        if width < 1:
+            raise OptionsError(f"{where}: bucket_width must be at least 1")
+
+        params = BucketAlgorithmParams(
+            width,
+            bucket_resource(buckets.get("bucket_resource", "cost"), f"{where}: bucket_resource"),
+            bucket_resource(buckets.get("sort_resource", "cost"), f"{where}: sort_resource"),
+        )
+
     settable = {
         name
         for name, member in vars(AlgorithmParams).items()
@@ -486,6 +557,14 @@ def make_algorithm_params(stage: dict[str, Any], where: str = "stage") -> tuple[
             setattr(params, name, value)
         except (TypeError, ValueError) as error:
             raise OptionsError(f"{where}: {name} = {value!r} is refused ({error})") from None
+
+    # Each would fail at every pricing call, not at the start: the engine's tabu search
+    # refuses the default iterations, and the heuristics search forward only.
+    if algorithm == "tabu" and params.max_iterations >= AlgorithmParams().max_iterations:
+        raise OptionsError(f"{where}: a tabu stage needs a finite max_iterations")
+
+    if algorithm in ("greedy", "tabu") and params.direction != SearchDirection.Forward:
+        raise OptionsError(f"{where}: a {algorithm} stage searches forward only")
 
     return algorithm, params
 

@@ -28,7 +28,7 @@ A run option `column_generation.timeout_s` stops the solve from inside; a benchm
 | place | named blocks | `[defaults]` | run options | `[matrix]`, `[[runs]]` | benchmark options |
 |---|---|---|---|---|---|
 | [`presets.toml`](column_generation_benchmark/presets.toml) | yes | yes | no | no | no |
-| a benchmark file | yes | yes | in `[defaults]`, `[matrix]`, `[[runs]]` | yes | `[benchmark]` |
+| a benchmark file | yes | yes | in `[defaults]`, `[matrix]` (or `[[matrix]]`), `[[runs]]` | yes | `[benchmark]` |
 | a run file | no | no | yes, at the top level | no | no |
 | a runner's command line | no | no | yes, over the run file | no | no |
 | `benchmark.py`'s command line | no | no | yes, over every run | no | `--processes`, `--repeats`, `--timeout`, `--machine`, `--no-logs` |
@@ -190,14 +190,27 @@ is `algorithm` and any field of `rcspp.graph.AlgorithmParams`:
 |---|---|---|
 | `algorithm` | `simple`, `pushing`, `pulling`, `astar` (exact); `greedy`, `tabu` (heuristic) | required |
 | `max_solutions` | stop after this many columns | no limit |
-| `max_iterations` | a heuristic's iterations; `tabu` needs it | no limit |
+| `max_iterations` | a heuristic's iterations; a `tabu` stage without it is refused | no limit |
 | `timeout_s` | the stage's time limit, in seconds | none |
-| `direction` | `forward`, `backward`, `bidirectional` (by name) | `forward` |
+| `direction` | `forward`, `backward`, `bidirectional` (by name); `greedy` and `tabu` refuse any but `forward` | `forward` |
 | any other field | as `AlgorithmParams` documents it; a set is written as a list (`tabu_exempt_node_ids = [0]`) | the engine's |
+| `bucket_width` | label buckets: the width of a bucket, a whole number of at least 1 | 100 |
+| `bucket_resource` | label buckets: the resource that splits the labels, `cost`, `time` or `load` | `cost` |
+| `sort_resource` | label buckets: the resource that orders the labels in a bucket, `cost`, `time` or `load` | `cost` |
 
 A heuristic stage should be followed by an exact one: without it, no iteration ends with a proof. Without a cap,
 `greedy` can enumerate every path; give it `max_solutions` and `timeout_s`. On the command line, `--stage` writes a
 stage as `algorithm:key=value,key=value`, a list as `key=[0,26]` (see [the command line](#the-command-line)).
+
+Any of the three bucket keys makes the stage keep its labels in buckets (`BucketAlgorithmParams`) instead of a
+list: an exact stage only, since `greedy` and `tabu` keep their own path and never read the labels' container. The
+LP is the list's; only the time changes. For example
+`{ algorithm = "simple", bucket_width = 20, bucket_resource = "time" }`, on the command line
+`--stage simple:bucket_width=20,bucket_resource=time`.
+
+Beside `stages`, `preprocess` (true or false, absent: true) is the pricer's, for every stage: whether each search
+reduces the graph first. `"pricing.preprocess" = false` turns it off and keeps the stages; on the command line,
+`--pricing.preprocess false`. The LP is the same either way; only the time changes.
 
 ### `start`
 
@@ -213,7 +226,31 @@ alone merges into the default start and keeps its factor.
 
 ### `graph`
 
-No type, no parameters yet: `{}`.
+No type; the routes pricing searches.
+
+| parameter | what | absent |
+|---|---|---|
+| `relaxation` | `none`: a route may visit a customer again; `ng`: ng-routes, no return to a customer the route still remembers; `elementary`: no customer twice | `none` |
+| `ng_size` | with `ng` only, and required there: each customer remembers its `ng_size` nearest customers, itself included (ties by number), and a route keeps a customer in memory while the customers it visits next remember it; at least 2 | none |
+
+```toml
+graph = { relaxation = "ng", ng_size = 8 }
+```
+
+The LP can only rise from `none` to `ng` to `elementary`. A larger `ng_size` remembers more and searches longer;
+one at least the customer count gives the elementary LP. Elementary routes, and ng with a large `ng_size`, can make
+pricing very slow: on the 20 or 25 customers of RC201_12, R201_25 or C101_25 an elementary run did not finish in two
+minutes, where `none` and ng 8 take under a second. Avoid them with the artificial start, whose large duals make
+every customer worth a visit.
+
+The parameters merge as a block's do: over `{ relaxation = "ng", ng_size = 8 }` in `[defaults]`, a run's
+`"graph.relaxation" = "elementary"` keeps the `ng_size` and is refused, and so is a whole table. Leave `graph` out of
+`[defaults]` and give each run its own, as in a matrix:
+
+```toml
+[matrix]
+graph = [{}, { relaxation = "ng", ng_size = 8 }, { relaxation = "elementary" }]
+```
 
 ### `column_generation`
 
@@ -302,6 +339,21 @@ master = "highspy"
 [`example.toml`](example.toml) is a complete file that runs as it is.
 
 - The runs are the matrix's combinations, then the `[[runs]]`; without either, one run of the defaults.
+- Several matrices, when one product would make too many runs: `[[matrix]]` instead of `[matrix]`, each expanded on
+  its own, one after the other.
+
+```toml
+[[matrix]]                      # every exact algorithm on one layer: 3 x 4 = 12 runs
+instance = ["C101_25", "R201_25", "RC201_12"]
+"pricing.stages" = [[{ algorithm = "simple" }], [{ algorithm = "pushing" }], [{ algorithm = "pulling" }],
+                    [{ algorithm = "astar" }]]
+
+[[matrix]]                      # the forward search on the two other layers: 3 x 2 = 6 runs
+instance = ["C101_25", "R201_25", "RC201_12"]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs"]
+```
+
 - `from` is a path, relative to the benchmark file's folder or absolute; the entry's options go over the file's.
 - Runs that come out the same are kept once.
 - Every run is expanded and checked before the first one starts.

@@ -12,7 +12,8 @@ from typing import Any
 
 import cpp_native_runner
 import pytest
-from column_generation_benchmark import run_folder, source_tree
+from column_generation_benchmark import options, run_folder, source_tree
+from column_generation_benchmark.instances import SolomonInstance, make_instance
 from test_benchmark_runners import has_gurobi, rerun_command, same
 
 
@@ -32,6 +33,14 @@ def gurobi(program: Path) -> None:
 
     if code != 0 or not has_gurobi():
         pytest.skip("the program has no Gurobi master, or Gurobi has no licence")
+
+
+def flags_of(table: dict[str, Any]) -> list[str]:
+    """The program's flags for the run `table` expands to."""
+    run = options.expand_run(table)
+    instance = make_instance(run.instance.to_table())
+    assert isinstance(instance, SolomonInstance)
+    return cpp_native_runner.program_arguments(run, instance)
 
 
 def run(build: Path, folder: Path, *arguments: str) -> dict[str, Any]:
@@ -159,6 +168,108 @@ def test_a_gurobi_run_fills_its_folder(build: Path, tmp_path: Path):
     assert result["status"] == "Optimal"
     assert result["solution_check"] == "passed"
     assert metadata["versions"]["gurobi"].count(".") == 2
+
+
+@pytest.mark.usefixtures("build")
+def test_preprocessing_off_is_one_flag():
+    given = {"instance": "C101_5", "layer": "cpp-native", "master": "highs"}
+
+    for preprocess, flags in [(None, 0), (True, 0), (False, 1)]:
+        table = given if preprocess is None else {**given, "pricing.preprocess": preprocess}
+        assert flags_of(table).count("--no-preprocess") == flags
+
+
+@pytest.mark.usefixtures("build")
+def test_the_graph_options_are_flags():
+    given = {"instance": "C101_5", "layer": "cpp-native", "master": "highs"}
+
+    for graph, flags in [
+        ({}, ""),
+        ({"relaxation": "ng", "ng_size": 8}, "--relaxation ng --ng-size 8"),
+        ({"relaxation": "elementary"}, "--relaxation elementary"),
+    ]:
+        arguments = flags_of({**given, "graph": graph})
+        assert flags in " ".join(arguments)
+        assert ("--relaxation" in arguments) == bool(flags)
+
+
+@pytest.mark.parametrize(
+    ("flags", "message"),
+    [
+        (["--relaxation", "ng"], "--relaxation ng needs --ng-size, at least 2"),
+        (["--relaxation", "ng", "--ng-size", "1"], "--relaxation ng needs --ng-size, at least 2"),
+        (["--ng-size", "8"], "--ng-size is for --relaxation ng only"),
+        (["--relaxation", "full"], "relaxation 'full' is not none, ng or elementary"),
+        (
+            ["--stage", "simple", "--stage-param", "bucket_resource", "x"],
+            "bucket_resource 'x' is not cost, time or load",
+        ),
+        (
+            ["--stage", "simple", "--stage-param", "bucket_width", "0"],
+            "bucket_width must be at least 1",
+        ),
+        (
+            ["--stage", "greedy", "--stage-param", "sort_resource", "time"],
+            "a greedy stage keeps no label buckets",
+        ),
+        (["--stage", "tabu"], "a tabu stage needs a finite max_iterations"),
+        (
+            ["--stage", "greedy", "--stage-param", "direction", "backward"],
+            "a greedy stage searches forward only",
+        ),
+        (
+            ["--stage", "tabu", "--stage-param", "max_iterations", "10"]
+            + ["--stage-param", "direction", "bidirectional"],
+            "a tabu stage searches forward only",
+        ),
+        # As the options check, for runs that call the program directly.
+        (["--timeout", "-5"], "--timeout must be 0 or more"),
+        (["--timeout", "nan"], "--timeout must be 0 or more"),
+        (["--absolute-gap", "-1"], "--absolute-gap must be 0 or more"),
+        (["--relative-gap", "nan"], "--relative-gap must be 0 or more"),
+        (["--integer-gap", "-0.1"], "--integer-gap must be 0 or more"),
+        (["--cutoff", "nan"], "--cutoff must be a number"),
+        (["--threads", "-1"], "--threads and --integer-threads must be 0 or more"),
+        (["--integer-threads", "-2"], "--threads and --integer-threads must be 0 or more"),
+        (["--vehicles", "0"], "--vehicles must be 1 or more"),
+        (["--integer-timeout", "0"], "--integer-timeout must be a positive, finite number"),
+        (["--integer-timeout", "inf"], "--integer-timeout must be a positive, finite number"),
+        (
+            ["--integer-column-type", "continuous"],
+            "--integer-column-type 'continuous' is not binary or integer",
+        ),
+        (
+            ["--start", "single-customer", "--artificial-cost-factor", "5"],
+            "--artificial-cost-factor is for --start artificial only",
+        ),
+        (
+            ["--tolerance", "reduced_cost", "1e-3"],
+            "--tolerance comes with --tolerances absolute or relative",
+        ),
+        (
+            ["--master-option", "threads", "int", "2"],
+            "master option threads is set by every solve, from the program's own flags: use "
+            "--threads",
+        ),
+        (
+            ["--master-option", "output_flag", "bool", "true"],
+            "master option output_flag is set by every solve, from the program's own flags",
+        ),
+        (
+            ["--master", "gurobi", "--master-option", "TimeLimit", "double", "5"],
+            "master option TimeLimit is set by every solve, from the program's own flags: use "
+            "--timeout",
+        ),
+    ],
+)
+def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):
+    instance = str(source_tree.TREE / "instances" / "C101_5.txt")
+    code, _, error = cpp_native_runner.execute(
+        program, ["--instance", instance, "--master", "highs", *flags, "--check"]
+    )
+
+    assert code == 2
+    assert message in error
 
 
 def test_the_flags_write_values_as_the_program_reads_them():

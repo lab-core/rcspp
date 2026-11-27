@@ -4,7 +4,8 @@
 
 A benchmark file has ``[benchmark]`` (its own options), named blocks under an option's name
 (``[master.one-thread]``), and runs: ``[defaults]`` is a run every other one is put over,
-``[matrix]`` is a run whose options are lists (one run per combination), and each
+``[matrix]`` is a run whose options are lists (one run per combination; ``[[matrix]]``
+for several, one after the other), and each
 ``[[runs]]`` entry is a run, which may start from a run file with ``from``. The presets
 (``presets.toml``) hold only named blocks and ``[defaults]``, under every benchmark and run.
 """
@@ -278,9 +279,26 @@ def named_blocks(tables: dict[str, Any], where: str) -> Names:
 
 
 def matrix_points(matrix: Any, where: str) -> list[dict[str, Any]]:
-    """Every combination of the matrix's lists, the last option varying fastest."""
+    """Every combination of the matrix's lists, the last option varying fastest; for
+    several matrices (``[[matrix]]``), each one's combinations, in order."""
+    if isinstance(matrix, list):
+        tables = cast(list[Any], matrix)
+
+        if not tables:
+            raise OptionsError(f"{where}: [[matrix]] holds at least one matrix")
+
+        points: list[dict[str, Any]] = []
+
+        for index, table in enumerate(tables):
+            if not isinstance(table, dict):
+                raise OptionsError(f"{where}: matrix[{index}] is a table of lists")
+
+            points += matrix_points(table, f"{where}: matrix[{index}]")
+
+        return points
+
     if not isinstance(matrix, dict):
-        raise OptionsError(f"{where}: [matrix] is a table of lists")
+        raise OptionsError(f"{where}: [matrix] is a table of lists, or [[matrix]] several")
 
     lists = cast(dict[str, Any], matrix)
 

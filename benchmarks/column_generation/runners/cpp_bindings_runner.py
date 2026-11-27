@@ -121,7 +121,8 @@ def build(run: Run) -> tuple[Instance, MasterProblem, ColumnGeneration]:
     graph = instance.build_graph(run.graph.to_table())
     master = MasterProblem(make_master_solver(run, *instance.row_bounds()))
     stages = [PricingStage(*make_algorithm_params(stage)) for stage in run.pricing.stages]
-    graph_pricer = GraphPricer(graph, stages)
+    # Absent, preprocessing is on, as every layer has it.
+    graph_pricer = GraphPricer(graph, stages, preprocess=run.pricing.preprocess is not False)
     # The fleet row, when the run sets one: the pricer's convexity row.
     vehicles = run.instance.vehicles
     convexity = ConvexityRow() if vehicles is None else ConvexityRow(max_paths=float(vehicles))

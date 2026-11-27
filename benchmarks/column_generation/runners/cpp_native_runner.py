@@ -107,6 +107,15 @@ def program_arguments(run: Run, instance: SolomonInstance) -> list[str]:
             if name != "algorithm":
                 arguments += ["--stage-param", name, flag_value(value)]
 
+    if run.pricing.preprocess is False:
+        arguments.append("--no-preprocess")
+
+    if run.graph.relaxation is not None:
+        arguments += ["--relaxation", run.graph.relaxation]
+
+    if run.graph.ng_size is not None:
+        arguments += ["--ng-size", str(run.graph.ng_size)]
+
     arguments += ["--start", run.start.type]
 
     if run.instance.vehicles is not None:

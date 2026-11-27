@@ -9,7 +9,8 @@
 // It builds the instance as the benchmark's SolomonInstance does
 // (column_generation_benchmark/instances.py), so that every layer solves the same model: the
 // nodes, the arcs and their order, three real resources (distance, time within the windows, load
-// within the capacity), row 0 free and row i covered by the arcs out of customer i.
+// within the capacity) and for ng-routes or elementary routes a memory of the customers, row 0
+// free and row i covered by the arcs out of customer i.
 //
 //   cpp-native-solver --instance instances/C101_25.txt --master highs --stage simple
 //       --start single-customer --integer --solution
@@ -21,7 +22,12 @@
 //   --stage ALGORITHM               a pricing stage: simple, pushing, pulling, astar, greedy,
 //                                   tabu; repeated, in order (default: one simple)
 //   --stage-param NAME VALUE        a field of the last stage's AlgorithmParams; a set as a comma
-//                                   list ("" for none); repeated
+//                                   list ("" for none); bucket_width, bucket_resource and
+//                                   sort_resource (cost, time, load) keep its labels in buckets;
+//                                   repeated
+//   --no-preprocess                 the searches do not reduce the graph first
+//   --relaxation none|ng|elementary the routes searched (default none), with --ng-size N (at
+//                                   least 2) for ng
 //   --start single-customer|artificial  with --artificial-cost-factor F for artificial
 //   --vehicles N                    the master row "at most N routes" (default: none)
 //   --max-iterations N, --timeout S, --threads N
@@ -38,6 +44,7 @@
 // error while solving.
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -56,6 +63,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -97,11 +105,6 @@ namespace rcspp {
 namespace {
 
 namespace cg = column_generation;
-
-using PricingGraph = ResourceGraph<RealResource>;
-using Labels = LabelList<ResourceTypeComposition<RealResource>>;
-using Params = AlgorithmParams<Labels>;
-using Stage = cg::PricingStage<RealResource>;
 
 // A wrong flag or a model that cannot be built: exit code 2.
 class OptionsError : public std::runtime_error {
@@ -180,6 +183,9 @@ struct MasterOption {
         std::string value;
 };
 
+// A bucket stage's width when the run gives none, as Python's BucketAlgorithmParams.
+constexpr size_t default_bucket_width = 100;
+
 // The integer solve's time limit when the runner gives none, in seconds.
 constexpr double default_integer_timeout_s = 60.0;
 
@@ -188,6 +194,9 @@ struct Options {
         std::string master;
         std::vector<MasterOption> master_options;
         std::vector<StageOptions> stages;
+        bool preprocess = true;
+        std::string relaxation = "none";
+        std::optional<size_t> ng_size;
         std::string start = "artificial";
         std::optional<double> artificial_cost_factor;
         std::optional<size_t> max_iterations;
@@ -254,6 +263,87 @@ bool to_bool(std::string_view what, const std::string& text) {
     throw OptionsError(std::format("{}: '{}' is not true or false", what, text));
 }
 
+// The solver parameters every master solve sets from the program's own flags, by master (Gurobi's
+// names in lower case: it ignores their case), and the flag that sets each, if any; as
+// SET_BY_EVERY_SOLVE in the benchmark's options.
+const std::map<std::string, std::map<std::string, std::string>>& set_by_every_solve() {
+    static const std::map<std::string, std::map<std::string, std::string>> names = {
+        {"highs",
+         {{"threads", "--threads"},
+          {"time_limit", "--timeout"},
+          {"output_flag", ""},
+          {"solve_relaxation", ""},
+          {"mip_rel_gap", "--integer-gap"}}},
+        {"gurobi",
+         {{"threads", "--threads"},
+          {"timelimit", "--timeout"},
+          {"outputflag", ""},
+          {"mipgap", "--integer-gap"}}},
+    };
+    return names;
+}
+
+// Refuses a master option that every solve sets from one of the program's flags.
+void check_master_options(const Options& options) {
+    const auto master = set_by_every_solve().find(options.master);
+    if (master == set_by_every_solve().end()) {
+        return;  // an unknown master is refused when the program makes it
+    }
+    for (const MasterOption& option : options.master_options) {
+        std::string key = option.name;
+        if (options.master == "gurobi") {
+            std::ranges::transform(key, key.begin(), [](unsigned char letter) {
+                return static_cast<char>(std::tolower(letter));
+            });
+        }
+        if (const auto found = master->second.find(key); found != master->second.end()) {
+            const std::string instead = found->second.empty() ? "" : ": use " + found->second;
+            throw OptionsError(std::format(
+                "master option {} is set by every solve, from the program's own flags{}",
+                option.name,
+                instead));
+        }
+    }
+}
+
+// Refuses what the benchmark's options check refuses, for runs that call the program directly:
+// the runner checks every run in Python first. Each would otherwise run something else than asked,
+// or fail once the run has started.
+void check_options(const Options& options) {
+    const auto at_least_zero = [](const char* flag, const std::optional<double>& value) {
+        if (value.has_value() && !(*value >= 0.0)) {  // NaN too
+            throw OptionsError(std::format("{} must be 0 or more", flag));
+        }
+    };
+    at_least_zero("--timeout", options.timeout_s);
+    at_least_zero("--absolute-gap", options.absolute_gap);
+    at_least_zero("--relative-gap", options.relative_gap);
+    at_least_zero("--integer-gap", options.integer_gap);
+    if (options.cutoff.has_value() && std::isnan(*options.cutoff)) {
+        throw OptionsError("--cutoff must be a number");
+    }
+    if (options.threads.value_or(0) < 0 || options.integer_threads.value_or(0) < 0) {
+        throw OptionsError("--threads and --integer-threads must be 0 or more");
+    }
+    if (options.vehicles.has_value() && *options.vehicles < 1) {
+        throw OptionsError("--vehicles must be 1 or more");
+    }
+    if (options.integer_timeout_s <= 0.0 || !std::isfinite(options.integer_timeout_s)) {
+        throw OptionsError("--integer-timeout must be a positive, finite number");
+    }
+    if (options.integer_column_type != "binary" && options.integer_column_type != "integer") {
+        throw OptionsError(std::format("--integer-column-type '{}' is not binary or integer",
+                                       options.integer_column_type));
+    }
+    if (options.artificial_cost_factor.has_value() && options.start != "artificial") {
+        throw OptionsError("--artificial-cost-factor is for --start artificial only");
+    }
+    if (!options.tolerance_values.empty() && !options.tolerances.has_value()) {
+        throw OptionsError("--tolerance comes with --tolerances absolute or relative");
+    }
+    check_master_options(options);
+}
+
 Options parse_options(const std::vector<std::string>& arguments) {
     Options options;
     size_t index = 0;
@@ -288,6 +378,9 @@ Options parse_options(const std::vector<std::string>& arguments) {
              std::string name = value();
              options.stages.back().params.emplace_back(std::move(name), value());
          }},
+        {"--no-preprocess", [&] { options.preprocess = false; }},
+        {"--relaxation", [&] { options.relaxation = value(); }},
+        {"--ng-size", [&] { options.ng_size = to_count(flag, value()); }},
         {"--start", [&] { options.start = value(); }},
         {"--artificial-cost-factor",
          [&] { options.artificial_cost_factor = to_double(flag, value()); }},
@@ -330,6 +423,7 @@ Options parse_options(const std::vector<std::string>& arguments) {
     if (options.stages.empty()) {
         options.stages.push_back(StageOptions{.algorithm = "simple", .params = {}});
     }
+    check_options(options);
     return options;
 }
 
@@ -415,9 +509,42 @@ double distance_between(const Customer& first, const Customer& second) {
     return std::hypot(second.x - first.x, second.y - first.y);
 }
 
-// As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
-// route (depot to sink) is left out.
-void build_graph(const Instance& instance, PricingGraph& graph) {
+// As SolomonInstance.ng_neighborhoods: each customer's ng_size nearest customers, itself first,
+// then the ng_size - 1 nearest others (ties by number); the depot and the sink none. The customer
+// takes its own place even when others share its spot: the engine adds it anyway.
+std::map<size_t, std::set<size_t>> ng_neighborhoods(const Instance& instance, size_t ng_size) {
+    const Customer& depot = instance.customers.front();
+    std::map<size_t, std::set<size_t>> neighborhoods{{depot.number, {}}, {instance.sink(), {}}};
+    for (size_t index = 1; index < instance.customers.size(); ++index) {
+        const Customer& customer = instance.customers[index];
+        std::vector<std::pair<double, size_t>> others;
+        for (size_t other = 1; other < instance.customers.size(); ++other) {
+            if (other != index) {
+                others.emplace_back(distance_between(customer, instance.customers[other]),
+                                    instance.customers[other].number);
+            }
+        }
+        std::ranges::sort(others);
+
+        std::set<size_t>& neighborhood = neighborhoods[customer.number];
+        neighborhood.insert(customer.number);
+        for (size_t rank = 0; rank + 1 < ng_size && rank < others.size(); ++rank) {
+            neighborhood.insert(others[rank].second);
+        }
+    }
+    return neighborhoods;
+}
+
+// The resource that remembers customers, for ng-routes and elementary routes.
+using MemoryResource = SizeTBitsetResource;
+
+// The graph's resources, as SolomonInstance.build_graph adds them: distance (the cost), time within
+// the windows, load within the capacity; then, in a graph with a MemoryResource after the three
+// real ones, the customers a route remembers, as options.relaxation says.
+template <typename... Resources>
+void add_resources(const Instance& instance,
+                   const Options& options,
+                   ResourceGraph<Resources...>& graph) {
     std::map<size_t, std::pair<double, double>> windows;
     for (const Customer& customer : instance.customers) {
         windows[customer.number] = {customer.ready_time, customer.due_time};
@@ -425,20 +552,45 @@ void build_graph(const Instance& instance, PricingGraph& graph) {
     // The sink is the depot again: a route is back before it closes.
     windows[instance.sink()] = windows[instance.customers.front().number];
 
-    graph.add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
-                                     std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-                                     std::make_unique<ValueCostFunction<RealResource>>(),
-                                     std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph.add_resource<RealResource>(
+    graph.template add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph.template add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
         std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph.add_resource<RealResource>(
+    graph.template add_resource<RealResource>(
         std::make_unique<AdditionExtensionFunction<RealResource>>(),
         std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, instance.capacity),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
+
+    if constexpr (sizeof...(Resources) > 1) {
+        if (options.relaxation == "ng") {
+            presets::add_ng_path_resource<MemoryResource>(
+                graph,
+                ng_neighborhoods(instance, *options.ng_size));
+        } else {
+            std::vector<size_t> nodes;
+            for (size_t node = 0; node <= instance.sink(); ++node) {
+                nodes.push_back(node);
+            }
+            presets::add_elementary_resource<MemoryResource>(graph, nodes);
+        }
+    }
+}
+
+// As SolomonInstance.build_graph: the depot is the source, the sink comes after it, the empty
+// route (depot to sink) is left out.
+template <typename... Resources>
+void build_graph(const Instance& instance,
+                 const Options& options,
+                 ResourceGraph<Resources...>& graph) {
+    constexpr bool remembers = sizeof...(Resources) > 1;
+    add_resources(instance, options, graph);
 
     const Customer& depot = instance.customers.front();
     for (const Customer& customer : instance.customers) {
@@ -468,12 +620,26 @@ void build_graph(const Instance& instance, PricingGraph& graph) {
                 continue;
             }
             const double length = distance_between(origin, *destination);
-            graph.add_arc<RealResource, RealResource, RealResource>(
-                {length, origin.service_time + length, destination->demand},
-                origin.number,
-                node,
-                length,
-                rows);
+            const double time = origin.service_time + length;
+            if constexpr (remembers) {
+                // The memory's arc value is empty: it reads the customers off the arc's ends.
+                graph.template add_arc<RealResource, RealResource, RealResource, MemoryResource>(
+                    std::make_tuple(std::make_tuple(length),
+                                    std::make_tuple(time),
+                                    std::make_tuple(destination->demand),
+                                    std::make_tuple(std::set<size_t>{})),
+                    origin.number,
+                    node,
+                    length,
+                    rows);
+            } else {
+                graph.template add_arc<RealResource, RealResource, RealResource>(
+                    {length, time, destination->demand},
+                    origin.number,
+                    node,
+                    length,
+                    rows);
+            }
         }
     }
 }
@@ -523,6 +689,7 @@ SearchDirection to_direction(const std::string& text) {
 }
 
 // The fields of AlgorithmParams that Python's AlgorithmParams can set, by name.
+template <typename Params>
 void set_param(Params& params, const std::string& name, const std::string& value) {
     const std::string what = "stage parameter " + name;
     const std::map<std::string, std::function<void()>> setters = {
@@ -563,35 +730,94 @@ void set_param(Params& params, const std::string& name, const std::string& value
     setter->second();
 }
 
-// As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
-// greedy and tabu heuristic, the others exact.
-Stage make_stage(const StageOptions& stage) {
-    Params params;
-    for (const auto& [name, value] : stage.params) {
-        set_param(params, name, value);
+// The position of the real resource a bucket key names, in the order build_graph adds them.
+size_t bucket_resource(const std::string& what, const std::string& name) {
+    const std::vector<std::string> names = {"cost", "time", "load"};
+    const auto found = std::ranges::find(names, name);
+    if (found == names.end()) {
+        throw OptionsError(std::format("{} '{}' is not cost, time or load", what, name));
     }
+    return static_cast<size_t>(found - names.begin());
+}
 
-    const std::string& algorithm = stage.algorithm;
+// A stage of the algorithm named, with its labels in `Labels`; greedy and tabu heuristic, the
+// others exact. The heuristics keep their own path and never read the labels' container, so they
+// take only a list.
+template <typename Labels, typename... Resources>
+cg::PricingStage<Resources...> make_stage_with(const std::string& algorithm,
+                                               AlgorithmParams<Labels> params) {
+    using Stage = cg::PricingStage<Resources...>;
+
     if (algorithm == "simple") {
-        return Stage::make<strategy::Simple, Labels>(params, true);
+        return Stage::template make<strategy::Simple, Labels>(params, true);
     }
     if (algorithm == "pushing") {
-        return Stage::make<strategy::Pushing, Labels>(params, true);
+        return Stage::template make<strategy::Pushing, Labels>(params, true);
     }
     if (algorithm == "pulling") {
-        return Stage::make<strategy::Pulling, Labels>(params, true);
+        return Stage::template make<strategy::Pulling, Labels>(params, true);
     }
     if (algorithm == "astar") {
-        return Stage::make<strategy::AStar, Labels>(params, true);
+        return Stage::template make<strategy::AStar, Labels>(params, true);
     }
-    if (algorithm == "greedy") {
-        return Stage::make<strategy::Greedy, Labels>(params, false);
-    }
-    if (algorithm == "tabu") {
-        return Stage::make<strategy::Tabu, Labels>(params, false);
+    if (algorithm == "greedy" || algorithm == "tabu") {
+        // As the options check: each would fail at every pricing call, not at the start.
+        if (algorithm == "tabu" && params.max_iterations >= AlgorithmBaseParams{}.max_iterations) {
+            throw OptionsError("a tabu stage needs a finite max_iterations");
+        }
+        if (params.direction != SearchDirection::Forward) {
+            throw OptionsError(std::format("a {} stage searches forward only", algorithm));
+        }
+        if constexpr (std::is_same_v<Labels, LabelList<ResourceTypeComposition<Resources...>>>) {
+            if (algorithm == "greedy") {
+                return Stage::template make<strategy::Greedy, Labels>(params, false);
+            }
+            return Stage::template make<strategy::Tabu, Labels>(params, false);
+        } else {
+            throw OptionsError(std::format("a {} stage keeps no label buckets", algorithm));
+        }
     }
     throw OptionsError(std::format(
         "algorithm '{}' is not one of simple, pushing, pulling, astar, greedy, tabu", algorithm));
+}
+
+// As the example's bindings make a stage (python/bindings/graph_impl.hpp): the algorithm by name,
+// its labels in a list, or in buckets when the stage has bucket_width, bucket_resource or
+// sort_resource (the resources by name, cost by default, width 100 as Python's).
+template <typename... Resources>
+cg::PricingStage<Resources...> make_stage(const StageOptions& stage) {
+    using Composition = ResourceTypeComposition<Resources...>;
+    using Buckets = LabelBuckets<RealResource, RealResource, Composition>;
+
+    AlgorithmBaseParams params;
+    bool buckets = false;
+    size_t bucket_width = default_bucket_width;
+    size_t bucket_index = 0;
+    size_t sort_index = 0;
+    for (const auto& [name, value] : stage.params) {
+        if (name == "bucket_width") {
+            bucket_width = to_count("stage parameter bucket_width", value);
+            if (bucket_width < 1) {
+                throw OptionsError("stage parameter bucket_width must be at least 1");
+            }
+        } else if (name == "bucket_resource") {
+            bucket_index = bucket_resource("stage parameter bucket_resource", value);
+        } else if (name == "sort_resource") {
+            sort_index = bucket_resource("stage parameter sort_resource", value);
+        } else {
+            set_param(params, name, value);
+            continue;
+        }
+        buckets = true;
+    }
+
+    if (buckets) {
+        return make_stage_with<Buckets, Resources...>(
+            stage.algorithm,
+            AlgorithmParams<Buckets>(params, Buckets(bucket_width, bucket_index, sort_index)));
+    }
+    return make_stage_with<LabelList<Composition>, Resources...>(
+        stage.algorithm, AlgorithmParams<LabelList<Composition>>(params));
 }
 
 // MARK: Masters
@@ -747,13 +973,14 @@ std::string status_name(cg::SolverStatus status) {
 }
 
 // Everything a run needs, built in place: the loop holds the master, the master its solver and
-// pricer, the pricer the graph.
+// pricer, the pricer the graph, whose resources are Resources.
+template <typename... Resources>
 struct Model {
         explicit Model(const Options& options)
             : instance(read_solomon(options.instance)),
               solver(make_master_solver(options.master, instance.customers.size())),
               problem(*solver) {
-            build_graph(instance, graph);
+            build_graph(instance, options, graph);
             for (const MasterOption& option : options.master_options) {
                 try {
                     solver->set_option(option.name, to_option_value(option));
@@ -766,11 +993,12 @@ struct Model {
                 }
             }
 
-            std::vector<Stage> stages;
+            std::vector<cg::PricingStage<Resources...>> stages;
             for (const StageOptions& stage : options.stages) {
-                stages.push_back(make_stage(stage));
+                stages.push_back(make_stage<Resources...>(stage));
             }
-            pricer.emplace(graph, cg::PricingStrategy<RealResource>(std::move(stages)));
+            pricer.emplace(graph, cg::PricingStrategy<Resources...>(std::move(stages)), 0,
+                           options.preprocess);
             // The fleet row, when the run sets one: the pricer's convexity row.
             cg::ConvexityRow convexity;
             if (options.vehicles.has_value()) {
@@ -838,10 +1066,10 @@ struct Model {
         }
 
         Instance instance;
-        PricingGraph graph;
+        ResourceGraph<Resources...> graph;
         std::shared_ptr<cg::MasterSolver> solver;
         cg::MasterProblem problem;
-        std::optional<cg::GraphPricer<RealResource>> pricer;
+        std::optional<cg::GraphPricer<Resources...>> pricer;
         std::optional<cg::ColumnGeneration> loop;
 };
 
@@ -893,21 +1121,24 @@ std::pair<std::string, std::string> describe_columns(const cg::MasterProblem& pr
     return {list(used), list(artificial)};
 }
 
-std::vector<double> column_values(const Model& model) {
+std::vector<double> column_values(const cg::MasterProblem& problem, cg::MasterSolver& solver) {
     std::vector<cg::ColumnId> ids;
-    for (const cg::MasterColumn& column : model.problem.columns()) {
+    for (const cg::MasterColumn& column : problem.columns()) {
         ids.push_back(column.id);
     }
     std::vector<double> values(ids.size());
-    model.solver->primal(ids, values);
+    solver.primal(ids, values);
     return values;
 }
 
 // The last LP's solution: its objective, the columns with a value and the duals.
-std::string read_lp(const Model& model, double objective, bool solved_again) {
-    const auto [used, artificial] = describe_columns(model.problem, column_values(model));
-    std::vector<double> duals(model.problem.number_of_rows());
-    model.solver->duals(duals);
+std::string read_lp(const cg::MasterProblem& problem,
+                    cg::MasterSolver& solver,
+                    double objective,
+                    bool solved_again) {
+    const auto [used, artificial] = describe_columns(problem, column_values(problem, solver));
+    std::vector<double> duals(problem.number_of_rows());
+    solver.duals(duals);
     return JsonObject()
         .add("objective", json_number(objective))
         .add("solved_again", solved_again ? "true" : "false")
@@ -918,7 +1149,10 @@ std::string read_lp(const Model& model, double objective, bool solved_again) {
 }
 
 // The integer master over the generated columns: status, seconds, objective, columns.
-std::string solve_integer(Model& model, const Options& options) {
+std::string solve_integer(cg::ColumnGeneration& loop,
+                          const cg::MasterProblem& problem,
+                          cg::MasterSolver& solver,
+                          const Options& options) {
     cg::IntegerParams params;
     params.timeout_s = options.integer_timeout_s;
     if (options.integer_gap.has_value()) {
@@ -933,16 +1167,16 @@ std::string solve_integer(Model& model, const Options& options) {
     }
 
     const auto start = std::chrono::steady_clock::now();
-    const cg::SolverStatus status = model.loop->solve_restricted_master_integer(params);
+    const cg::SolverStatus status = loop.solve_restricted_master_integer(params);
     const double seconds = seconds_since(start);
     JsonObject found;
     found.add("status", json_string(status_name(status))).add("seconds", json_number(seconds));
 
     // Stopped at its limit, the solve may have no solution: the solver then has no values.
     try {
-        const std::vector<double> values = column_values(model);
-        const double objective = model.solver->objective();
-        const auto [used, artificial] = describe_columns(model.problem, values);
+        const std::vector<double> values = column_values(problem, solver);
+        const double objective = solver.objective();
+        const auto [used, artificial] = describe_columns(problem, values);
         found.add("objective", json_number(objective))
             .add("columns", used)
             .add("artificial_columns", artificial);
@@ -1029,8 +1263,11 @@ std::string process_json() {
 
 // MARK: Main
 
-std::string run(const Options& options) {
-    Model model(options);
+// The run on a graph of Resources.
+template <typename... Resources>
+std::string run_on(const Options& options) {
+    Model<Resources...> model(options);
+    cg::MasterSolver& solver = *model.solver;
     if (options.check) {
         return JsonObject()
             .add("built", "true")
@@ -1069,18 +1306,21 @@ std::string run(const Options& options) {
         if (!lp_solved) {
             solution = R"({"lp": null, "lp_missing": "no master LP was solved"})";
         } else if (finished) {
-            solution = JsonObject().add("lp", read_lp(model, result.objective, false)).str();
+            solution = JsonObject()
+                           .add("lp", read_lp(model.problem, solver, result.objective, false))
+                           .str();
         } else {
             cg::RelaxationParams again;
             again.timeout_s = options.timeout_s.value_or(std::numeric_limits<double>::infinity());
             again.threads = options.threads.value_or(0);
             const auto start_again = std::chrono::steady_clock::now();
-            const cg::SolverStatus solved = model.solver->solve_relaxation(again);
-            model.solver->restore_user_model();
+            const cg::SolverStatus solved = solver.solve_relaxation(again);
+            solver.restore_user_model();
             solved_again_seconds = json_number(seconds_since(start_again));
             if (solved == cg::SolverStatus::Optimal) {
-                solution =
-                    JsonObject().add("lp", read_lp(model, model.solver->objective(), true)).str();
+                solution = JsonObject()
+                               .add("lp", read_lp(model.problem, solver, solver.objective(), true))
+                               .str();
             } else {
                 solution = JsonObject()
                                .add("lp", "null")
@@ -1092,13 +1332,33 @@ std::string run(const Options& options) {
     }
     fields.add("lp_solved_again_seconds", solved_again_seconds);
 
-    const std::string integer = options.integer ? solve_integer(model, options) : "null";
+    const std::string integer =
+        options.integer ? solve_integer(*model.loop, model.problem, solver, options) : "null";
     return fields.add("solution", solution)
         .add("integer", integer)
         .add("versions", versions_json())
         .add("build", build_json())
         .add("process", process_json())
         .str();
+}
+
+// The run, on the graph its options need: the three real resources, and a memory of the
+// customers for ng-routes and elementary routes.
+std::string run(const Options& options) {
+    if (options.relaxation != "ng" && options.ng_size.has_value()) {
+        throw OptionsError("--ng-size is for --relaxation ng only");
+    }
+    if (options.relaxation == "none") {
+        return run_on<RealResource>(options);
+    }
+    if (options.relaxation == "ng" && options.ng_size.value_or(0) < 2) {
+        throw OptionsError("--relaxation ng needs --ng-size, at least 2");
+    }
+    if (options.relaxation == "ng" || options.relaxation == "elementary") {
+        return run_on<RealResource, MemoryResource>(options);
+    }
+    throw OptionsError(
+        std::format("relaxation '{}' is not none, ng or elementary", options.relaxation));
 }
 
 }  // namespace

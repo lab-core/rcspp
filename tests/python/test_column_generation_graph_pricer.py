@@ -180,6 +180,10 @@ def test_a_search_that_did_not_finish_proves_nothing(monkeypatch: pytest.MonkeyP
     for status, trimmed in [
         (AlgorithmStatus.Timeout, False),
         (AlgorithmStatus.Interrupted, False),
+        # Stopped by a cap: on solutions, on the search's own limits, on memory.
+        (AlgorithmStatus.MaxSolutions, False),
+        (AlgorithmStatus.Truncated, False),
+        (AlgorithmStatus.MemoryLimit, False),
         # Complete, but memory pressure dropped labels.
         (AlgorithmStatus.Complete, True),
     ]:

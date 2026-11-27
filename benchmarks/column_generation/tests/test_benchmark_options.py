@@ -209,6 +209,45 @@ def test_runs_that_expand_alike_are_kept_once():
     assert [run.name for run in runs] == ["C101_25-package-gurobipy-exact-artificial"]
 
 
+def test_preprocessing_off_keeps_the_stages_and_names_the_pricing():
+    on, off = expand(RUN + '[matrix]\n"pricing.preprocess" = [true, false]\n').runs
+
+    assert (on.pricing.preprocess, off.pricing.preprocess) == (True, False)
+    assert off.pricing.stages == [{"algorithm": "simple"}]
+    assert re.fullmatch(f"C101_25-package-highspy-pricing_{FINGERPRINT}-artificial", off.name)
+    assert run_of(RUN).pricing.to_table() == {"stages": [{"algorithm": "simple"}]}
+
+
+def test_several_matrices_expand_one_after_the_other():
+    text = """
+[defaults]
+instance = "C101_25"
+[[matrix]]
+layer = ["package"]
+master = ["highspy", "gurobipy"]
+[[matrix]]
+layer = ["cpp-bindings", "cpp-native"]
+master = ["highs", "highspy"]
+[[matrix]]
+master = ["highspy"]
+[[runs]]
+instance = "R201_25"
+"""
+    expansion = expand(text)
+
+    # The last matrix's point is the first one's again, kept once.
+    assert [(run.instance.name, run.layer, run.master.type) for run in expansion.runs] == [
+        ("C101_25", "package", "highspy"),
+        ("C101_25", "package", "gurobipy"),
+        ("C101_25", "cpp-bindings", "highs"),
+        ("C101_25", "cpp-bindings", "highspy"),
+        ("C101_25", "cpp-native", "highs"),
+        ("R201_25", "package", "highspy"),
+    ]
+    assert len(expansion.dropped) == 1
+    assert "layer cpp-native has no master highspy" in expansion.dropped[0]
+
+
 def test_without_a_matrix_or_runs_the_defaults_make_one_run():
     run = run_of('[defaults]\ninstance = "R201_25"\nlayer = "cpp-bindings"\n')
 
@@ -796,6 +835,24 @@ def test_stages_take_any_algorithm_params_field():
         options.make_algorithm_params({"algorithm": "simple", "direction": "up"})
 
 
+def test_a_bucket_key_makes_a_bucket_stage():
+    from rcspp.graph import BucketAlgorithmParams
+
+    stage = {"algorithm": "pulling", "sort_resource": "load", "max_solutions": 5}
+    _, params = options.make_algorithm_params(stage)
+    # The graph's resources as the instance adds them: cost, time, load, then the memory.
+    resolved = params._to_cpp(["real", "real", "real", "bitset"])  # pyright: ignore
+
+    assert isinstance(params, BucketAlgorithmParams)
+    assert (params.bucket_width, params.max_solutions) == (100, 5)
+    assert (resolved.bucket_resource_type, resolved.bucket_resource_index) == ("real", 0)
+    assert resolved.sort_resource_index == 2
+    assert "sort_resource" in stage
+
+    _, plain = options.make_algorithm_params({"algorithm": "pulling"})
+    assert not isinstance(plain, BucketAlgorithmParams)
+
+
 def test_tolerances_by_name_or_table():
     text = """
 [[runs]]
@@ -898,11 +955,59 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         (RUN + 'master = { type = "highspy", parameters = 1 }\n', "1 is not a table"),
         (RUN + 'start = { type = "single-customer", cost_factor = 1 }\n', "has no cost_factor"),
         (RUN + 'start = { type = "artificial", cost_factor = "big" }\n', "'big' is not a number"),
-        (RUN + '"graph.ng_size" = 8\n', "'ng_size' is not a parameter of graph"),
+        (RUN + '"graph.ng" = 8\n', "'ng' is not a parameter of graph"),
+        (RUN + '"graph.relaxation" = "full"\n', "relaxation 'full' is not one of none, ng"),
+        (RUN + '"graph.relaxation" = "ng"\n', "relaxation ng needs graph.ng_size"),
+        (RUN + '"graph.ng_size" = 8\n', "graph.ng_size is for relaxation ng only"),
+        (
+            RUN + 'graph = { relaxation = "elementary", ng_size = 8 }\n',
+            "graph.ng_size is for relaxation ng only",
+        ),
+        (RUN + 'graph = { relaxation = "ng", ng_size = 1 }\n', "ng_size must be at least 2"),
+        (RUN + 'graph = { relaxation = "ng", ng_size = 8.5 }\n', "8.5 is not a whole number"),
         (RUN + "statistics = { process = 3 }\n", "3 is not true or false"),
         (RUN + "pricing = { stages = [] }\n", "non-empty list"),
         (RUN + "pricing = { stages = [1] }\n", r"stages\[0\] is not a table"),
+        (RUN + '"pricing.preprocess" = "no"\n', "'no' is not true or false"),
         (RUN + 'pricing = { stages = [{ algorithm = "dijkstra" }] }\n', "algorithm 'dijkstra'"),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu" }] }\n',
+            "a tabu stage needs a finite max_iterations",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "greedy", direction = "backward" }] }\n',
+            "a greedy stage searches forward only",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu", max_iterations = 10, '
+            'direction = "bidirectional" }] }\n',
+            "a tabu stage searches forward only",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", bucket_resource = "x" }] }\n',
+            "bucket_resource: 'x' is not one of cost, time, load",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", sort_resource = 1 }] }\n',
+            "sort_resource: 1 is not one of cost, time, load",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "simple", bucket_width = 0 }] }\n',
+            "bucket_width must be at least 1",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "astar", bucket_width = 2.5 }] }\n',
+            "bucket_width: 2.5 is not a whole number",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "greedy", bucket_width = 10 }] }\n',
+            "a greedy stage keeps no label buckets",
+        ),
+        (
+            RUN + 'pricing = { stages = [{ algorithm = "tabu", max_iterations = 10, '
+            'sort_resource = "time" }] }\n',
+            "a tabu stage keeps no label buckets",
+        ),
         (
             RUN + 'pricing = { stages = [{ algorithm = "simple", max_solution = 5 }] }\n',
             "'max_solution' is not a field of AlgorithmParams",
@@ -964,7 +1069,10 @@ VEHICLES = RUN + '"instance.vehicles" = 25\n'
         # Benchmark files.
         (RUN + '[matrix]\nmaster = "highspy"\n', "non-empty list"),
         (RUN + "[matrix]\ngraph.ng_size = [0, 8]\n", "quote a dotted"),
-        ("matrix = [1]\n", r"\[matrix\] is a table of lists"),
+        ("matrix = 1\n", r"\[matrix\] is a table of lists, or \[\[matrix\]\] several"),
+        ("matrix = []\n", r"\[\[matrix\]\] holds at least one matrix"),
+        ("matrix = [1]\n", r"matrix\[0\] is a table of lists"),
+        ('[[matrix]]\nmaster = ["highspy"]\n[[matrix]]\nmaster = "gurobipy"\n', "non-empty list"),
         ("[runs]\nmaster = 1\n", "runs is a list of tables"),
         ("runs = [1]\n", "a run is a table of options"),
         ("[master]\none-thread = 1\n", r"\[master\] holds named master tables"),

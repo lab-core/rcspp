@@ -175,6 +175,7 @@ def test_a_run_goes_to_the_results_folder_by_default(
         ("--column_generation.max_iterations", "3"),
         ("--column_generation.threads", "1"),
         ("--instance.vehicles", "5", "--column_generation.absolute_gap", "1e12"),
+        ("--pricing.preprocess", "false"),
         (
             "--column_generation.tolerances",
             "relative",
@@ -772,6 +773,113 @@ def test_every_layer_gives_the_same_run(build: Path, tmp_path: Path, start: str)
         native = results["cpp-native", "highs"]
 
         assert (native["iterations"], native["columns"]) == (highs["iterations"], highs["columns"])
+
+
+def test_preprocessing_changes_no_lp(build: Path, tmp_path: Path):
+    """Without preprocessing, each layer reaches the LP value it reaches with it."""
+    runs = [("package", "highspy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "highs"))
+
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
+    for layer, master in runs:
+        objectives = [
+            run_layer(
+                layer,
+                build,
+                tmp_path / f"{layer}-{preprocess}",
+                *("--instance", "C101_25", "--master", master),
+                *("--pricing.preprocess", preprocess),
+            )["objective"]
+            for preprocess in ("true", "false")
+        ]
+
+        assert objectives[1] == pytest.approx(objectives[0], rel=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("instance", "graphs"),
+    [
+        # Routes that return to a customer give a lower LP than ng-routes.
+        ("RC201_12", ["{}", "{ relaxation = 'ng', ng_size = 8 }"]),
+        # Elementary routes are ng-routes whose memory holds every customer (C101_10 has ten).
+        ("C101_10", ["{ relaxation = 'ng', ng_size = 10 }", "{ relaxation = 'elementary' }"]),
+    ],
+)
+def test_every_layer_gives_the_same_lp_per_relaxation(
+    build: Path, tmp_path: Path, instance: str, graphs: list[str]
+):
+    runs = [("package", "highspy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "highs"))
+
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
+    objectives = {
+        (layer, graph): run_layer(
+            layer,
+            build,
+            tmp_path / f"{layer}-{index}",
+            *("--instance", instance, "--master", master, "--start", "single-customer"),
+            *("--graph", graph, "--integer.solve", "false"),
+        )["objective"]
+        for layer, master in runs
+        for index, graph in enumerate(graphs)
+    }
+    first, second = (objectives["package", graph] for graph in graphs)
+
+    for (_, graph), objective in objectives.items():
+        assert objective == pytest.approx(objectives["package", graph], rel=1e-9)
+
+    if instance == "RC201_12":
+        assert first < second - 1.0
+    else:
+        assert first == pytest.approx(second, rel=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("stage", "graph"),
+    [
+        ("simple:bucket_width=10", "{}"),
+        ("pulling:bucket_width=20,bucket_resource=time,sort_resource=load", "{}"),
+        (
+            "simple:bucket_resource=load,sort_resource=time",
+            "{ relaxation = 'ng', ng_size = 8 }",
+        ),
+    ],
+)
+def test_every_layer_gives_the_lp_of_the_list_with_label_buckets(
+    build: Path, tmp_path: Path, stage: str, graph: str
+):
+    """Buckets change how labels are kept, not the LP: each layer's equals the plain
+    simple search's."""
+    runs = [("package", "highspy")]
+
+    if has_example():
+        runs.append(("cpp-bindings", "highs"))
+
+    if has_cpp_native(build):
+        runs.append(("cpp-native", "highs"))
+
+    objectives = {
+        (layer, searched): run_layer(
+            layer,
+            build,
+            tmp_path / f"{layer}-{index}",
+            *("--instance", "C101_25", "--master", master, "--start", "single-customer"),
+            *("--graph", graph, "--integer.solve", "false", "--stage", searched),
+        )["objective"]
+        for layer, master in runs
+        for index, searched in enumerate(["simple", stage])
+    }
+
+    for objective in objectives.values():
+        assert objective == pytest.approx(objectives["package", "simple"], rel=1e-9)
 
 
 @pytest.mark.usefixtures("gurobi")

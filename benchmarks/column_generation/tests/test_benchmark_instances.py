@@ -121,6 +121,47 @@ def test_the_graph_prices_routes_within_windows_and_capacity(build: Path, toy: S
     assert best.cost == pytest.approx(5 + math.hypot(3, 1) + 5 - 200)
 
 
+def test_each_customer_remembers_its_nearest_customers(toy: SolomonInstance):
+    # 1 to 2: 3.2, 1 to 3: 5, 2 to 3: 6.7.
+    assert toy.ng_neighborhoods(2) == {0: set(), 1: {1, 2}, 2: {1, 2}, 3: {1, 3}, 4: set()}
+    assert toy.ng_neighborhoods(3)[3] == {1, 2, 3}
+    assert toy.ng_neighborhoods(8)[1] == {1, 2, 3}
+
+
+def test_a_customer_keeps_its_place_among_customers_at_its_spot(tmp_path: Path):
+    path = tmp_path / "TOY_3.txt"
+    path.write_text(
+        TOY.replace("    1      3          4", "    1      6          8").replace(
+            "    2      0          5", "    2      6          8"
+        )
+    )
+    neighborhoods = SolomonInstance(path).ng_neighborhoods(2)
+
+    # 1, 2 and 3 share a spot: each holds itself and the first other by number.
+    assert neighborhoods == {0: set(), 1: {1, 2}, 2: {1, 2}, 3: {1, 3}, 4: set()}
+
+
+@pytest.mark.parametrize(
+    ("options", "returns"),
+    [
+        ({}, True),
+        ({"relaxation": "ng", "ng_size": 2}, False),
+        ({"relaxation": "elementary"}, False),
+    ],
+)
+def test_a_route_memory_forbids_a_return(
+    build: Path, tmp_path: Path, options: dict[str, Any], returns: bool
+):
+    # Room for 1 again and again: only its window, closing at 100, ends the route.
+    path = tmp_path / "TOY_3.txt"
+    path.write_text(TOY.replace("  3         20", "  3        100"))
+    graph = SolomonInstance(path).build_graph(options)
+    graph.update_reduced_costs({0: 0.0, 1: 100.0, 2: 0.0, 3: 0.0})
+    customers = graph.solve()[0].path_node_ids[1:-1]
+
+    assert (len(customers) > len(set(customers))) == returns
+
+
 def test_row_zero_is_free_and_every_customer_is_covered_once(toy: SolomonInstance):
     lower, upper = toy.row_bounds()
 
