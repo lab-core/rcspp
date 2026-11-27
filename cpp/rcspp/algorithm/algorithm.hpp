@@ -110,36 +110,45 @@ class Algorithm {
 
         virtual ~Algorithm() = default;
 
-        /// @brief Whether the last @ref solve's result is a proof of optimality
-        ///        (@c SolveResult::proven).
+        /// @brief True if the last @ref solve proved its result optimal. It is the same value as
+        ///        @c SolveResult::proven.
         ///
-        /// The default implementation answers whether the last solve ended with status
-        /// @c AlgorithmStatus::Complete, with nothing lost that the status cannot see: no arc
-        /// masked, an exact admission rule, no memory pressure (@c ProofLoss). It is recorded when
-        /// the solve ends, before @c release_after_solve (the default) empties the label queues:
-        /// reading @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any
-        /// other early stop. @c false before the first solve. A heuristic ends @c Complete only
-        /// when it ran out of paths to try: @c strategy::Greedy then enumerated every path, and the
-        /// tabu searches found none before any arc was tabu (a tabu arc loses the proof:
-        /// @c ProofLoss::HeuristicDriver). @c DiversificationSearch overrides it to answer
-        /// @c false.
+        /// A solve is proven when it ended with status @c AlgorithmStatus::Complete and used
+        /// nothing that can hide a path (an arc mask, an admission rule that is not exact, memory
+        /// pressure, a tabu arc, ...; see @c ProofLoss). It is false before the first solve.
+        ///
+        /// The answer is saved when the solve ends. It cannot be worked out later: with
+        /// @c release_after_solve (the default), the label queues are emptied, and
+        /// @ref number_of_waiting_labels then answers 0 even after a timeout.
+        ///
+        /// A heuristic is proven only when it ran out of paths to try. For @c strategy::Greedy,
+        /// this means it tried every path. For the tabu searches, it means they ran out of paths
+        /// before any arc was made tabu, since a tabu arc loses the proof
+        /// (@c ProofLoss::HeuristicDriver). @c DiversificationSearch always answers false.
         ///
         /// @return true if the last solve's result is a proof, false otherwise.
         [[nodiscard]] virtual bool is_optimal() const { return last_solve_proven_; }
 
-        /// @brief Solves @p graph: returns the paths found that cost less than
-        ///        @p cost_upper_bound, cheapest first, and why the search ended.
+        /// @brief Searches @p graph and returns the paths found that cost less than
+        ///        @p cost_upper_bound, cheapest first, with the reason the search ended.
         ///
-        /// A solve checks the direction and the model, resets this algorithm's state
-        /// (@ref initialize) and creates the start labels (@ref initialize_labels). Then it
-        /// repeats runs until no label waits or a stop applies (@ref should_stop): each run
-        /// extends labels (@ref main_loop), records the paths at the end nodes
-        /// (@ref record_remaining_solutions), and asks @ref prepare_next_run whether another run
-        /// follows (the next phase, or a driver's next run). It then puts back the labels still
-        /// stored aside (@ref prepare_next_phase), sets the status (@ref AlgorithmStatus) and
-        /// whether the result is a proof (@c SolveResult::proven), and releases the label memory
-        /// unless @c release_after_solve is false. Each solve starts afresh: nothing of one
-        /// solve's labels is reused by the next.
+        /// A solve goes through these steps:
+        /// 1. It checks that the algorithm supports the direction, and runs the model checks the
+        ///    direction needs.
+        /// 2. It resets the algorithm (@ref initialize) and creates the start labels
+        ///    (@ref initialize_labels).
+        /// 3. It makes runs (@ref main_loop) while labels are waiting and no limit is reached
+        ///    (@ref should_stop). After each run, it records the paths of the labels left at
+        ///    the end nodes (@ref record_remaining_solutions), then asks @ref prepare_next_run
+        ///    whether to run again. For most searches a run is one phase; a search with a driver
+        ///    asks its driver. With @c max_iterations 0, it makes no run, unless a driver counts
+        ///    the runs (@ref max_iterations_counts_runs).
+        /// 4. It puts back the labels still stored aside (@ref prepare_next_phase), so that they
+        ///    count as waiting. It then sets the status (@ref AlgorithmStatus) and whether the
+        ///    result is a proof (@c SolveResult::proven).
+        /// 5. It releases the label memory, unless @c release_after_solve is false.
+        ///
+        /// Each solve starts afresh: it reuses no label of an earlier solve.
         ///
         /// @param graph            The graph; it must not change during the solve.
         /// @param cost_upper_bound Only paths cheaper than this are returned; +infinity for no
@@ -226,15 +235,14 @@ class Algorithm {
             }
 
             // Determine the exit status. "All labels processed" (number_of_waiting_labels() == 0)
-            // means the search finished, so it takes precedence over the
-            // early-stop reasons below: a timeout / interrupt / memory flag must NOT downgrade a
-            // finished, optimal run. This matters because is_interrupted() and
-            // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
-            // have flipped, or RSS may exceed the limit because of the retained solutions — even
-            // though the loop actually exited by exhausting all labels. The remaining branches
-            // describe why the search stopped *early* (labels still remain). A search that
-            // abandoned labels it will never extend (has_abandoned_labels()) did not process every
-            // label, even with an empty queue.
+            // means the search finished, so it takes precedence over the early-stop reasons
+            // below: a timeout / interrupt / memory flag must NOT downgrade a finished run. This
+            // matters because is_interrupted() and memory_limit_.is_exceeded() are re-evaluated
+            // here — the external stop callback may have flipped, or RSS may exceed the limit
+            // because of the retained solutions — even though the loop actually exited by
+            // exhausting all labels. The remaining branches describe why the search stopped
+            // *early* (labels still remain). A search that abandoned labels it will never extend
+            // (has_abandoned_labels()) did not process every label, even with an empty queue.
             AlgorithmStatus status;
             if (number_of_waiting_labels() == 0 && !has_abandoned_labels()) {
                 status = AlgorithmStatus::Complete;
@@ -283,17 +291,21 @@ class Algorithm {
             return params_.should_stop && params_.should_stop();
         }
 
-        /// @brief Sets the arc mask later solves read: they leave out the arcs @p mask makes hard
-        ///        (a hard arc), as if they were not in the graph, and a child filter may avoid
-        ///        those it makes soft (a soft arc); @c nullptr (the default) leaves every arc in.
+        /// @brief Gives later solves an arc mask: a list of arcs the search must not use (hard
+        ///        arcs) or should avoid (soft arcs). @c nullptr, the default, means no mask.
         ///
-        /// A labelling search never extends a label along a hard arc. The graph is not edited:
-        /// arc ids, and the bounds computed on the whole graph, are unchanged, so the paths
-        /// returned name the graph's own arcs. The mask is read at the start of each solve, and
-        /// not owned: it must outlive the solves that read it. A soft arc changes nothing for a
-        /// search whose schedule does not read it (every exact search). A mask that is not all
-        /// open (any hard or soft arc) costs the solve its proof (@c ProofLoss::ArcsMasked), a
-        /// soft-only one included.
+        /// A labelling search never extends a label along a hard arc, as if the arc were not in
+        /// the graph. A soft arc matters only to a schedule whose child filter reads it: the
+        /// tabu searches drop a child reached along a soft arc, unless every child is
+        /// (@c parts::TabuChildFilter). Every other search uses a soft arc as an open one.
+        ///
+        /// The graph itself is not changed, so arc ids stay the same, the bounds computed on the
+        /// whole graph stay valid, and the paths returned name the graph's own arcs. The mask is
+        /// not copied: it must outlive every solve that reads it. A solve uses the mask that was
+        /// set when it started.
+        ///
+        /// A mask with any hard or soft arc means the solve is not a proof
+        /// (@c ProofLoss::ArcsMasked), even when the search ignores soft arcs.
         ///
         /// @param mask The mask, sized for the graph's arc ids (@c Graph::get_arc_id_bound).
         void set_arc_mask(const ArcMask* mask) { arc_mask_ = mask; }
@@ -304,9 +316,13 @@ class Algorithm {
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
-        /// @brief How many extensions the last solve made that drew a label from the pool: every
-        ///        extension of a label along an arc but those masked or unreachable (the
-        ///        infeasible and the rejected ones count). A machine-independent work measure.
+        /// @brief How many extensions the last solve made: a machine-independent measure of its
+        ///        work.
+        ///
+        /// Each attempt to extend a label along an arc counts, whether the new label was kept,
+        /// found infeasible or rejected by the admission rule. Only an arc that is hard in the
+        /// arc mask, or that the look-ahead rules out, does not count: no label is created for
+        /// it.
         ///
         /// @return The number of label extensions performed.
         [[nodiscard]] size_t get_number_of_extended_labels() const {
@@ -328,15 +344,18 @@ class Algorithm {
         friend class DiversificationSearch;
 
         /// @brief Promises that the graph, costs included, has not changed since the last solve,
-        ///        so that the completion bound computed then, and whether a prune may add it, can
-        ///        be kept (@c LabellingAlgorithm::refresh_completion_bound,
-        ///        @ref refresh_completion_bound_validity), until this is set back to @c false.
+        ///        until this is set back to @c false.
         ///
-        /// Protected: only @ref DiversificationSearch makes this promise, between its inner
-        /// solves. A wrong promise leaves a stale bound, so wrong pruning and ordering. The arc
-        /// mask is not part of the promise: the bound does not read it.
+        /// The next solves can then reuse what the last one computed from the graph: the
+        /// completion bound (@c LabellingAlgorithm::refresh_completion_bound), and whether a
+        /// prune may add it (@ref refresh_completion_bound_validity). A wrong promise leaves a
+        /// stale bound, and so wrong pruning and ordering. The arc mask may change between the
+        /// solves: the bound does not read it.
         ///
-        /// @param unchanged Whether the graph stays unchanged.
+        /// It is protected because only @ref DiversificationSearch makes this promise, between
+        /// its inner solves.
+        ///
+        /// @param unchanged True to promise that the graph stays unchanged.
         void set_graph_unchanged(bool unchanged) { graph_unchanged_ = unchanged; }
 
         /// @brief Whether the graph is promised unchanged since the last solve
@@ -623,10 +642,11 @@ class Algorithm {
         ///        bidirectionally). DiversificationSearch creates none.
         virtual void initialize_labels() = 0;
 
-        /// @brief How many labels wait in the schedule(s) to be taken. Labels stored aside are
-        ///        not counted until @ref prepare_next_phase puts them back. solve() runs while it
-        ///        is positive, and ends @c Complete only when it is 0 (DiversificationSearch
-        ///        answers 1, so it never ends @c Complete).
+        /// @brief How many labels are waiting to be extended, in the schedule or schedules.
+        ///
+        /// Labels stored aside do not count until @ref prepare_next_phase puts them back. solve()
+        /// runs while this is positive, and ends @c Complete only if it is 0.
+        /// DiversificationSearch always answers 1, so that it never ends @c Complete.
         [[nodiscard]] virtual size_t number_of_waiting_labels() const = 0;
 
         /// @brief Whether the last solve abandoned labels it will never extend.
@@ -681,10 +701,14 @@ class Algorithm {
             return false;
         }
 
-        /// @brief One run: takes labels (or, for Pulling, visits nodes) until none waits or a
-        ///        stop applies (@ref should_end_loop, @c max_iterations, the memory limit,
-        ///        @c max_solutions). solve() calls it once per phase, or once per run of a
-        ///        driver.
+        /// @brief Makes one run: takes waiting labels and extends them (Pulling visits nodes
+        ///        instead), until no label is waiting or the run must stop.
+        ///
+        /// A run stops at the time limit, on an interrupt, at @c max_solutions
+        /// (@ref should_stop), at the memory limit, or after @c max_iterations steps. A
+        /// search with a driver does not count its steps against @c max_iterations: its driver
+        /// counts runs instead. solve() calls this once per phase or, for a search with a
+        /// driver, once per run the driver asks for.
         virtual void main_loop() = 0;
 
         /// @brief Records the solutions still sitting at the end nodes when the loop ends.
@@ -836,8 +860,8 @@ class Algorithm {
         const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
         bool graph_unchanged_ = false;       ///< see @ref set_graph_unchanged
 
-        /// @brief What this solve lost that its status cannot see; reset at @ref initialize,
-        ///        which records a mask that is not empty.
+        /// @brief The first reason this solve is not a proof that its status does not show
+        ///        (@c ProofLoss). @ref initialize resets it.
         ProofRecord proof_;
         /// @brief Whether a prune may add the completion bound
         ///        (@ref refresh_completion_bound_validity).
@@ -845,7 +869,8 @@ class Algorithm {
         bool cost_declared_additive_ = false;  ///< see @ref is_cost_additive
         /// @brief Where an arc was seen adding less than its share, if anywhere.
         std::optional<detail::ShareShortfall> share_shortfall_;
-        /// @brief The graph the verdict was reached on; null when none is kept.
+        /// @brief The graph @ref completion_bound_valid_ was computed for, so that it can be kept
+        ///        while that graph is promised unchanged; null when nothing is kept.
         const Graph<ResourceType>* completion_bound_validity_graph_ = nullptr;
         bool share_shortfall_warned_ = false;  ///< see @ref warn_about_share_shortfall
 

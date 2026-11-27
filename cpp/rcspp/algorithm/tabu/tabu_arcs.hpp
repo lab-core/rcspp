@@ -13,15 +13,19 @@
 
 namespace rcspp::detail {
 
-/// @brief Tabu arcs kept in step with an arc mask: a tabu list (@ref TabuList) and the mask a
-///        search reads.
+/// @brief The tabu arcs of a search, and the arc mask that makes the search avoid them.
 ///
-/// The mask starts as the one the algorithm was given (@c Algorithm::set_arc_mask), or open. An
-/// arc made tabu takes the state the owner chose: soft for the tabu searches' drivers, which
-/// still extend along it when they must, hard for @ref DiversificationSearch, which leaves it
-/// out. When its tenure runs out, it goes back to its state in the mask given. A path found
-/// never uses an arc the mask given makes hard, so making an arc tabu never turns a hard arc
-/// soft.
+/// It holds a tabu list (@ref TabuList), which counts how long each arc stays tabu, and an arc
+/// mask that the search reads. The mask starts as a copy of the mask the algorithm was given
+/// (@c Algorithm::set_arc_mask), or all open. When an arc is made tabu, its state in the mask
+/// becomes the one the owner chose:
+/// - soft for the tabu searches' drivers, whose dive still uses the arc when every child is
+///   reached along a tabu arc;
+/// - hard for @ref DiversificationSearch, which leaves the arc out.
+///
+/// When its tenure runs out, the arc goes back to its state in the given mask. A path found
+/// never uses an arc that the given mask makes hard, so making an arc tabu never turns a hard
+/// arc into a soft one.
 class TabuArcs {
     public:
         /// @brief Tabu arcs with the params' tenure, noise, seed and exempt nodes.
@@ -75,9 +79,11 @@ class TabuArcs {
             return made_tabu;
         }
 
-        /// @brief One step older (an episode for the tabu searches' drivers, an inner solve for
-        ///        @ref DiversificationSearch): the tenures shorten, and each arc whose tenure ran
-        ///        out goes back to its state in the mask given.
+        /// @brief Ages the tabu list by one step: every tenure shortens by one, and each arc whose
+        ///        tenure ran out goes back to its state in the given mask.
+        ///
+        /// A step is an episode for the tabu searches' drivers, and an inner solve for
+        /// @ref DiversificationSearch.
         void age() {
             tabu_.age([this](size_t arc_id) {
                 mask_.set(arc_id, given_ != nullptr ? given_->state(arc_id) : ArcMask::State::Open);

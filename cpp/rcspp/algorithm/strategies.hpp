@@ -148,12 +148,16 @@ struct ImprovingTabu {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Repeated solves of @p Inner, forward only, each solve leaving out (as hard arcs of the
-///        inner algorithm's mask) the arcs of the paths found in the last @c tabu_tenure solves
-///        (@ref DiversificationSearch).
+/// @brief Solves @p Inner again and again, forward only (@ref DiversificationSearch). The arcs
+///        of each path found are left out of the next @c tabu_tenure − 1 solves, plus an
+///        adaptive extra, so that each solve finds a different path.
 ///
-/// @c max_iterations counts the inner solves, and must be finite. Each inner solve keeps one
-/// path and takes at most 1000 labels, whatever the params say.
+/// The arcs left out are hard arcs of the inner algorithm's arc mask; arcs with an end in
+/// @c tabu_exempt_node_ids are never left out. @c max_iterations counts the inner solves, and
+/// must be finite. Each inner solve keeps one path, whatever the params say, and has its own
+/// budget (@ref DiversificationSearch::inner_iteration_budget): 20 labels taken per node of the
+/// graph and never fewer than 1000 for a labelling search such as Greedy; 1000 episodes for a
+/// driven search such as Tabu.
 ///
 /// @tparam Inner The strategy solved each time; Greedy by default.
 template <typename Inner = Greedy>

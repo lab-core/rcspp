@@ -184,9 +184,8 @@ struct Search {
         /// @brief Extends @p label along @p arc.
         ///
         /// The steps, in order; each of the first four can end the extension:
-        ///  1. @c Masked: when the arc mask leaves the arc out (a hard arc, @c
-        ///  SearchContext::arc_mask),
-        ///     the arc is skipped; no label is taken from the pool.
+        ///  1. @c Masked: when the arc mask leaves the arc out (a hard arc,
+        ///     @c SearchContext::arc_mask), the arc is skipped; no label is taken from the pool.
         ///  2. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
         ///     @c Label::is_reachable), the arc is skipped; no label is taken from the pool.
         ///  3. @c Infeasible: a label is taken from the pool and extended along the arc; when it

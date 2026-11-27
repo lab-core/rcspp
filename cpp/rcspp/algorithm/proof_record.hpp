@@ -8,12 +8,13 @@
 
 namespace rcspp {
 
-/// @brief What made a solve's result inexact although the search may have finished: what its
-///        status cannot see.
+/// @brief A reason why a solve is not a proof of optimality even though its status may be
+///        @c Complete.
 ///
-/// The status already reports every cut a search makes (labels the per-node quota or memory
-/// pressure stored aside and never extended make it @c Truncated, as does an abandoned label of a
-/// bidirectional side). These are what a finished search can still have lost.
+/// The status already reports every way a search can leave labels unextended: labels stored
+/// aside by the per-node quota or memory pressure and never extended make it @c Truncated, and
+/// so does a label abandoned by a side of a bidirectional search. The losses listed here are the
+/// ones a search that finished can still have suffered.
 enum class ProofLoss : std::uint8_t {
     None,  ///< nothing: a complete solve is a proof
     /// the arc mask set (@c Algorithm::set_arc_mask) is not all open: it leaves hard arcs out, or

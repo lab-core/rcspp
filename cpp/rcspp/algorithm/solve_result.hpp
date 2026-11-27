@@ -27,10 +27,12 @@ enum class AlgorithmStatus {
     Complete,
     Timeout,       ///< `timeout_s` passed with labels still to extend.
     MaxSolutions,  ///< `max_solutions` paths were recorded with labels still to extend.
-    /// Labels were left unextended for none of the reasons above: `max_iterations` was reached;
-    /// the last of `max_phases` phases ended with labels stored aside (by the per-node quota or a
-    /// memory-pressure trim); a bidirectional side abandoned labels; or a driver (the tabu
-    /// searches) ended its runs with labels still waiting.
+    /// Labels were left unextended, for none of the reasons above. This happens when:
+    /// - `max_iterations` was reached;
+    /// - the last of `max_phases` phases ended with labels stored aside (by the per-node quota
+    ///   or a memory-pressure trim);
+    /// - a side of a bidirectional search abandoned labels;
+    /// - a driver (the tabu searches) stopped its runs with labels still waiting.
     Truncated,
     Interrupted,  ///< The `should_stop` callback returned true with labels still to extend.
     MemoryLimit,  ///< The process's memory (RSS) reached the limit with labels still to extend.
@@ -96,18 +98,23 @@ struct SolveResult {
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
 
-        /// @brief Whether the result is a proof: no path better than those returned exists. When
-        ///        none is returned, no path exists below the solve's upper bound (none at all,
-        ///        with no upper bound).
+        /// @brief True if the result is a proof of optimality: no path is cheaper than the
+        ///        cheapest one returned. When none is returned, no path costs less than the
+        ///        solve's upper bound (no path exists at all, with no upper bound).
         ///
-        /// The status is @c AlgorithmStatus::Complete, and nothing a complete search can still
-        /// lose was lost: no arc was masked, the admission rule is exact, no memory pressure
-        /// (@c ProofLoss). Same value as @c Algorithm::is_optimal() after the solve.
+        /// It requires the status @c AlgorithmStatus::Complete. It also requires that the solve
+        /// used nothing that can hide a path even from a search that finished: an arc mask, an
+        /// admission rule that is not exact, memory pressure, a tabu arc, or an incumbent prune
+        /// without a valid completion bound (@c ProofLoss). @ref proof_lost_by says which. It is
+        /// the same value as @c Algorithm::is_optimal() after the solve.
         bool proven = false;
 
-        /// @brief Why the result is not a proof; empty when it is: the status's name when the
-        ///        search did not finish (`"truncated"`, `"timeout"`...), otherwise the first
-        ///        @c ProofLoss (`"arcs_masked"`, `"relaxed_admission"`, `"memory_pressure"`).
+        /// @brief Why the result is not a proof, or empty when it is.
+        ///
+        /// If the search did not finish, it is the status's name (`"truncated"`, `"timeout"`,
+        /// ...). If it finished, it is the first @c ProofLoss recorded: `"arcs_masked"`,
+        /// `"relaxed_admission"`, `"memory_pressure"`, `"heuristic_driver"` or
+        /// `"incumbent_prune"`.
         std::string proof_lost_by;
 
         /// @brief Human-readable name of the exit status.

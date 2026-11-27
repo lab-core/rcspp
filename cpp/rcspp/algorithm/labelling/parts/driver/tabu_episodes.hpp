@@ -17,8 +17,8 @@ namespace rcspp::parts {
 
 namespace tabu_detail {
 
-/// @brief Starts @p tabu for a solve of @p search, whose runs then read its mask, soft where an
-///        arc is tabu.
+/// @brief Starts @p tabu for a new solve of @p search: no arc is tabu yet, and the search's runs
+///        read the tabu arcs' mask, a copy of the caller's mask in which each tabu arc is soft.
 template <typename SearchType>
 void begin(detail::TabuArcs& tabu, SearchType& search) {
     tabu.begin(search.graph(), search.get_arc_mask());
@@ -36,30 +36,37 @@ void add(detail::TabuArcs& tabu, SearchType& search, const std::vector<size_t>& 
 
 }  // namespace tabu_detail
 
-/// @brief Tabu's driver: episodes of a dive, each ending at its first path, whose arcs are then
-///        tabu (soft in the search's mask) for the next episodes: the tenure (@c tabu_tenure
-///        plus the adaptive extra) minus one, since the episode that makes an arc tabu also ages
-///        the list. With a tenure of 1 an arc is never tabu.
+/// @brief The driver of @c strategy::Tabu: it runs dive after dive, and after each one forbids
+///        the arcs of the path found for the next few dives, so that each dive looks for a
+///        different path.
 ///
-/// An episode is one run of the driven search (@c detail::Driven): a dive from the start labels
-/// that ends at the first end-node label it records. The search's schedule releases a child
-/// reached along a tabu arc, unless every child is (aspiration by default, @ref TabuChildFilter):
-/// the child is not kept for a later episode.
+/// Each run, called an @b episode, is a dive from the start labels that stops at the first path
+/// it finds (@c Driven::end_runs_at_end_node). A forbidden, or @b tabu, arc is a soft arc of the
+/// search's arc mask. The schedule's child filter (@ref TabuChildFilter) drops a child reached
+/// along a tabu arc, unless every child was reached along one.
 ///
-/// After an episode that found a path, the path's arcs become tabu (all but those with an end in
-/// @c tabu_exempt_node_ids), and the adaptive tenure shrinks when the path was a new solution and
-/// grows when it was not (a duplicate, or not below the upper bound). After one that ran out of
-/// paths, the solve ends if no arc is tabu (no path exists), and the tenure grows otherwise. An
-/// episode that found no path while labels the per-node quota or memory pressure stored aside
-/// were left after its last phase (@c RunEnd::ended_with_stored_aside) counts as one that ran out
-/// of paths, except that with no arc tabu its labels still wait, so the status says the solve was
-/// truncated. Then the tenures age (once per episode, the episode that made an arc tabu
-/// included), and the next episode starts from the start labels again (@c reseed).
+/// After each episode, what happens depends on how it ended (@c RunEnd):
+/// - It found a path: the path's arcs become tabu, except those with an end in
+///   @c tabu_exempt_node_ids. The adaptive extra tenure shrinks by one if the path was a new
+///   solution, and grows by one if it was not (the solve already had it, or it does not cost
+///   less than the upper bound).
+/// - It found no path, and no label was left: if no arc is tabu, the solve ends, since the next
+///   episode would be the same. Otherwise the extra tenure grows by one.
+/// - It found no path, and labels stored aside (by the per-node quota or memory pressure) were
+///   left after its last phase: the same as above, except that when no arc is tabu, those
+///   labels are left waiting, so the solve ends @c Truncated.
+/// - A limit stopped it (the time limit, an interrupt, the memory limit): the solve ends, and
+///   its status names the limit.
+/// If the solve goes on, every tenure is shortened by one episode, and the next episode starts
+/// again from the start labels (@c Driven::reseed).
 ///
-/// @c max_iterations counts episodes, and must be finite; a solve that spends it ends
-/// @c Truncated, the next episode's start labels waiting. A run stopped by the time limit, an
-/// interrupt or the memory limit ends the solve, its labels still waiting, so the solve's status
-/// says which stop.
+/// An arc stays tabu for its tenure minus one episode. The tenure is @c tabu_tenure plus the
+/// adaptive extra (and, with @c tabu_random_noise, one more or one less at random). The episode
+/// that makes an arc tabu already shortens its tenure once, so with a tenure of 1 the arc is
+/// never tabu.
+///
+/// @c max_iterations is the number of episodes, and must be finite. A solve that makes them all
+/// ends @c Truncated, since the next episode's start labels are left waiting.
 class TabuEpisodes {
     public:
         /// @brief A driver that reads @p params: the iteration budget, the tenure, its noise and
@@ -104,8 +111,8 @@ class TabuEpisodes {
             } else if (!run.exhausted && !run.ended_with_stored_aside) {
                 return false;  // stopped: the labels wait, and the status says why
             } else if (tabu_.list().empty()) {
-                // Out of paths with no arc tabu: no feasible path exists, or (stored aside) the
-                // next episode would repeat this one, and the labels stored aside wait.
+                // No path found, and no arc is tabu: the next episode would repeat this one, so
+                // the solve ends. Labels stored aside, if any, are left waiting (Truncated).
                 return false;
             } else {
                 tabu_.list().grow_extra();

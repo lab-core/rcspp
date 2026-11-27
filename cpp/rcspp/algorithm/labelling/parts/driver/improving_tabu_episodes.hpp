@@ -15,19 +15,37 @@
 
 namespace rcspp::parts {
 
-/// @brief Improving Tabu's driver: a first dive with no arc tabu (the construction), then
-///        @c max_iterations tabu episodes, as @ref TabuEpisodes, that count how long they go
-///        without improving.
+/// @brief The driver of @c strategy::ImprovingTabu: a first dive with no arc tabu (the
+///        @b construction), then up to @c max_iterations more dives, each called an
+///        @b episode. After each dive, the arcs of the path found are made @b tabu (forbidden)
+///        for a few episodes, so that the next dives look for other paths.
 ///
-/// The construction's path is the best cost so far; its arcs become tabu when it is below the
-/// upper bound. After each later episode, a path strictly cheaper than the best (by
-/// @c tolerance) is an improvement: it becomes the best and shrinks the adaptive tenure; any
-/// other episode counts as one more without improving, and @c non_improving_episodes_before_growth
-/// of them in a row grow the tenure. An episode's dive stops at its first path, whatever it costs:
-/// only the count reads the best cost. @c max_iterations must be finite.
+/// How many episodes an arc stays tabu is its @b tenure: @c tabu_tenure plus an adaptive
+/// @b extra. This driver lengthens the extra while the episodes find no better path, and
+/// shortens it when one does: a longer tenure forbids more arcs at once, which pushes the dives
+/// further from the paths already found.
 ///
-/// The construction does not age the list, so its arcs stay tabu for the full tenure; a later
-/// episode's arcs, as in @ref TabuEpisodes, for one less.
+/// The construction's path gives the first best cost. Its arcs become tabu if it costs less
+/// than the upper bound. If the construction finds no path, the solve ends.
+///
+/// After each episode:
+/// - It found a path that costs less than the upper bound, and less than the best cost by more
+///   than @c tolerance: this is an improvement. Its cost becomes the best cost, the count of
+///   episodes without improvement goes back to 0, and the extra shrinks by one.
+/// - It found another path: the count goes up by one.
+/// - It found no path: the extra grows by one at once, and the count goes up by one. If no arc
+///   is tabu, the solve ends instead, as in @ref TabuEpisodes.
+/// In the first two cases, the path's arcs become tabu. When the count reaches
+/// @c non_improving_episodes_before_growth, the extra grows by one more and the count goes back
+/// to 0. Then every tabu arc has one episode less to stay tabu. A limit that stops a run ends
+/// the solve, as in @ref TabuEpisodes.
+///
+/// Each episode still stops at its first path, whatever it costs: only the count reads the best
+/// cost. @c max_iterations must be finite.
+///
+/// The construction does not count down the tenures, so its arcs stay tabu for their full
+/// tenure. The arcs of a later episode stay tabu one episode less, since that episode already
+/// counts down once (as in @ref TabuEpisodes).
 class ImprovingTabuEpisodes {
     public:
         /// @brief A driver that reads @p params: the iteration budget, the tenure, its noise and
@@ -73,7 +91,7 @@ class ImprovingTabuEpisodes {
             }
             if (number_of_runs == 1) {  // the construction
                 if (!run.recorded) {
-                    return false;  // no feasible path exists, or (stored aside) the labels wait
+                    return false;  // the construction found no path; labels stored aside wait
                 }
                 best_cost_ = run.cost;
                 if (best_cost_ < search.upper_bound()) {
@@ -82,8 +100,8 @@ class ImprovingTabuEpisodes {
             } else {
                 if (!run.recorded) {
                     if (tabu_.list().empty()) {
-                        // Out of paths with no arc tabu: no path is left, or (stored aside) the
-                        // next episode would repeat this one, and the labels stored aside wait.
+                        // No path found, and no arc is tabu: the next episode would repeat this
+                        // one, so the solve ends. Labels stored aside, if any, are left waiting.
                         return false;
                     }
                     tabu_.list().grow_extra();
@@ -115,9 +133,9 @@ class ImprovingTabuEpisodes {
     private:
         const AlgorithmBaseParams* params_;
         detail::TabuArcs tabu_;
-        double best_cost_ = std::numeric_limits<double>::infinity();  ///< the best cost found so
-                                                                      ///< far in this solve
-        /// episodes in a row that did not improve @ref best_cost_
+        /// The cost of the best path found so far in this solve.
+        double best_cost_ = std::numeric_limits<double>::infinity();
+        /// How many episodes in a row have not improved on @ref best_cost_.
         size_t number_of_non_improving_episodes_ = 0;
 };
 

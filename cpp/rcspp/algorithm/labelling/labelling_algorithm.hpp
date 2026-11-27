@@ -86,9 +86,10 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         /// @brief Gives the search its completion bound when @p needed, and none otherwise.
         ///
-        /// The bound reads the graph alone (not the arc mask): when the graph is promised
-        /// unchanged since the last solve (@ref Algorithm::set_graph_unchanged), the bound that
-        /// solve computed on it is kept, and not computed again.
+        /// The bound depends on the graph only, not on the arc mask. So if the caller promised
+        /// that the graph has not changed since the last solve
+        /// (@ref Algorithm::set_graph_unchanged), and that solve computed the bound on this same
+        /// graph, the bound is kept rather than computed again.
         void refresh_completion_bound(const Graph<ResourceType>& graph, bool needed) {
             if (!needed) {
                 search_.completion_bound = {};
@@ -99,19 +100,22 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        /// @brief Empties the search for another run of this solve (@ref Search::restart): every
-        ///        node's container and the schedule are emptied, so that the start labels can be
-        ///        stored and queued again; the completion bound and the work count are kept.
+        /// @brief Empties the search for another run of the same solve (@ref Search::restart).
+        ///
+        /// Every node's container and the schedule are emptied, so that the start labels can be
+        /// stored and queued again. The completion bound and the work count are kept. No label
+        /// is released here: @ref initialize_labels does that (@c Driven::reseed calls both).
         void restart_search() {
             search_.restart(this->graph_->get_number_of_nodes(),
                             make_directed_container<Direction>(this->params_.labels));
         }
 
         void initialize_labels() override {
-            // At the start of a solve the pool is already empty (Algorithm::initialize clears it).
-            // This matters when a driver starts another run (Driven::reseed): every label of the
-            // previous run goes back to the pool, those waiting for a successor's release
-            // (pending_release) included.
+            // Give every label back to the pool. At the start of a solve the pool is already
+            // empty (Algorithm::initialize clears it), so this releases nothing. It matters when
+            // a driver starts another run (Driven::reseed): every label of the previous run goes
+            // back to the pool, including those the pool holds until the labels extended from
+            // them are released (pending_release).
             this->label_pool_.release_all_labels();
             search_.create_start_labels(*this->graph_, &this->label_pool_);
         }
@@ -127,18 +131,19 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             run_loop(this->params_.max_iterations);
         }
 
-        /// @brief Runs @ref step until no label waits, a stop applies, or @p max_steps steps are
-        ///        done.
+        /// @brief Runs @ref step until no label is waiting, a limit is reached, or @p max_steps
+        ///        steps are done.
         ///
-        /// A step takes one label or, with a pulling schedule, visits one node. Before each step
-        /// the memory check runs (@c Algorithm::check_memory). It reads the memory only every
-        /// `memory_check_interval` steps of @ref memory_steps_, which a phase of a search that is
-        /// not driven restarts (@ref main_loop), and a driven search keeps over its runs, so that
-        /// runs shorter than that interval still add up to a check.
+        /// A step takes one label, or, with a pulling schedule, visits one node. Before each
+        /// step the memory check runs (@c Algorithm::check_memory). It reads the process's
+        /// memory only once every `memory_check_interval` steps, counted by @ref memory_steps_.
+        /// A search that is not driven starts that count again at each phase (@ref main_loop).
+        /// A driven search keeps counting across its runs: its runs can be shorter than the
+        /// interval, and would otherwise never reach a check.
         ///
-        /// @param max_steps The most steps this call takes: `max_iterations` for a phase,
-        ///                   @c kNoLimit for a driven run.
-        /// @return @c true when a step ended the loop (@ref SearchContext::should_end_run).
+        /// @param max_steps The most steps this call makes: `max_iterations` for a phase,
+        ///                  @c kNoLimit for a driven run.
+        /// @return @c true if a step ended the run (@ref SearchContext::should_end_run).
         bool run_loop(size_t max_steps) {
             size_t iteration = 0;
             while (number_of_waiting_labels() > 0 && iteration < max_steps &&
@@ -215,8 +220,9 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         SearchContext<ResourceType> context_;
         /// @brief The graph @c search_.completion_bound was computed on; null when it holds none.
         const Graph<ResourceType>* completion_bound_graph_ = nullptr;
-        /// @brief The steps the memory check counts (@ref run_loop): since the phase began, or,
-        ///        for a driven search, since the solve began, whatever its runs and phases.
+        /// @brief The steps counted for the memory check (@ref run_loop). A search that is not
+        ///        driven counts from the start of the phase; a driven search counts from the
+        ///        start of the solve, across its runs and phases.
         size_t memory_steps_ = 0;
 };
 

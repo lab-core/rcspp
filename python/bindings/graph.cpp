@@ -156,13 +156,14 @@ void init_graph(py::module_& m) {
                       "algorithm.")
         .def_readonly("proven",
                       &SolveResult::proven,
-                      "Whether the result is a proof that no better path exists (when none is "
-                      "returned, none below the upper bound, or none at all with no upper bound): "
-                      "status is 'complete', the admission rule is exact, "
-                      "memory pressure did not trim the labels, a tabu search never made an arc "
-                      "tabu (so a tabu solve is a proof only when its first episode found no "
-                      "path), and the incumbent prune had a valid completion bound (an additive "
-                      "cost whose arcs each add their share). proof_lost_by says why it is not.")
+                      "Whether the result is a proof of optimality: no path is cheaper than the "
+                      "cheapest one returned. When none is returned, no path costs less than the "
+                      "upper bound (no path exists, with no upper bound). It requires status "
+                      "'complete', an exact admission rule, no memory-pressure trim, no tabu arc, "
+                      "and, with prune_by_incumbent, a valid completion bound (an additive cost "
+                      "whose arcs each add their share). A tabu solve is therefore a proof only "
+                      "when its first episode found no path. proof_lost_by says why the result "
+                      "is not a proof.")
         .def_readonly("proof_lost_by",
                       &SolveResult::proof_lost_by,
                       "Why the result is not a proof; empty when it is. When the search did not "
@@ -231,23 +232,25 @@ void init_graph(py::module_& m) {
         .def_readwrite("prune_by_incumbent",
                        &PyAlgorithmParams::prune_by_incumbent,
                        "Whether a search drops a label that cannot lead to a path cheaper than the "
-                       "incumbent (the cheapest path found so far, or the upper bound until one is "
-                       "found): its cost plus its completion bound is at or above the incumbent "
-                       "(default False). Exact when the completion bound is valid: an additive "
-                       "cost whose arcs each add their share whatever the label, which the solve "
-                       "tests at the start. Otherwise the cost alone is compared and the result "
-                       "is not a proof ('incumbent_prune').")
+                       "incumbent (default False). The incumbent is the cheapest path found so "
+                       "far, or the upper bound until one is found. A label is dropped when its "
+                       "cost plus its completion bound is at or above the incumbent. The prune "
+                       "never drops the cheapest path when the completion bound is valid, which "
+                       "needs an additive cost whose arcs each add their share, whatever the "
+                       "label; the solve tests this when it starts. Otherwise the cost alone is "
+                       "compared, which may drop the cheapest path, and result.proven is False "
+                       "('incumbent_prune').")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
         .def_readwrite("max_iterations",
                        &PyAlgorithmParams::max_iterations,
-                       "The most iterations of one main loop (default: no limit). For a labelling "
-                       "search, one label taken (Pulling: one node visited), counted again at each "
-                       "phase; for the tabu searches, one episode (a dive to a path), which must "
-                       "be finite: 0 runs no episode for tabu, and the construction alone for "
-                       "ImprovingTabu. A solve it stops with labels still waiting ends "
-                       "'truncated'.")
+                       "The most iterations of one main loop (default: no limit). For simple, "
+                       "pushing, astar, greedy and bound_guided_greedy, an iteration is one label "
+                       "taken; for pulling, one node visited. The count starts again at each "
+                       "phase. For tabu, an iteration is one episode (a dive to a path), and "
+                       "max_iterations must be set: with no limit, or with 0, tabu runs no "
+                       "episode. A solve it stops with labels still waiting ends 'truncated'.")
         .def_readwrite("timeout_s",
                        &PyAlgorithmParams::timeout_s,
                        "Wall-clock timeout in seconds; solve() returns early when elapsed >= "
@@ -265,9 +268,18 @@ void init_graph(py::module_& m) {
                        &PyAlgorithmParams::tabu_tenure,
                        "The tabu searches' base tenure: an arc made tabu stays tabu for the next "
                        "tabu_tenure - 1 episodes, plus an adaptive extra (default 5).")
-        .def_readwrite("tabu_exempt_node_ids", &PyAlgorithmParams::tabu_exempt_node_ids)
-        .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
-        .def_readwrite("seed", &PyAlgorithmParams::seed)
+        .def_readwrite("tabu_exempt_node_ids",
+                       &PyAlgorithmParams::tabu_exempt_node_ids,
+                       "Nodes whose arcs tabu never makes tabu: an arc that starts or ends at one "
+                       "of them stays usable (default: none). Assign the whole set: the value "
+                       "read is a copy, so add() on it changes nothing.")
+        .def_readwrite("tabu_random_noise",
+                       &PyAlgorithmParams::tabu_random_noise,
+                       "Whether each tabu tenure is moved at random by -1, 0 or +1 when an arc is "
+                       "made tabu (default True). The draws come from seed.")
+        .def_readwrite("seed",
+                       &PyAlgorithmParams::seed,
+                       "Seed of the random generator behind tabu_random_noise (default 0).")
         // ── Memory-limit parameters ──────────────────────────────────────
         .def_readwrite("max_memory_gb",
                        &PyAlgorithmParams::max_memory_gb,

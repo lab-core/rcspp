@@ -27,29 +27,32 @@ namespace rcspp {
 /// solves the problem, each time leaving out the arcs used in previous solutions (tabu arcs), to
 /// encourage exploration of new and diverse solutions and to escape local optima.
 ///
-/// The tabu mechanism works by maintaining a list of recent tabu arcs (tabu list) with a
-/// configurable tenure. Arcs used in a solution are hard in the inner algorithm's arc mask
-/// (@ref ArcMask) for a number of iterations, preventing their reuse; the graph is not edited, so
-/// arc ids, and the order in which a search tries a node's arcs, stay the graph's. Random noise
-/// can be added to the tenure to further
-/// diversify the search. A mask the algorithm was given (@c Algorithm::set_arc_mask) is read too:
-/// its hard arcs stay out.
+/// The tabu mechanism keeps a list of tabu arcs (the tabu list), each for a configurable tenure.
+/// The arcs of each path found become hard arcs of the inner algorithm's arc mask (@ref ArcMask)
+/// for a number of iterations, so that the next solves cannot use them. The graph itself is not
+/// edited, so arc ids, and the order in which a search tries a node's arcs, stay the graph's.
+/// Random noise can be added to the tenure to diversify the search further. If this algorithm
+/// was given a mask (@c Algorithm::set_arc_mask), its hard arcs stay out as well.
 ///
 /// Typical use cases include:
 ///   - Metaheuristic frameworks for RCSPP where solution diversity is important.
 ///   - Escaping local optima in iterative improvement algorithms.
 ///   - Generating a set of diverse solutions for post-processing or ensemble methods.
 ///
-/// Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
-/// algorithm is built from this algorithm's params, searching forward, with one solution and at
-/// most @ref inner_iteration_budget iterations per solve: labels taken for a labelling search such
-/// as Greedy, 20 for each node of the graph and never fewer than 1000; 1000 episodes for a driven
-/// one such as Tabu, each episode a whole dive.
+/// It is reached through @c strategy::Diversification<Inner>, which names the inner strategy.
+/// The inner algorithm is built from this algorithm's params, except that it always searches
+/// forward, keeps one solution per solve, and makes at most @ref inner_iteration_budget
+/// iterations per solve:
+/// - for a labelling search such as Greedy, an iteration is a label taken, and the budget is
+///   20 per node of the graph, and never fewer than 1000;
+/// - for a driven search such as Tabu, an iteration is an episode (a whole dive), and the
+///   budget is 1000.
 ///
-/// Its solve never ends @c Complete (@ref number_of_waiting_labels answers 1): the status is
-/// @c MaxSolutions when it found @c max_solutions paths, a stop's status after a stop, and
-/// @c Truncated otherwise, even when the inner search found no path left. So it is never proven
-/// (@c is_optimal and @c SolveResult::proven answer false).
+/// Its solve never ends @c Complete, because @ref number_of_waiting_labels always answers 1. The
+/// status is @c MaxSolutions when it found @c max_solutions paths, the status of the limit that
+/// stopped it (time limit, interrupt, memory limit), or @c Truncated otherwise, even when the
+/// inner search found no path left. So it is never proven: @c is_optimal and
+/// @c SolveResult::proven are always false.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container.
@@ -63,14 +66,15 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
               tabu_(this->params_, ArcMask::State::Hard),
               resource_factory_(resource_factory) {}
 
-        /// @brief The inner search's iteration budget per solve on a graph of @p number_of_nodes
-        ///        nodes: a bound on the work when no path is left, roomy enough for the dives to
-        ///        reach a sink.
+        /// @brief The most iterations an inner solve may make on a graph of @p number_of_nodes
+        ///        nodes.
         ///
-        /// A labelling search counts labels taken, and a dive takes one per node it passes, so its
-        /// budget is 20 per node (about 20 dives through every node), and never fewer than 1000. A
-        /// driven search (@c detail::DrivenStrategy) counts episodes, each a whole dive whatever
-        /// the graph's size, so its budget is 1000.
+        /// The budget bounds the work of an inner solve when no path is left, yet leaves room for
+        /// its dives to reach a sink. A labelling search counts the labels it takes, and a dive
+        /// takes one label per node it passes, so its budget is 20 per node (about 20 dives
+        /// through every node), and never fewer than 1000. A driven search
+        /// (@c detail::DrivenStrategy) counts episodes, each a whole dive whatever the size of the
+        /// graph, so its budget is 1000.
         [[nodiscard]] static size_t inner_iteration_budget(size_t number_of_nodes) {
             if constexpr (detail::DrivenStrategy<Inner>) {
                 return kMinInnerIterations;
@@ -82,8 +86,8 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         [[nodiscard]] bool is_optimal() const override { return false; }
 
     protected:
-        /// @brief Starts the solve: builds the inner algorithm for the graph's size, and the mask
-        ///        it reads starts as the one this algorithm was given, or open.
+        /// @brief Starts the solve: builds the inner algorithm for the graph's size, and starts
+        ///        its arc mask as a copy of the mask this algorithm was given (all open if none).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             build_inner(inner_iteration_budget(graph->get_number_of_nodes()));
@@ -170,13 +174,12 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");
         }
 
-        /// @brief Leaves the arcs of @p sol out of the next iterations, except those with an end
-        ///        in @c tabu_exempt_node_ids.
+        /// @brief Makes the arcs of @p sol tabu, so that the next inner solves leave them out.
+        ///        Arcs with an end in @c tabu_exempt_node_ids are not made tabu.
         ///
-        /// The first arc left out is recorded as a loss of proof (@c ProofLoss::HeuristicDriver),
-        /// for the record only: this algorithm's solve never ends @c Complete
-        /// (@ref number_of_waiting_labels answers 1), so it is never proven, and
-        /// @c proof_lost_by names its status.
+        /// When the first arc is made tabu, @c ProofLoss::HeuristicDriver is recorded. This is
+        /// for the record only: this algorithm's solve never ends @c Complete, so it is never
+        /// proven, and its @c proof_lost_by names its status instead.
         void tabu_solution(const Solution& sol) {
             if (tabu_.add(*this->graph_, sol.path_arc_ids)) {
                 this->proof_.record(ProofLoss::HeuristicDriver);

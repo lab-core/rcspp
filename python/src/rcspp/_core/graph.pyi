@@ -259,7 +259,7 @@ class SolveResult:
     @property
     def proven(self) -> bool:
         """
-        Whether the result is a proof that no better path exists (when none is returned, none below the upper bound, or none at all with no upper bound): status is 'complete', the admission rule is exact, memory pressure did not trim the labels, a tabu search never made an arc tabu (so a tabu solve is a proof only when its first episode found no path), and the incumbent prune had a valid completion bound (an additive cost whose arcs each add their share). proof_lost_by says why it is not.
+        Whether the result is a proof of optimality: no path is cheaper than the cheapest one returned. When none is returned, no path costs less than the upper bound (no path exists, with no upper bound). It requires status 'complete', an exact admission rule, no memory-pressure trim, no tabu arc, and, with prune_by_incumbent, a valid completion bound (an additive cost whose arcs each add their share). A tabu solve is therefore a proof only when its first episode found no path. proof_lost_by says why the result is not a proof.
         """
 
     @property
@@ -287,7 +287,6 @@ class Row:
 
 class AlgorithmParams:
     return_dominated_solutions: bool
-    tabu_random_noise: bool
     def __init__(self) -> None: ...
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
@@ -348,7 +347,7 @@ class AlgorithmParams:
     @property
     def max_iterations(self) -> int:
         """
-        The most iterations of one main loop (default: no limit). For a labelling search, one label taken (Pulling: one node visited), counted again at each phase; for the tabu searches, one episode (a dive to a path), which must be finite: 0 runs no episode for tabu, and the construction alone for ImprovingTabu. A solve it stops with labels still waiting ends 'truncated'.
+        The most iterations of one main loop (default: no limit). For simple, pushing, astar, greedy and bound_guided_greedy, an iteration is one label taken; for pulling, one node visited. The count starts again at each phase. For tabu, an iteration is one episode (a dive to a path), and max_iterations must be set: with no limit, or with 0, tabu runs no episode. A solve it stops with labels still waiting ends 'truncated'.
         """
 
     @max_iterations.setter
@@ -408,7 +407,7 @@ class AlgorithmParams:
     @property
     def prune_by_incumbent(self) -> bool:
         """
-        Whether a search drops a label that cannot lead to a path cheaper than the incumbent (the cheapest path found so far, or the upper bound until one is found): its cost plus its completion bound is at or above the incumbent (default False). Exact when the completion bound is valid: an additive cost whose arcs each add their share whatever the label, which the solve tests at the start. Otherwise the cost alone is compared and the result is not a proof ('incumbent_prune').
+        Whether a search drops a label that cannot lead to a path cheaper than the incumbent (default False). The incumbent is the cheapest path found so far, or the upper bound until one is found. A label is dropped when its cost plus its completion bound is at or above the incumbent. The prune never drops the cheapest path when the completion bound is valid, which needs an additive cost whose arcs each add their share, whatever the label; the solve tests this when it starts. Otherwise the cost alone is compared, which may drop the cheapest path, and result.proven is False ('incumbent_prune').
         """
 
     @prune_by_incumbent.setter
@@ -422,15 +421,31 @@ class AlgorithmParams:
     @release_after_solve.setter
     def release_after_solve(self, arg0: bool) -> None: ...
     @property
-    def seed(self) -> int: ...
+    def seed(self) -> int:
+        """
+        Seed of the random generator behind tabu_random_noise (default 0).
+        """
+
     @seed.setter
     def seed(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
     @property
-    def tabu_exempt_node_ids(self) -> set[int]: ...
+    def tabu_exempt_node_ids(self) -> set[int]:
+        """
+        Nodes whose arcs tabu never makes tabu: an arc that starts or ends at one of them stays usable (default: none). Assign the whole set: the value read is a copy, so add() on it changes nothing.
+        """
+
     @tabu_exempt_node_ids.setter
     def tabu_exempt_node_ids(
         self, arg0: collections.abc.Set[typing.SupportsInt | typing.SupportsIndex]
     ) -> None: ...
+    @property
+    def tabu_random_noise(self) -> bool:
+        """
+        Whether each tabu tenure is moved at random by -1, 0 or +1 when an arc is made tabu (default True). The draws come from seed.
+        """
+
+    @tabu_random_noise.setter
+    def tabu_random_noise(self, arg0: bool) -> None: ...
     @property
     def tabu_tenure(self) -> int:
         """

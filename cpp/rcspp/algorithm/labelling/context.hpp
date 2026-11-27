@@ -33,11 +33,14 @@ enum class Role : std::uint8_t {
 /// @brief What every part of a search reads of its solve. Built at the start of each solve by
 ///        @c Algorithm::make_context, one per search (two for a bidirectional search).
 ///
-/// The pointers are valid for the solve. Each points to the graph or to a member of the
-/// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound) and @ref
-/// arc_mask (the caller's mask, set by @c Algorithm::set_arc_mask, or a driver's, set by
-/// @c Driven::use_arc_mask). The take rule lowers @c *incumbent, and a driver may change
-/// @ref arc_mask and @ref run_ends_at_end_node between runs.
+/// Every pointer is valid for the whole solve. Each points to the graph or to a member of the
+/// algorithm, with two exceptions:
+/// - @ref completion_bound points to the search's own bound (@c Search::completion_bound);
+/// - @ref arc_mask points to the caller's mask (@c Algorithm::set_arc_mask), or to a driver's
+///   own (@c Driven::use_arc_mask).
+///
+/// During the solve, the take rule lowers @c *incumbent, memory pressure lowers @c *quota, and
+/// a driver may set @ref arc_mask and @ref run_ends_at_end_node.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -58,7 +61,9 @@ struct SearchContext {
         const std::unordered_set<Solution>* solutions = nullptr;  ///< those recorded so far
         parts::AdmissionContext admission;                        ///< the rule and what it reads
         const CompletionBound<ResourceType>* completion_bound = nullptr;  ///< the completion bound
-        const ArcMask* arc_mask = nullptr;  ///< the hard arcs left out; none: every arc open
+        /// The arc mask. The search skips its hard arcs; a child filter may read its soft ones
+        /// (@c parts::TabuChildFilter). Null when no mask is set: every arc is open.
+        const ArcMask* arc_mask = nullptr;
         Role role = Role::Single;
         /// Whether the incumbent prune adds the completion bound to a label's cost: the bound is
         /// valid (@c Algorithm::refresh_completion_bound_validity). Otherwise the prune compares
@@ -70,18 +75,18 @@ struct SearchContext {
         /// A bidirectional side: the half-way point, past which a label is kept unextended
         /// (@ref HalfWay). Null for a single-direction search.
         const HalfWay<ResourceType>* half_way = nullptr;
-        /// Set by a driver (@c Driven::end_runs_at_end_node): each run ends once it records an
-        /// end-node label, whatever the retention: the take rule records the label when it is
-        /// taken.
+        /// True if each run stops at the first path it finds. Set by a driver
+        /// (@c Driven::end_runs_at_end_node). The take rule then records an end-node label as
+        /// soon as it is taken, whatever the retention, and @ref should_end_run ends the run.
         bool run_ends_at_end_node = false;
 
         /// @brief Whether a cut abandons a label instead of storing it aside: on a bidirectional
         ///        side, which runs one phase, so there is no next phase to store it for.
         [[nodiscard]] bool should_abandon() const { return role == Role::BidirectionalSide; }
 
-        /// @brief Whether the run ends now that an end-node label was recorded: always in a driven
-        ///        run that ends at its first path (@ref run_ends_at_end_node), and otherwise once
-        ///        the solve holds @c max_solutions solutions.
+        /// @brief Called after a step records a path: true if the run must stop now. It always
+        ///        must when @ref run_ends_at_end_node is set; otherwise, once the solve holds
+        ///        @c max_solutions solutions.
         [[nodiscard]] bool should_end_run() const {
             return run_ends_at_end_node || solutions->size() >= params->max_solutions;
         }

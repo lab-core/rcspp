@@ -12,10 +12,17 @@
 
 namespace rcspp::parts {
 
-/// @brief Tabu's rule: a child reached along a soft arc of the search's mask (a tabu arc) is
-///        dropped (released, not kept for a later episode), unless every child is: then every
-///        child is kept, so the dive can always go on (aspiration by default). The others keep
-///        their order.
+/// @brief The tabu searches' child filter: it drops the children reached along a tabu arc,
+///        unless every child was.
+///
+/// A tabu arc is a soft arc of the search's arc mask (@c SearchContext::arc_mask): the tabu
+/// drivers make an arc soft while it is tabu. Any soft arc counts, including one the caller's
+/// mask made soft, since the drivers copy the caller's mask into theirs.
+///
+/// A dropped child is released, not stored aside: no later episode gets it back. When every
+/// child was reached along a tabu arc, all are kept, so that the dive can go on. (Tabu search
+/// calls this an aspiration rule: the tabu is lifted when obeying it would block the search.)
+/// The children kept stay in their order.
 struct TabuChildFilter {
         /// @brief Moves the children reached along a soft arc of @c context.arc_mask from
         ///        @p children to @p rejected, unless every child was; with no mask, or one with

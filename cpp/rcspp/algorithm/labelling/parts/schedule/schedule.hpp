@@ -54,9 +54,10 @@ struct IgnoreErase {
 ///   counted (@c Algorithm::has_abandoned_labels);
 /// - released by @c release_stored_aside under memory pressure, which the proof records
 ///   (@c ProofLoss::MemoryPressure);
-/// - dropped by a child filter (@ref DepthFirstSchedule), which the proof records through the
-///   arc mask (@c ProofLoss::ArcsMasked for a mask set with @c set_arc_mask,
-///   @c ProofLoss::HeuristicDriver once a driver makes an arc tabu).
+/// - dropped by a child filter (@ref DepthFirstSchedule, @ref ChildFilter). The library's
+///   filter drops only children reached along a soft arc, and a soft arc already marks the
+///   result as not a proof: @c ProofLoss::ArcsMasked for the caller's mask,
+///   @c ProofLoss::HeuristicDriver once a tabu driver makes an arc tabu.
 ///
 /// A schedule releases through the pool and erases only through the callable it is handed.
 ///
