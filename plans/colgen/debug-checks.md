@@ -9,7 +9,7 @@ Written untracked in `C:\dev\rcspp-dev\plans\colgen\` while another chat rebased
 |---|---|
 | branch | `feature/column-generation-debug-checks` from #128's head `0baf6bcd` (`feature/column-generation-all-features`) |
 | worktree | `C:\dev\rcspp-dev`; the other worktrees are read-only for this chat |
-| rebase | done 2026-11-27 onto the rebased stack's #128 head `9617552a` (asked first, `D-373`; no conflict, nothing dropped): `5dc0b2f8`, `fbf0ef5a`, `e53cdded`, `f0a81cc7` (the hashes below are before it); the plan block moved onto `f0a81cc7` |
+| rebase | done 2026-11-27 onto the rebased stack's #128 head `9617552a`, then `e5e94a84` (asked first, `D-373`; no conflict, nothing dropped; the second changed `test_benchmark_script.py` only, 49 passed; the server's all-features run on the first head `f0a81cc7` stays valid): `bf80f05f`, `5f82aba1`, `a99ad073`, `8cab04a1` (the hashes below are before it); the plan block moved onto `8cab04a1` |
 
 ## Already decided
 

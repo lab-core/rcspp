@@ -400,12 +400,14 @@ Plan branch on `9617552a` (backup `backup/colgen-plan-before-ci-fixes`). **Next:
 `I-70`+): four switches (`pricer_reduced_costs`, `dual_signs`, `master_reduced_costs`, `objective`), off by default;
 a failed check raises `DebugCheckError`; the whole-master checks keep numpy arrays (`D-385`, the user's `D-16` choice);
 artificial columns keep their entry. Written in `C:\dev\rcspp-dev` while the stack was rebased, then rebased onto #128
-`9617552a` (no conflict): `feature/column-generation-debug-checks` `5dc0b2f8` (`F-170`), `fbf0ef5a` (the package),
-`e53cdded` (the C++ example layer), `f0a81cc7` (the benchmark), each reviewed by the user; plan branch on `f0a81cc7`.
-After the rebase: ctest 896 run, all pass; package 725; the example's Python 124; benchmark 536 (the quick
-all-features file runs every check). No measurable cost when off (`debug-checks.md`). Not pushed. **Next:** the user
-pushes; the large all-features file on the server (commands in `debug-checks.md`); the draft PR on #128's branch
-(description drafted in `debug-checks-pr.md`, read with the user).
+`9617552a`, then `e5e94a84` (the other chat's second round; no conflict either time):
+`feature/column-generation-debug-checks` `bf80f05f` (`F-170`), `5f82aba1` (the package), `a99ad073` (the C++ example
+layer), `8cab04a1` (the benchmark), each reviewed by the user; plan branch on `8cab04a1`. After the first rebase:
+ctest 896 run, all pass; package 725; the example's Python 124; benchmark 536 (the quick all-features file runs every
+check); the second changed `test_benchmark_script.py` only (49 passed). No measurable cost when off
+(`debug-checks.md`). The large all-features file started on the server by the user on `f0a81cc7` (the first rebase's
+head: the same code). Not pushed. **Next:** the server's result; the user pushes; the draft PR on #128's branch
+(description in `debug-checks-pr.md`, read with the user).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
