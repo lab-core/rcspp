@@ -105,6 +105,14 @@ jobs:
         working-directory: tests/python
         run: pytest -v --tb=short
 
+      # The column generation example (its C++ tests run with ctest above). Its tests import the
+      # example's package from its folder and rcspp from the build.
+      - name: Python tests (column generation example)
+        if: matrix.suites != 'cpp'
+        env:
+          PYTHONPATH: ${{ github.workspace }}/build/python
+        run: pytest -v --tb=short examples/column_generation/tests/python
+
   build_wheels:
     name: Wheels / ${{ matrix.os }}
     needs: [coverage, test]
