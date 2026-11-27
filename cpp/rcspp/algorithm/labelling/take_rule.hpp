@@ -21,9 +21,11 @@ namespace rcspp::detail {
 enum class Verdict : std::uint8_t {
     /// Extend it along every arc its direction walks.
     Extend,
-    /// Do not extend it, and leave it stored at its node: a label at an end node (its path is
-    /// read from there at the end of the solve), or, on a bidirectional side, a label past the
-    /// half-way point (the join pairs it).
+    /// Do not extend it: a label at an end node, or, on a bidirectional side, a label past the
+    /// half-way point (the join pairs it). The label stays stored at its node, where its path
+    /// is read when the run ends. A retention that keeps nothing behind
+    /// (@c parts::KeepWhileWaiting) has it released instead, once it is recorded
+    /// (@ref Search::apply).
     Keep,
     /// Release it, without erasing it: a dominated label, which the label that dominated it has
     /// already erased from its node's container.

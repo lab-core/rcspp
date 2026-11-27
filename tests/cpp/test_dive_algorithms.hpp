@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Tests for GreedyAlgorithm, strategy::Tabu, and BacktrackingDiveAlgorithm.
+// Tests for strategy::Greedy, strategy::Tabu, and BacktrackingDiveAlgorithm.
 // Each test builds a small ResourceGraph<RealResource> from a unique_ptr to
 // avoid the deleted copy/move constructors of ResourceGraph.
 
@@ -11,6 +11,7 @@
 
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -80,10 +81,10 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_two_path_graph() {
 }  // namespace
 
 // ============================================================================
-// GreedyAlgorithm tests
+// strategy::Greedy tests
 // ============================================================================
 
-/// @brief GreedyAlgorithm finds the single feasible path in a linear graph.
+/// @brief Greedy finds the single feasible path in a linear graph.
 ///
 /// The graph has only one path (0->1->2), so the algorithm must find it.
 TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
@@ -93,14 +94,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief GreedyAlgorithm on single-path graph reports Complete status.
+/// @brief Greedy on single-path graph reports Complete status.
 TEST(GreedyAlgorithmTest, SinglePathGraphStatusComplete) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief GreedyAlgorithm on single-path graph visits nodes in order.
+/// @brief Greedy on single-path graph visits nodes in order.
 TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
@@ -111,14 +112,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     EXPECT_EQ(result.solutions[0].path_node_ids[2], 2U);
 }
 
-/// @brief GreedyAlgorithm on a two-path graph returns at least one solution.
+/// @brief Greedy on a two-path graph returns at least one solution.
 TEST(GreedyAlgorithmTest, TwoPathGraphNonEmpty) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief GreedyAlgorithm picks the lower-cost first arc and finds the best path.
+/// @brief Greedy picks the lower-cost first arc and finds the best path.
 ///
 /// On the two-path graph, greedy sorts children by label cost and picks
 /// the arc with cost -2 (to node 1) before the arc with cost -1 (to node 2),
@@ -158,19 +159,53 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief GreedyAlgorithm with prune_by_incumbent covers that branch.
-TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
+/// @brief With prune_by_incumbent, Greedy drops a label that cannot lead to a path cheaper than
+///        the incumbent (its cost plus its completion bound reaches it), as every labelling search
+///        does; without it, it returns both paths under the upper bound.
+///
+/// Under the upper bound -1 both paths (-6 and -4) qualify. The source label costs 0, but its
+/// bound is -6, so it is kept. Greedy finds -6 first; the label at 2 (cost -1, bound -3) then
+/// reaches the incumbent and is dropped, so only the optimum is returned.
+TEST(GreedyAlgorithmTest, PruneByIncumbentDropsALabelThatCannotImprove) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
+    EXPECT_EQ(g->solve<strategy::Greedy>(params, -1.0).solutions.size(), 2U);
     params.prune_by_incumbent = true;
-    const auto result = g->solve<strategy::Greedy>(params, /*upper_bound=*/-1.0);
-    // upper_bound=-1 prunes all solutions (all paths have cost <= -4 < -1 is false)
-    // Actually solutions cost -6 and -4, so upper_bound=-1: -6 < -1 yes, so the
-    // solution is accepted. Both paths have cost < -1, so at least one solution found.
-    EXPECT_FALSE(result.solutions.empty());
+    const auto pruned = g->solve<strategy::Greedy>(params, -1.0);
+    ASSERT_EQ(pruned.solutions.size(), 1U);
+    EXPECT_NEAR(pruned.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(pruned.solutions.size(), g->solve<strategy::Simple>(params, -1.0).solutions.size());
 }
 
-/// @brief GreedyAlgorithm finds both solutions when max solutions is large.
+/// @brief Greedy counts its iterations in labels taken: with max_iterations 2 it takes the source
+///        and the cheaper child, and stops before it reaches the sink.
+TEST(GreedyAlgorithmTest, MaxIterationsCountsTheLabelsTaken) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 2;
+    const auto two = g->solve<strategy::Greedy>(params);
+    EXPECT_TRUE(two.solutions.empty());
+    EXPECT_EQ(two.status, AlgorithmStatus::Truncated);
+    params.max_iterations = 3;
+    const auto three = g->solve<strategy::Greedy>(params);
+    ASSERT_EQ(three.solutions.size(), 1U);
+    EXPECT_NEAR(three.solutions[0].cost, kBestPathCost, 1e-9);
+}
+
+/// @brief Greedy applies the per-node quota, as every labelling search does: with one label taken
+///        per node, the second path's label at the sink is stored aside for a next phase that
+///        max_phases 1 does not run.
+TEST(GreedyAlgorithmTest, AppliesThePerNodeQuota) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_extended_labels_per_node = 1;
+    const auto result = g->solve<strategy::Greedy>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
+/// @brief Greedy finds both solutions when max solutions is large.
 TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
     auto g = make_two_path_graph();
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
@@ -449,6 +484,20 @@ TEST(DiversificationSearchTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
+/// @brief DiversificationSearch reads the memory after each inner solve, whose own loop is too
+///        short to: past the limit, it stops after the first, with the first path and the
+///        MemoryLimit status (it went on to the second path before).
+TEST(DiversificationSearchTest, StopsAtTheMemoryLimitBetweenInnerSolves) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kDivIters;
+    params.max_memory_gb = 1e-9;  // always exceeded
+    const auto result = g->solve<strategy::Diversification<>>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::MemoryLimit);
+}
+
 /// @brief DiversificationSearch: tabu_exempt_node_ids preserves arcs involving those nodes.
 TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
@@ -457,6 +506,94 @@ TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     params.tabu_exempt_node_ids = {0U, 3U};  // source and sink
     const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_FALSE(result.solutions.empty());
+}
+
+namespace {
+
+/// @brief A graph with one source, one sink and one value resource: @p arcs, each as (origin,
+///        destination, cost), over nodes 0 to @p number_of_nodes - 1, the source 0 and the sink
+///        the last.
+std::unique_ptr<ResourceGraph<RealResource>> make_graph(
+    size_t number_of_nodes, const std::vector<std::tuple<size_t, size_t, double>>& arcs) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t id = 0; id < number_of_nodes; ++id) {
+        g->add_node(id, /*source=*/id == 0, /*sink=*/id + 1 == number_of_nodes);
+    }
+    for (const auto& [origin, destination, cost] : arcs) {
+        g->add_arc<RealResource>(std::make_tuple(cost), origin, destination);
+    }
+    return g;
+}
+
+}  // namespace
+
+/// @brief The inner search's budget grows with the graph: on a chain of 1500 nodes, which a dive
+///        takes more than 1000 labels to go through, Diversification still finds the path.
+TEST(DiversificationSearchTest, FindsAPathLongerThanAThousandArcs) {
+    constexpr size_t kChainNodes = 1500;
+    std::vector<std::tuple<size_t, size_t, double>> arcs;
+    for (size_t id = 0; id + 1 < kChainNodes; ++id) {
+        arcs.emplace_back(id, id + 1, -1.0);
+    }
+    auto g = make_graph(kChainNodes, arcs);
+    AlgorithmBaseParams params;
+    params.max_iterations = 1;
+    const auto result = g->solve<strategy::Diversification<>>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, -static_cast<double>(kChainNodes - 1), 1e-9);
+}
+
+// ============================================================================
+// A dive that keeps its labels at the nodes
+// ============================================================================
+
+namespace {
+
+/// @brief Drops every child that costs 2 or more.
+template <typename ResourceType>
+struct DropsTheDearChildren {
+        void select(std::vector<parts::StoredLabel<ResourceType>>& children,
+                    std::vector<parts::StoredLabel<ResourceType>>& rejected,
+                    const detail::SearchContext<ResourceType>& /*context*/) const {
+            constexpr double kDear = 2.0;
+            for (const auto& child : children) {
+                if (child.label->get_cost() >= kDear) {
+                    rejected.push_back(child);
+                }
+            }
+            std::erase_if(children,
+                          [](const auto& child) { return child.label->get_cost() >= kDear; });
+        }
+};
+
+/// @brief A depth-first search with the default admission (dominance) and retention (every label
+///        kept at its node), and a filter on the children.
+struct DiveKeepingItsLabels {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DepthFirstSchedule<ResourceType, parts::CostKey,
+                                                   DropsTheDearChildren<ResourceType>>;
+};
+
+}  // namespace
+
+/// @brief A child the filter drops after a sibling evicted it is released, not erased again.
+///
+/// Two parallel arcs lead from the source to node 1: the first costs 5, the second 1. The second
+/// child dominates the first, whose admission evicts it from node 1, and the filter then drops
+/// the first child. Erasing it from node 1 a second time was undefined behaviour.
+TEST(DepthFirstScheduleTest, ADroppedChildThatASiblingEvictedIsNotErasedAgain) {
+    constexpr double kDearArc = 5.0;
+    constexpr double kCheapArc = 1.0;
+    constexpr double kLastArc = -3.0;
+    auto g = make_graph(3, {{0, 1, kDearArc}, {0, 1, kCheapArc}, {1, 2, kLastArc}});
+    const auto result = g->solve<DiveKeepingItsLabels>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kCheapArc + kLastArc, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 // ============================================================================

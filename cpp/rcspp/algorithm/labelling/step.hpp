@@ -5,6 +5,7 @@
 
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
+#include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/algorithm/labelling/take_rule.hpp"
@@ -74,6 +75,12 @@ bool step_node(SearchType& search, SearchContext<typename SearchType::resource_t
 ///        For a pulling schedule, a step visits the next node and pulls into it instead
 ///        (@ref step_node).
 ///
+/// Once a label is extended, a schedule that places children (@c parts::PlacesChildren, a
+/// dive's) places the labels just pushed; and a retention that keeps nothing behind
+/// (@c parts::releases_taken_labels_v, a dive's) has the label released, as it has one the
+/// rule keeps at an end node. Each branch is chosen at compile time: the other searches compile
+/// to the step without them.
+///
 /// An end-node label the rule records goes to @p record; every extension's outcome goes to
 /// @p count.
 ///
@@ -119,6 +126,15 @@ bool step(SearchType& search, SearchContext<typename SearchType::resource_type>&
         search.work += arcs.size();
         for (const auto* arc : arcs) {
             count(search.extend_along(parent, arc, context));
+        }
+        if constexpr (parts::PlacesChildren<typename SearchType::schedule_type, ResourceType>) {
+            search.schedule.place_children(
+                context,
+                [&search](const LabelIterator<ResourceType>& position) { search.erase(position); });
+        }
+        if constexpr (parts::releases_taken_labels_v<typename SearchType::retention_type>) {
+            // Its children pin it: it lives on while one of them waits.
+            context.pool->release_with_ref_count(parent);
         }
         return false;
     }

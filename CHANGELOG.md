@@ -8,6 +8,31 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **Greedy runs on the labelling kernel**, as a dive: depth first, the cheapest child first,
+  keeping every feasible label until it is extended, and storing none at the nodes
+  (`parts::DepthFirstSchedule`, `AdmitAll`, `KeepWhileWaiting`). It
+  draws the same labels, in the same order, and returns the same paths as before, with these
+  differences:
+  - **`max_iterations` counts the labels taken**, as in every labelling search; it counted dives.
+    A Greedy budget of 5 now takes 5 labels, a fraction of one dive, and returns fewer paths, often
+    none.
+  - It applies **`max_extended_labels_per_node`** (with `max_phases`), **`prune_by_incumbent`**,
+    memory pressure, and drops a label of infinite cost, as every labelling search does; Greedy
+    ignored them.
+  - A dive whose last path reaches `max_solutions` ends `Complete`, as every labelling search does,
+    not `MaxSolutions`: it has tried every path.
+  - The second, empty extension of a dive's last label at a dead end is gone.
+  - `strategy::Diversification<>` gives its inner search 20 iterations a solve for each node of
+    the graph, and never fewer than 1000, which a labelling search counts in labels taken, instead
+    of 20 (dives, for Greedy). On the golden instances it returns what it did; where 20 dives ran
+    out, the inner search now goes further, and a path longer than 1000 arcs is still found.
+  - An inner solve takes fewer labels than `memory_check_interval` on any graph under 2,500 nodes,
+    so it does not read the memory itself: `strategy::Diversification<>` reads it after each inner
+    solve, and stops at the limit (`MemoryLimit`). The old Greedy read it every 4096 steps.
+
+  `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
+  a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,
+  `create_algorithm<strategy::Greedy>`); in Python, `algorithm="greedy"` is unchanged.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -183,6 +208,13 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **The parts of a dive**, in `rcspp::parts`: `DepthFirstSchedule<ResourceType, KeyType, FilterType>` takes labels depth
+  first, placing each label's children together, cheapest first (`CostKey`), after a filter
+  (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `AdmitAll` keeps every feasible
+  label; `KeepWhileWaiting` stores none at the nodes, records a solution when its label at the sink
+  is taken, and releases each label once it is extended (`releases_taken_labels`). `Retain<RetentionTemplate>`
+  names a retention template in a descriptor. See "A strategy of one's own" in
+  `docs/advanced/algorithms.md`.
 - **`PathEvaluator`** (`rcspp/algorithm/path_evaluator.hpp`) replays a path, or a returned
   `Solution`, through the graph's resources as a forward search extends a label, and reports the
   first fault (`PathFault`): no arc, an arc the graph does not have, arcs that do not meet, not
@@ -304,13 +336,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Fixed
 
-- **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs**
-  (Simple, A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
+- **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
+  A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
-  compared the cost alone, and a label whose path goes on to a negative arc could be dropped.
-  Under a cost that is not additive there is no valid bound, and the prune compares the cost
-  alone, as before. A solve with the prune on runs one Bellman–Ford pass more, to compute the
-  bound.
+  compared the cost alone, and a label whose path goes on to a negative arc could be dropped. Under
+  a cost that is not additive there is no valid bound, and the prune compares the cost alone, as
+  before. A solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
 - **A floored `AdditionExtensionFunction` makes a priced component's cost not additive, by
   declaration.** `ExtensionFunction::is_clamped()` (new, `false` unless overridden) says an
   extension clamps what it computes; `AdditionExtensionFunction` answers `true` when it has a
