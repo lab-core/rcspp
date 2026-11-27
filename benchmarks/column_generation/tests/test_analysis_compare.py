@@ -7,7 +7,7 @@ script."""
 from pathlib import Path
 from typing import Any
 
-import compare
+import analysis
 import pytest
 from benchmark_folders import (
     COMMIT,
@@ -21,8 +21,8 @@ from benchmark_folders import (
     write_round,
     write_rounds,
 )
-from column_generation_benchmark import run_folder
-from column_generation_benchmark.compare import (
+from column_generation_analysis.commands.compare import (
+    COLUMNS,
     EQUIVALENT,
     NO_VERDICT,
     SLOWER,
@@ -30,11 +30,12 @@ from column_generation_benchmark.compare import (
     Comparison,
     TimeRule,
 )
-from column_generation_benchmark.compare import compare as compare_runs
-from column_generation_benchmark.compare import (
+from column_generation_analysis.commands.compare import compare as compare_runs
+from column_generation_analysis.commands.compare import (
     comparison_text,
     read_side,
 )
+from column_generation_benchmark import run_folder
 from column_generation_benchmark.folder import FolderError
 
 OTHER = RUN.replace("package", "cpp-bindings")
@@ -382,40 +383,40 @@ def test_the_script_prints_writes_and_exits_by_the_verdict(
     first, second = f"{tmp_path / 'pair'}:{RUN}", f"{tmp_path / 'pair'}:{OTHER}"
     outputs = ["--output", str(tmp_path / "out.md"), "--output", str(tmp_path / "out.csv")]
 
-    assert compare.main([first, second, *outputs]) == 0
+    assert analysis.main(["compare", first, second, *outputs]) == 0
     printed = capsys.readouterr().out
     assert "Verdict" not in printed
     assert (tmp_path / "out.md").read_text() == printed
 
     rows = read_csv(tmp_path / "out.csv")
-    assert list(rows[0]) == list(compare.compare.COLUMNS)
+    assert list(rows[0]) == list(COLUMNS)
     solve = next(found for found in rows if found["field"] == "solve_seconds")
     assert (solve["kind"], solve["a"], solve["b"]) == ("measured", "10.4", "10.0")
 
-    assert compare.main([first, second, "--time-within", "5%"]) == 0
+    assert analysis.main(["compare", first, second, "--time-within", "5%"]) == 0
     assert "Verdict: equivalent" in capsys.readouterr().out
-    assert compare.main([first, second, "--time-within", "3"]) == 1
+    assert analysis.main(["compare", first, second, "--time-within", "3"]) == 1
     assert "+0.400 s > max(3 % of 10.000, 0.25) = 0.300 s" in capsys.readouterr().out
-    assert compare.main([first, second, "--floor", "0.5"]) == 0
+    assert analysis.main(["compare", first, second, "--floor", "0.5"]) == 0
     assert "max(5 % of 10.000, 0.5) = 0.500 s" in capsys.readouterr().out
-    assert compare.main([second, first, "--floor", "0"]) == 0
+    assert analysis.main(["compare", second, first, "--floor", "0"]) == 0
 
     write_pair(tmp_path / "other", [result(status="TimeLimit")], [result()])
     other = [f"{tmp_path / 'other'}:{RUN}", f"{tmp_path / 'other'}:{OTHER}"]
-    assert compare.main([*other, "--floor", "0.25"]) == 3
-    assert compare.main(other) == 0
+    assert analysis.main(["compare", *other, "--floor", "0.25"]) == 3
+    assert analysis.main(["compare", *other]) == 0
 
 
 def test_the_script_refuses_wrong_arguments(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_pair(tmp_path, times(1.0), times(1.0))
     first, second = f"{tmp_path}:{RUN}", f"{tmp_path}:{OTHER}"
 
-    assert compare.main([first, second, "--output", str(tmp_path / "out.txt")]) == 2
+    assert analysis.main(["compare", first, second, "--output", str(tmp_path / "out.txt")]) == 2
     assert "is neither .md nor .csv" in capsys.readouterr().err
-    assert compare.main([first, f"{tmp_path}:R201"]) == 2
+    assert analysis.main(["compare", first, f"{tmp_path}:R201"]) == 2
     assert "names no run" in capsys.readouterr().err
     (tmp_path / "empty").mkdir()
-    assert compare.main([first, str(tmp_path / "empty")]) == 2
+    assert analysis.main(["compare", first, str(tmp_path / "empty")]) == 2
     assert "holds no run" in capsys.readouterr().err
 
     for wrong in (
@@ -425,9 +426,52 @@ def test_the_script_refuses_wrong_arguments(tmp_path: Path, capsys: pytest.Captu
         ["--floor", "-1"],
     ):
         with pytest.raises(SystemExit) as error:
-            compare.main([first, second, *wrong])
+            analysis.main(["compare", first, second, *wrong])
 
         assert error.value.code == 2
+
+
+def test_the_script_writes_an_analysis_folder_when_asked(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    write_pair(tmp_path / "pair", times(10.4), times(10.0))
+    first, second = f"{tmp_path / 'pair'}:{RUN}", f"{tmp_path / 'pair'}:{OTHER}"
+    folder = tmp_path / "analysis"
+    arguments = ["compare", first, second, "--time-within", "5", "--output-folder", str(folder)]
+
+    assert analysis.main(arguments) == 0
+    printed = capsys.readouterr().out
+    assert (folder / "comparison.md").read_text() == printed
+    assert read_csv(folder / "comparison.csv")[0]["field"] == "status"
+
+    record = run_folder.read_json(folder / "analysis.json")
+    assert record["command"] == "compare"
+    assert record["arguments"] == ["analysis.py", *arguments]
+    assert record["options"]["time_rule"] == {"margin_percent": 5.0, "floor_seconds": 0.25}
+    assert record["outputs"] == ["comparison.md", "comparison.csv"]
+    assert [found["benchmark"] for found in record["inputs"]] == [
+        (tmp_path / "pair").as_posix()
+    ] * 2
+    assert [found["rounds"][0]["run"] for found in record["inputs"]] == [RUN, OTHER]
+    assert "compare" in (folder / "command.txt").read_text()
+
+    # The folder holds an analysis now: refused, then replaced.
+    assert analysis.main(arguments) == 2
+    assert "already holds an analysis" in capsys.readouterr().err
+    assert analysis.main([*arguments, "--overwrite"]) == 0
+
+
+def test_the_script_lists_its_commands(capsys: pytest.CaptureFixture[str]):
+    with pytest.raises(SystemExit) as error:
+        analysis.main(["--help"])
+
+    assert error.value.code == 0
+    assert "compare" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit) as error:
+        analysis.main([])
+
+    assert error.value.code == 2
 
 
 # MARK: Review cases
@@ -507,6 +551,6 @@ def test_the_script_refuses_numbers_that_are_not_finite(tmp_path: Path, wrong: l
     write_pair(tmp_path, times(1.0), times(1.0))
 
     with pytest.raises(SystemExit) as error:
-        compare.main([f"{tmp_path}:{RUN}", f"{tmp_path}:{OTHER}", *wrong])
+        analysis.main(["compare", f"{tmp_path}:{RUN}", f"{tmp_path}:{OTHER}", *wrong])
 
     assert error.value.code == 2

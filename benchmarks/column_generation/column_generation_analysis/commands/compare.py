@@ -1,11 +1,13 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""The comparison of two runs: A, the run checked, against B, the reference.
+"""The comparison of two runs: A, the run checked, against B, the reference:
 
-A side is one run over its rounds, read with :mod:`.folder` from a round's folder, a run
-folder, or ``<benchmark folder>:<run name>``. The comparison lists the options and the
-records that differ and what to know about the timings, then every result field side by
-side, over each side's finished rounds:
+    python analysis.py compare results/my_benchmark:<run A> results/my_benchmark:<run B>
+
+A side is one run over its rounds, read with :mod:`column_generation_benchmark.folder` from
+a round's folder, a run folder, or ``<benchmark folder>:<run name>``. The comparison lists
+the options and the records that differ and what to know about the timings, then every result
+field side by side, over each side's finished rounds:
 
 - a measured field (its name ends in ``_seconds`` or ``_bytes``): each side's median, A - B
   and its percent of B, and whether the two sides' ranges (min..max) overlap, that is,
@@ -16,21 +18,30 @@ The time rule, when asked for, judges A: every round of both sides finished, bot
 ``Optimal`` with the same objective (to 1e-6 relative), then A's median solve time may exceed
 B's by at most max(margin x B, floor). Its reason says when the sides' iterations differ:
 their times then measure other work.
+
+The comparison is printed in markdown; ``--output`` also writes it to a file, and
+``--output-folder`` into an analysis folder. The exit code is 0 without the time rule or when A
+is equivalent, 1 when A is slower than the rule allows, 2 on a wrong argument, 3 when the rule
+cannot judge.
 """
 
+import argparse
+import math
+import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import run_folder
-from .folder import (
+from column_generation_benchmark import run_folder
+from column_generation_benchmark.folder import (
     MAIN_TIME,
     MEBIBYTE,
     SOLVER_VERSIONS,
     Cell,
     Folder,
+    FolderError,
     agreed,
     aligned_table,
     cell_row,
@@ -49,6 +60,8 @@ from .folder import (
     solver_versions,
     text,
 )
+
+from ..core import analysis_folder
 
 OPTIMAL = "Optimal"
 PER_ITERATION = "seconds_per_iteration"
@@ -568,3 +581,146 @@ def comparison_text(comparison: Comparison) -> str:
 def comparison_csv(comparison: Comparison) -> str:
     """The fields of the comparison, one row each, in the units of the results."""
     return csv_text(comparison.rows)
+
+
+# MARK: Command line
+
+NAME = "compare"
+HELP = "Compare two runs: A, the run checked, against B, the reference."
+
+EXIT_CODES = {EQUIVALENT: 0, SLOWER: 1, NO_VERDICT: 3}
+OUTPUTS = (".md", ".csv")
+
+#: The comparison's files in an analysis folder.
+TEXT_FILE = "comparison.md"
+TABLE_FILE = "comparison.csv"
+
+
+def percent(value: str) -> float:
+    """A percent, 0 or more and finite, with or without its ``%``: 5 is 5 %, not 500
+    %."""
+    try:
+        found = float(value.strip().removesuffix("%"))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a percent: {value}") from None
+
+    if not math.isfinite(found) or found < 0:
+        raise argparse.ArgumentTypeError(f"a percent is 0 or more, and finite: {value}")
+
+    return found
+
+
+def seconds(value: str) -> float:
+    try:
+        found = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {value}") from None
+
+    if not math.isfinite(found) or found < 0:
+        raise argparse.ArgumentTypeError(f"seconds are 0 or more, and finite: {value}")
+
+    return found
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    default = TimeRule()
+    parser.add_argument(
+        "a",
+        help="the run checked: a round's folder, a run folder, or <benchmark folder>:<run name>",
+    )
+    parser.add_argument("b", help="the reference, named as A is")
+    parser.add_argument(
+        "--time-within",
+        type=percent,
+        metavar="PERCENT",
+        help="judge A's median solve time: at most this percent of B's above it, or the floor "
+        "if more; in percent: 5 or 5%%, not 0.05 "
+        f"(default {default.margin_percent:g} %% when --floor is given)",
+    )
+    parser.add_argument(
+        "--floor",
+        type=seconds,
+        metavar="SECONDS",
+        help="the time rule's floor, in seconds "
+        f"(default {default.floor_seconds:g} when --time-within is given)",
+    )
+    parser.add_argument(
+        "--output",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="also write the comparison to FILE: .md the text, .csv one row per field; "
+        "may be given more than once",
+    )
+    parser.add_argument(
+        "--output-folder",
+        metavar="FOLDER",
+        help=f"also write the comparison into an analysis folder: {TEXT_FILE}, {TABLE_FILE}, "
+        f"{analysis_folder.RECORD_FILE} (what it read) and {analysis_folder.COMMAND_FILE}",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace the analysis the output folder already holds",
+    )
+
+
+def run(parsed: argparse.Namespace, arguments: Sequence[str]) -> int:
+    """Prints the comparison `parsed` asks for and writes its files; returns the exit
+    code.
+
+    `arguments` are the command line's, the script first.
+    """
+    default = TimeRule()
+    outputs = [Path(path) for path in parsed.output]
+
+    for path in outputs:
+        if path.suffix not in OUTPUTS:
+            print(f"analysis.py compare: {path} is neither .md nor .csv", file=sys.stderr)
+            return 2
+
+    rule = None
+
+    if parsed.time_within is not None or parsed.floor is not None:
+        rule = TimeRule(
+            default.margin_percent if parsed.time_within is None else parsed.time_within,
+            default.floor_seconds if parsed.floor is None else parsed.floor,
+        )
+
+    try:
+        comparison = compare(parsed.a, parsed.b, rule)
+    except (CompareError, FolderError) as error:
+        print(f"analysis.py compare: {error}", file=sys.stderr)
+        return 2
+
+    folder = None if parsed.output_folder is None else Path(parsed.output_folder)
+
+    if folder is not None:
+        try:
+            analysis_folder.prepare_folder(folder, parsed.overwrite)
+        except analysis_folder.AnalysisFolderError as error:
+            print(f"analysis.py compare: {error}", file=sys.stderr)
+            return 2
+
+    markdown_text = comparison_text(comparison)
+    table_text = comparison_csv(comparison)
+
+    print(markdown_text, end="")
+
+    for path in outputs:
+        run_folder.write_atomically(path, markdown_text if path.suffix == ".md" else table_text)
+
+    if folder is not None:
+        run_folder.write_atomically(folder / TEXT_FILE, markdown_text)
+        run_folder.write_atomically(folder / TABLE_FILE, table_text)
+        analysis_folder.write_record(
+            folder,
+            NAME,
+            arguments,
+            {"a": parsed.a, "b": parsed.b, "time_rule": None if rule is None else vars(rule)},
+            [comparison.a.folder, comparison.b.folder],
+            [TEXT_FILE, TABLE_FILE],
+            comparison.warnings,
+        )
+
+    return 0 if comparison.verdict is None else EXIT_CODES[comparison.verdict[0]]

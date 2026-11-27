@@ -1,0 +1,7 @@
+# What the analysis (analysis.py) needs besides the benchmark: the benchmark's own, whose
+# folders and instances it reads, then the tables and the plots.
+-r requirements.txt
+pandas>=2.2
+matplotlib>=3.8
+# Pandas' types, for pyright.
+pandas-stubs
