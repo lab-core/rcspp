@@ -16,6 +16,8 @@ option(USE_COLUMN_GENERATION_EXAMPLE
        OFF)
 option(USE_COLUMN_GENERATION_EXAMPLE_GUROBI
        "Build the column generation example's Gurobi master solver (needs Gurobi)" OFF)
+option(USE_COLUMN_GENERATION_EXAMPLE_HIGHS
+       "Build the column generation example's HiGHS master solver (installed, else fetched)" OFF)
 
 enable_testing()
 
@@ -90,9 +92,10 @@ add_subdirectory(cpp/rcspp)
 # python/CMakeLists.txt adds its bindings to the Python module.
 if(USE_COLUMN_GENERATION_EXAMPLE)
   add_subdirectory(examples/column_generation)
-elseif(USE_COLUMN_GENERATION_EXAMPLE_GUROBI)
-  message(FATAL_ERROR "USE_COLUMN_GENERATION_EXAMPLE_GUROBI builds a master solver of the column "
-                      "generation example: it needs USE_COLUMN_GENERATION_EXAMPLE.")
+elseif(USE_COLUMN_GENERATION_EXAMPLE_GUROBI OR USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
+  message(FATAL_ERROR "USE_COLUMN_GENERATION_EXAMPLE_GUROBI and "
+                      "USE_COLUMN_GENERATION_EXAMPLE_HIGHS build master solvers of the column "
+                      "generation example: they need USE_COLUMN_GENERATION_EXAMPLE.")
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------

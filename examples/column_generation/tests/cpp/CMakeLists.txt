@@ -38,3 +38,9 @@ if(USE_COLUMN_GENERATION_EXAMPLE_GUROBI)
   add_column_generation_test(tests-column-generation-gurobi
       SOURCES ${gurobi_sources} LIBRARIES rcspp_column_generation_gurobi)
 endif()
+
+if(USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
+  file(GLOB highs_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/highs/*.cpp")
+  add_column_generation_test(tests-column-generation-highs
+      SOURCES ${highs_sources} LIBRARIES rcspp_column_generation_highs)
+endif()
