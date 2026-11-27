@@ -40,10 +40,13 @@ enum class PathFault {
 struct PathEvaluation {
         /// @brief The first fault found, or @c PathFault::None.
         PathFault fault = PathFault::None;
-        /// @brief Where: the index of the arc at fault in the path, or of the first node id that
-        ///        disagrees; 0 for an empty path and for a cost that disagrees.
+        /// @brief Where the fault is: the index in the path of the arc at fault or, for
+        ///        @c PathFault::NodesDisagree, the index of the first node id that disagrees. It
+        ///        is 0 for @c PathFault::Empty, @c PathFault::NotFromSource and
+        ///        @c PathFault::CostDisagrees.
         size_t position = 0;
-        /// @brief The cost the path replays at; +infinity when the replay stopped before its end.
+        /// @brief The cost of the path, as the replay computes it; +infinity when the path was not
+        ///        replayed to its end (a fault was found before or during the replay).
         double cost = std::numeric_limits<double>::infinity();
 
         /// @brief Whether no fault was found.
@@ -53,10 +56,11 @@ struct PathEvaluation {
 /// @brief Replays a path through a graph's resources, as a forward search extends a label, and
 ///        says whether the path is one the graph allows, and what it costs.
 ///
-/// The replay starts from a fresh label at the path's source and extends it along each arc in
-/// turn: the look-ahead (`is_reachable`) on the arc's destination, the arc's extension into a
-/// fresh label at the destination, and its feasibility. It shares nothing with the searches but
-/// the model's own functions, so it checks what any search returns, a heuristic's included.
+/// The replay starts from a copy of the source's resource and follows the path one arc at a
+/// time. At each arc, it checks the look-ahead (`is_reachable`) on the arc's destination, extends
+/// the resource along the arc into a copy of the destination's resource, and checks that the
+/// result is feasible. It shares nothing with the searches except the model's own functions, so
+/// it can check what any search returns, a heuristic's included.
 ///
 /// Every arc of the path must carry an extender, as every arc of a @c ResourceGraph does.
 ///
@@ -72,9 +76,12 @@ class PathEvaluator {
 
         /// @brief Evaluates the path through the arcs @p arc_ids, in order.
         ///
-        /// The checks, in order, the first that fails reported: the path has an arc; every id
-        /// names an arc of the graph; consecutive arcs meet; the path leaves a source and enters
-        /// a sink; replayed, every arc passes the look-ahead and every label is feasible.
+        /// It runs these checks and reports the first that fails:
+        /// 1. the path has at least one arc;
+        /// 2. every id names an arc of the graph, and each arc starts where the one before it
+        ///    ends (checked arc by arc);
+        /// 3. the path leaves a source and enters a sink;
+        /// 4. in the replay, every arc passes the look-ahead and every resource is feasible.
         ///
         /// @param arc_ids The path's arc ids.
         /// @return The first fault, and the path's cost when it has none.
@@ -88,13 +95,15 @@ class PathEvaluator {
 
         /// @brief Evaluates the path of @p solution, and checks its node ids and its cost.
         ///
-        /// After the checks of @ref evaluate(const std::vector<size_t>&) on its arc ids: its
-        /// node ids, when it has any, are the nodes the arcs visit; its cost is the replayed
-        /// cost, within @p tolerance (relative to the cost's magnitude, absolute below 1).
+        /// It runs the checks of @ref evaluate(const std::vector<size_t>&) on the arc ids, plus
+        /// two more. Before the replay: if the solution has node ids, they must be the nodes its
+        /// arcs visit. After the replay: its cost must be the replayed cost, within @p tolerance
+        /// (relative to the cost's magnitude, absolute below 1).
         ///
         /// @param solution  The solution to check.
         /// @param tolerance The allowed difference between the two costs.
-        /// @return The first fault, and the replayed cost.
+        /// @return The first fault, and the replayed cost (+infinity if the path was not replayed
+        ///         to its end).
         [[nodiscard]] PathEvaluation evaluate(const Solution& solution,
                                               double tolerance = kDefaultPathCostTolerance) const {
             std::vector<const Arc<ResourceType>*> arcs;

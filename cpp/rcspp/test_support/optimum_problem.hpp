@@ -52,13 +52,15 @@ namespace rcspp::test_support {
     return "unknown fault";
 }
 
-/// @brief What is wrong with @p solution as a path of @p graph, or "": the first fault
+/// @brief Describes what is wrong with @p solution as a path of @p graph: the first fault
 ///        @ref PathEvaluator finds, and where.
 ///
 /// @param graph     The graph the solve ran on.
 /// @param solution  The solution to check.
 /// @param tolerance How far the reported cost may be from the replayed one (relative to the
 ///                  cost's magnitude, absolute below 1).
+/// @return "" when the path is valid; otherwise a message that names the fault, its position,
+///         and the replayed and reported costs.
 template <typename ResourceType>
 [[nodiscard]] std::string path_problem(const Graph<ResourceType>& graph, const Solution& solution,
                                        double tolerance = kDefaultPathCostTolerance) {
