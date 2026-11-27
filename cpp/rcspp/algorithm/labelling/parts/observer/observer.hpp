@@ -17,6 +17,6 @@ template <typename ObserverType, typename ResourceType>
 concept Observer = requires(ObserverType observer, const Label<ResourceType>& label,
                             const Arc<ResourceType>& arc, ExtensionOutcome outcome) {
     observer.on_extension(label, arc, outcome);
-};  // NOLINT(whitespace/newline)
+};  // NOLINT(whitespace/newline): clang-format would join these lines, which cpplint flags
 
 }  // namespace rcspp::parts

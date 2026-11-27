@@ -23,6 +23,6 @@ concept ChildFilter = requires(FilterType filter, std::vector<StoredLabel<Resour
                                std::vector<StoredLabel<ResourceType>>& rejected,
                                const detail::SearchContext<ResourceType>& context) {
     filter.select(children, rejected, context);
-};  // NOLINT(whitespace/newline)
+};
 
 }  // namespace rcspp::parts

@@ -116,7 +116,7 @@ template <typename ScheduleType, typename ResourceType>
 concept PlacesChildren =
     requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {
         schedule.place_children(context, IgnoreErase<ResourceType>{});
-    };  // NOLINT(whitespace/newline)
+    };
 
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so
 ///        with `static constexpr bool reads_completion_bound = true`; one that does not say reads

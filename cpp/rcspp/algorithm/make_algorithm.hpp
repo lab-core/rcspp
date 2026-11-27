@@ -50,7 +50,7 @@ struct TemplateProbe {};
 template <typename Strategy>
 concept ClassStrategy = requires {
     typename TemplateProbe<Strategy::template algorithm>;
-};  // NOLINT(whitespace/newline)
+};  // NOLINT(whitespace/newline): clang-format would join these lines, which cpplint flags
 
 /// @brief Whether @p Strategy names none of its templated parts as a plain type: a plain
 ///        `using admission = ...;` (or retention, observer) would not be read, and the default
@@ -58,7 +58,7 @@ concept ClassStrategy = requires {
 template <typename Strategy>
 concept NoPlainTypeParts = !requires { typename Strategy::admission; } && !requires {
     typename Strategy::retention;
-} && !requires { typename Strategy::observer; };  // NOLINT(whitespace/newline)
+} && !requires { typename Strategy::observer; };  // NOLINT(whitespace/newline): one-line requires
 
 /// @brief The schedule @p Strategy names, given the resource type and @p Direction.
 template <typename Strategy, typename ResourceType, typename Direction>
