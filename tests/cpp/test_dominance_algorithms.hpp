@@ -393,6 +393,49 @@ TEST(CompletionBound, TheShareTestFindsWhereAnArcAddsLessThanItsShare) {
     EXPECT_FALSE(detail::find_share_shortfall(*make_floor_graph(std::nullopt)).has_value());
 }
 
+/// @brief A cost floored at -3 that the share test misses, with a time limit of 5: arcs 0 -> 1
+///        {cost 0, time 6} (infeasible) and {4, 0}, then 1 -> 2 {0, 0} and {-5, 0}, in that order.
+///
+/// The test pairs each arc with the first arc out of its head and the first arc into its tail, so
+/// it never runs the second arc into 1 before the second arc out of it: from 4, that arc takes off
+/// 5 (to -1), more than its share measured from 0, -3. The path through both costs -1.
+inline std::unique_ptr<ResourceGraph<RealResource>> make_hidden_floor_graph() {
+    constexpr double kFloor = -3.0;
+    constexpr double kTimeLimit = 5.0;
+    auto g = std::make_unique<ResourceGraph<RealResource>>(
+        std::make_unique<CompositionExtensionFunction<RealResource>>(),
+        std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
+        std::make_unique<CompositionCostFunction<RealResource>>(),
+        std::make_unique<CompositionDominanceFunction<RealResource>>());
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(kFloor),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, kTimeLimit),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 3; ++node_id) {
+        g->add_node(node_id, node_id == 0, node_id == 2);
+    }
+    g->add_arc<RealResource, RealResource>({0.0, 6.0}, 0, 1);
+    g->add_arc<RealResource, RealResource>({4.0, 0.0}, 0, 1);
+    g->add_arc<RealResource, RealResource>({0.0, 0.0}, 1, 2);
+    g->add_arc<RealResource, RealResource>({-5.0, 0.0}, 1, 2);
+    return g;
+}
+
+/// @brief A floor makes the cost not additive by declaration (@c ExtensionFunction::is_clamped),
+///        even where the share test, a sample of the arcs, finds nothing: no prune may then add
+///        the completion bound.
+TEST(CompletionBound, AFloorTheShareTestMissesStillMakesTheCostNotAdditive) {
+    auto g = make_hidden_floor_graph();
+    EXPECT_FALSE(detail::find_share_shortfall(*g).has_value()) << "the sample misses the floor";
+    EXPECT_FALSE(g->get_node(0)->resource->is_cost_additive());
+    EXPECT_TRUE(make_floor_graph(std::nullopt)->get_node(0)->resource->is_cost_additive());
+}
+
 /// @brief Timeout=0 returns Timeout status.
 TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();

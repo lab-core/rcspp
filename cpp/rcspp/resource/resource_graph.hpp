@@ -530,7 +530,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             : resource_factory_(std::move(factory)), connectivity_matrix_(this) {}
 
         /// @brief Tells a resource's dominance and feasibility functions how its extension function
-        ///        extends backwards.
+        ///        extends backwards, and the feasibility function whether it clamps.
         ///
         /// The extension's directional resource kind decides how the other functions read the
         /// resource backward: the dominance function reverses where @ref reverses_back_dominance
@@ -539,7 +539,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// both.
         ///
         /// @param extension_function   The resource's extension function.
-        /// @param feasibility_function Receives the kind.
+        /// @param feasibility_function Receives the kind, and whether the extension clamps.
         /// @param dominance_function   Receives whether the backward order reverses.
         template <typename ResourceType>
         static void pass_directional_resource_kind(
@@ -549,6 +549,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const DirectionalResourceKind kind = extension_function.directional_resource_kind();
             dominance_function->set_back_dominance_reversed(reverses_back_dominance(kind));
             feasibility_function->set_directional_resource_kind(kind);
+            feasibility_function->set_extension_clamped(extension_function.is_clamped());
         }
 
         /// @brief The feasibility preprocessor as a solve runs it: its removals are kept for good,

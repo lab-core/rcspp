@@ -305,6 +305,14 @@ New features are summarised, with a pointer to where they are documented.
   Under a cost that is not additive there is no valid bound, and the prune compares the cost
   alone, as before. A solve with the prune on runs one Bellman–Ford pass more, to compute the
   bound.
+- **A floored `AdditionExtensionFunction` makes a priced component's cost not additive, by
+  declaration.** `ExtensionFunction::is_clamped()` (new, `false` unless overridden) says an
+  extension clamps what it computes; `AdditionExtensionFunction` answers `true` when it has a
+  `min_value`, and `Resource::is_cost_additive()` is then `false`. Before, only a run of the
+  extension on a sample of arc pairs caught the floor: on a model where the sample missed it,
+  `prune_by_incumbent` added a completion bound that is not a lower bound, and could drop a path.
+  A backward or bidirectional search refuses a floored cost as before, now with a message that
+  names the clamp.
 - **The completion bound is no longer trusted on a cost that only declares itself additive.**
   The bound measures each arc's share of the cost once, from the start value, so it holds only if
   no arc ever adds less than that. A floor (`AdditionExtensionFunction` with a `min_value`), a

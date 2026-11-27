@@ -59,12 +59,19 @@ struct CompletionBound {
 /// reads. Dropping the resource constraints can only lower a path's cost, so the relaxed distance
 /// is a lower bound, provided each share is too.
 ///
-/// The share is measured once per arc, from the origin's start value. It is a valid term of a
-/// lower bound only if the arc never adds less than that from any value a label can hold there:
-/// true when the extension adds a fixed amount per arc, false under a floor, a ceiling or a
-/// maximum (an @c AdditionExtensionFunction with a @c min_value, a bottleneck), even though such
-/// a cost may be declared additive (@c Resource::is_cost_additive). A prune reads the bound only
-/// after the solve has tested this by running the extension (@ref find_share_shortfall).
+/// The share is measured once per arc, from the value the origin node starts with. It is a valid
+/// term of a lower bound only if the arc never adds less than that, whatever value a label holds
+/// at the origin. That holds when the extension adds a fixed amount per arc. It fails under a
+/// floor, a ceiling or a maximum.
+///
+/// So a prune reads the bound only after the solve has checked this in two ways
+/// (@c Algorithm::refresh_completion_bound_validity):
+/// - the cost is declared additive (@c Resource::is_cost_additive). An extension that declares
+///   its clamp (@c ExtensionFunction::is_clamped, as an @c AdditionExtensionFunction with a
+///   @c min_value does) makes it not additive;
+/// - running the extension finds no arc that adds less than its share
+///   (@ref find_share_shortfall). This catches a clamp the extension does not declare, and a
+///   bottleneck, which may still declare an additive cost.
 /// Otherwise the result is not a bound, and only an order reads it (A*), which needs no bound to
 /// stay exact.
 ///

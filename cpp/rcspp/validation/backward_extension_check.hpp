@@ -137,7 +137,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                     "the model's cost function is not additive: the join adds the two halves' "
                     "costs, which is exact only when every component the cost reads has a "
                     "zero cost (TrivialCostFunction) or a value cost (ValueCostFunction) under an "
-                    "accumulating extension; a threshold's backward value is a bound, not a cost");
+                    "accumulating extension that does not clamp; a threshold's backward value is a "
+                    "bound, not a cost, and a clamped sum (a floor) is not a sum");
             } else {
                 // Declared additive is not enough: check it by running the extension both ways.
                 check_reversal(graph, problems);
@@ -157,8 +158,10 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// along `b` then `a` must cost what the forward start extended along `a` then `b` costs
         /// (@c arc_pair_probe::is_close). An addition passes; a maximum (a bottleneck) passes too,
         /// as it reads the same in either order; a floor or a ceiling on an addition does not,
-        /// though it may declare @c DirectionalResourceKind::Accumulate. Read on the composed
-        /// cost, the quantity the search compares. The model's own arcs are a sample, not a proof.
+        /// though it may declare @c DirectionalResourceKind::Accumulate. A clamp the extension
+        /// declares (@c ExtensionFunction::is_clamped) never reaches this check: the model is
+        /// refused before it, as its cost is not additive. The check reads the composed cost, the
+        /// quantity the search compares. The model's own arcs are a sample, not a proof.
         ///
         /// A composition that cannot extend backward is reported elsewhere; this check then skips.
         ///
@@ -218,9 +221,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                             " and the backward search " + std::to_string(backward_cost) +
                             ". A backward search builds a path from its end, so every priced "
                             "extension must give the same total whichever end it starts from; a "
-                            "floor or a ceiling on an addition (AdditionExtensionFunction's "
-                            "min_value) does not. Search forward, or price only extensions that "
-                            "add");
+                            "floor or a ceiling on an addition does not. Search forward, or price "
+                            "only extensions that add");
                         return false;
                     });
             } catch (const NoBackwardExtension& /*error*/) {
