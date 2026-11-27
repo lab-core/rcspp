@@ -9,6 +9,7 @@ commands, `python analysis.py <command> --help` a command's options.
 | ------------- | --------------------------------------------------------------------- |
 | `compare`     | the comparison of two runs, with an optional time rule               |
 | `convergence` | the objective and the best bound of runs, iteration after iteration |
+| `sweep`       | one option swept: result fields against its values, a line per instance |
 
 The commands but `compare` take the same runs and output options:
 
@@ -136,3 +137,31 @@ benchmark folder, run and round, `iteration`, `elapsed_seconds`, `objective`, `l
 
 The runs without iterations are left out with a warning, and none at all is an error (exit code 2, as a wrong
 argument or a folder that cannot take the analysis). A run not finished and a gap panel with no bound warn too.
+
+## Sweep
+
+`python analysis.py sweep RUNS --option OPTION` draws result fields against the values of an option, a line per
+instance: a figure and a table per field.
+
+```bash
+python analysis.py sweep results/ng --option graph.relaxation --option graph.ng_size --log
+python analysis.py sweep results/ng --option graph.ng_size --where graph.relaxation=ng --field iterations --relative
+```
+
+| option | what |
+| --- | --- |
+| `--option` | the dotted option swept; several make one label per combination (`ng 8`), `unset` for a run that has none of them. Numbers make a number axis, any other value an axis in the runs' order |
+| `--field` | a field of `result.json`, or `seconds_per_iteration`; may be given more than once (default `objective` and `solve_seconds`) |
+| `--relative` | divide each line by its value at its first point |
+| `--log` | a log scale for the fields' axis |
+
+A point is a run over its finished rounds, as the summary has it: a measured field's median, drawn with the rounds'
+min and max, or the value the rounds agree on. The runs whose other options are the same make a line, named by the
+parts of its runs' names that the other lines' do not all have (`C101_25`); lines left with one name, or none, get
+the other options that differ between them (`graph.relaxation=ng`): sweeping `graph.ng_size` alone over runs with
+and without ng gives the runs without ng a line of their own, as their `graph.relaxation` differs.
+
+Each field gives `sweep-<field>.<format>`, its data `sweep-<field>.csv` (a point per row: `line`, `value`, its
+benchmark folder, `run`, `rounds`, `median`, `min`, `max`) and a table `sweep-<field>.md` (a line per row, a value
+per column, the medians). A swept option or a field no run has is an error (exit code 2). A run with no finished
+round, rounds that disagree on a field that should match, and an option with one value only warn.
