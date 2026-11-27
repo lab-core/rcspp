@@ -150,7 +150,8 @@ def test_a_missing_field_is_refused():
 def test_every_collector_has_its_statistics_option():
     keys = [item.name for item in dataclasses.fields(options.BLOCKS["statistics"])]
 
-    assert set(collectors.COLLECTORS) == set(keys)
+    # iterations writes its own file, iterations.jsonl, and adds nothing to result.json.
+    assert set(collectors.COLLECTORS) == set(keys) - {"iterations"}
 
 
 def test_collectors_measure_only_when_on():

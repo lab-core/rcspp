@@ -423,17 +423,25 @@ def cell_row(cell: Cell) -> dict[str, Any]:
     ).median
     battery = [value for value in load_values(cell, "on_battery") if value is not None]
     row["on_battery"] = any(battery) if battery else None
-    row["flags"] = "; ".join(cell_flags(row, differ, cell.options_differ))
+    records = bool(cell.options.get("statistics", {}).get("iterations"))
+    row["flags"] = "; ".join(cell_flags(row, differ, cell.options_differ, records))
     return row
 
 
-def cell_flags(row: Mapping[str, Any], differ: Sequence[str], options_differ: bool) -> list[str]:
-    """What to know about a cell's figures.
+def cell_flags(
+    row: Mapping[str, Any], differ: Sequence[str], options_differ: bool, records: bool = False
+) -> list[str]:
+    """What to know about a cell's figures; `records` when its runs write
+    ``iterations.jsonl``.
 
     The battery is the folder's flag
     (:func:`machine_flags`), said once there.
     """
     flags: list[str] = []
+
+    # Recording costs the loop time.
+    if records:
+        flags.append("records each iteration: its times do not compare with runs that do not")
 
     if row["timeouts"]:
         flags.append(f"{row['timeouts']} timeouts")

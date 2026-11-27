@@ -5,7 +5,13 @@ from typing import Any, Callable, Sequence, TypeAlias, overload
 
 import numpy as np
 
-from rcspp._core.graph import Algorithm, SearchDirection, Solution
+from rcspp._core.graph import (
+    Algorithm,
+    AlgorithmStatus,
+    BidirectionalStats,
+    SearchDirection,
+    Solution,
+)
 
 # What a method receives or returns: duals, values, bounds.
 FloatArray: TypeAlias = np.ndarray[Any, np.dtype[np.float64]]
@@ -178,13 +184,47 @@ class MasterSolver:
 class PricingRequest:
     reduced_cost_threshold: float
     timeout_s: float
-    def __init__(self, *, reduced_cost_threshold: float = 0.0, timeout_s: float = ...) -> None: ...
+    search_details: bool
+    def __init__(
+        self,
+        *,
+        reduced_cost_threshold: float = 0.0,
+        timeout_s: float = ...,
+        search_details: bool = False,
+    ) -> None: ...
+
+class PricingStageInfo:
+    """What one stage of a pricing call did, in search_details."""
+
+    def __init__(
+        self,
+        *,
+        stage: int,
+        status: AlgorithmStatus,
+        new_columns: int,
+        seconds: float,
+        extended_labels: int | None = None,
+        bidirectional: BidirectionalStats | None = None,
+    ) -> None: ...
+    @property
+    def stage(self) -> int: ...
+    @property
+    def status(self) -> AlgorithmStatus: ...
+    @property
+    def new_columns(self) -> int: ...
+    @property
+    def seconds(self) -> float: ...
+    @property
+    def extended_labels(self) -> int | None: ...
+    @property
+    def bidirectional(self) -> BidirectionalStats | None: ...
 
 class PricingResult:
     columns: list[Solution]
     status: PricingStatus
     min_reduced_cost_bound: float
     exact_stage: bool
+    search_details: list[PricingStageInfo]
     def __init__(
         self,
         *,
@@ -192,6 +232,7 @@ class PricingResult:
         status: PricingStatus = ...,
         min_reduced_cost_bound: float = ...,
         exact_stage: bool = False,
+        search_details: Sequence[PricingStageInfo] = ...,
     ) -> None: ...
 
 class PricingChanges:
@@ -365,7 +406,21 @@ class NoInitialization(MasterInitialization):
 
 class StatisticsParams:
     timers: bool
-    def __init__(self, *, timers: bool = True) -> None: ...
+    pricers: bool
+    search: bool
+    duals: bool
+    master_values: bool
+    columns: bool
+    def __init__(
+        self,
+        *,
+        timers: bool = True,
+        pricers: bool = False,
+        search: bool = False,
+        duals: bool = False,
+        master_values: bool = False,
+        columns: bool = False,
+    ) -> None: ...
 
 class Statistics:
     @property
@@ -381,6 +436,20 @@ class Statistics:
     @property
     def pricing_seconds(self) -> float: ...
 
+class PricerIterationInfo:
+    """What one pricer did at one iteration, measured by the loop."""
+
+    @property
+    def status(self) -> PricingStatus: ...
+    @property
+    def new_columns(self) -> int: ...
+    @property
+    def min_reduced_cost(self) -> float | None: ...
+    @property
+    def seconds(self) -> float: ...
+    @property
+    def search_details(self) -> tuple[PricingStageInfo, ...]: ...
+
 class IterationInfo:
     @property
     def iteration(self) -> int: ...
@@ -394,6 +463,18 @@ class IterationInfo:
     def total_columns(self) -> int: ...
     @property
     def elapsed_seconds(self) -> float: ...
+    @property
+    def relaxation_seconds(self) -> float | None: ...
+    @property
+    def pricing_seconds(self) -> float | None: ...
+    @property
+    def pricers(self) -> tuple[PricerIterationInfo, ...] | None: ...
+    @property
+    def duals(self) -> FloatArray | None: ...
+    @property
+    def master_values(self) -> tuple[IdArray, FloatArray] | None: ...
+    @property
+    def added_columns(self) -> tuple[MasterColumn, ...] | None: ...
 
 class ConvergenceContext:
     """What the convergence hook sees and may change; valid only during the call."""
@@ -420,6 +501,7 @@ class ColumnGenerationParams:
     relative_gap: float
     cutoff: float
     integer_objective: bool
+    log_frequency: int
     on_iteration: Callable[[IterationInfo], None] | None
     on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None
     def __init__(
@@ -435,6 +517,7 @@ class ColumnGenerationParams:
         relative_gap: float = ...,
         cutoff: float = ...,
         integer_objective: bool = ...,
+        log_frequency: int = ...,
         on_iteration: Callable[[IterationInfo], None] | None = None,
         on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None,
     ) -> None: ...

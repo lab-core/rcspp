@@ -37,7 +37,14 @@ from .master_solver_self_test import (
 )
 from .master_solvers import GurobipyMasterSolver, HighspyMasterSolver
 from .params import ColumnGenerationParams
-from .pricer import Pricer, PricingChanges, PricingRequest, PricingResult, PricingStatus
+from .pricer import (
+    Pricer,
+    PricingChanges,
+    PricingRequest,
+    PricingResult,
+    PricingStageInfo,
+    PricingStatus,
+)
 from .registry import (
     algorithm_names,
     initialization_names,
@@ -47,7 +54,7 @@ from .registry import (
     register_tolerances,
     tolerance_names,
 )
-from .statistics import IterationInfo, Statistics, StatisticsParams
+from .statistics import IterationInfo, PricerIterationInfo, Statistics, StatisticsParams
 from .tolerances import (
     DEFAULT_FEASIBILITY_TOLERANCE,
     DEFAULT_OPTIMALITY_GAP,
@@ -96,10 +103,12 @@ __all__ = [
     "NoInitialization",
     "Pricer",
     "PricerEntry",
+    "PricerIterationInfo",
     "PricingChanges",
     "PricingRequest",
     "PricingResult",
     "PricingStage",
+    "PricingStageInfo",
     "PricingStatus",
     "RelativeTolerances",
     "RelaxationParams",

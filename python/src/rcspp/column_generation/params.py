@@ -37,6 +37,9 @@ class ColumnGenerationParams:
         integer_objective: Every solution has an integer cost: the lower bound is rounded
             up, for the cutoff and for a stop (``IntegerObjectiveGap``) when it reaches the LP value
             rounded up.
+        log_frequency: Log a line every this many iterations, the last one too, and one
+            when the run ends, to the logger ``rcspp.column_generation`` at level INFO; 0 (the
+            default) logs nothing.
         on_iteration: Called after every iteration with an :class:`IterationInfo`.
         on_converged: Called after each proven convergence with a
             :class:`ConvergenceContext`; returns a :class:`ConvergenceAction`.
@@ -47,7 +50,8 @@ class ColumnGenerationParams:
     reduced-cost tolerance's margin.
 
     Raises:
-        ValueError: When a gap is negative or not a number.
+        ValueError: When a gap is negative or not a number, or ``log_frequency`` negative.
+        TypeError: When ``log_frequency`` is not an integer.
     """
 
     max_iterations: float = math.inf
@@ -60,6 +64,7 @@ class ColumnGenerationParams:
     relative_gap: float = 0.0
     cutoff: float = math.inf
     integer_objective: bool = False
+    log_frequency: int = 0
     on_iteration: Callable[[IterationInfo], None] | None = None
     on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None
 
@@ -68,3 +73,14 @@ class ColumnGenerationParams:
         for name, gap in (("absolute_gap", self.absolute_gap), ("relative_gap", self.relative_gap)):
             if not gap >= 0.0:
                 raise ValueError(f"ColumnGenerationParams: {name} must be at least 0")
+
+        # A float would never divide the iteration count evenly.
+        frequency = self.log_frequency
+
+        if isinstance(frequency, bool) or not isinstance(
+            frequency, int  # pyright: ignore[reportUnnecessaryIsInstance]
+        ):
+            raise TypeError("ColumnGenerationParams: log_frequency must be an integer")
+
+        if self.log_frequency < 0:
+            raise ValueError("ColumnGenerationParams: log_frequency must be at least 0")

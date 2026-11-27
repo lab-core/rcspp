@@ -1160,6 +1160,35 @@ TEST(Bidirectional, MemoryPressureIsReportedByForwardAlgorithmsToo) {
     EXPECT_FALSE(graph->solve<strategy::Simple>(AlgorithmBaseParams{}).memory_pressure_triggered);
 }
 
+/// @brief The result carries the extended labels in every direction, the algorithm's own count.
+///
+/// Set in the base `Algorithm::annotate`, so the bidirectional override must keep it.
+TEST(Bidirectional, ResultCarriesTheExtendedLabelsInEveryDirection) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+
+    auto forward = bt::params(20.0, bt::kClockIndex);
+    auto backward = forward;
+    backward.direction = SearchDirection::Backward;
+    for (const auto& params : {forward, backward, test_util::bidirectional(forward)}) {
+        auto algorithm = graph->create_algorithm<strategy::Simple>(params);
+        const SolveResult result = graph->solve(algorithm.get());
+        EXPECT_GT(result.extended_labels, 0U) << to_string(params.direction);
+        EXPECT_EQ(result.extended_labels, algorithm->get_number_of_extended_labels())
+            << to_string(params.direction);
+    }
+}
+
+/// @brief A search that does not count its extensions reports 0, as documented.
+TEST(Bidirectional, GreedyReportsNoExtendedLabels) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+
+    const SolveResult result = graph->solve<strategy::Greedy>(AlgorithmBaseParams{});
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_EQ(result.extended_labels, 0U);
+}
+
 /// @brief The default `release_after_solve` frees the backward containers too.
 ///
 /// Other tests disable the release to inspect labels, so this covers the default path.

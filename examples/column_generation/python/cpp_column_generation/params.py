@@ -43,6 +43,9 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
         integer_objective: Every solution has an integer cost: the lower bound is rounded
             up, for the cutoff and for a stop (``IntegerObjectiveGap``) when it reaches the LP
             value rounded up.
+        log_frequency: Log a line every this many iterations, the last one too, and one when
+            the run ends, through the engine's logger at level INFO; 0 (the default) logs
+            nothing.
         on_iteration: Called after every iteration with an :class:`IterationInfo`.
         on_converged: Called after each proven convergence with a
             :class:`ConvergenceContext`; returns a :class:`ConvergenceAction`.
@@ -50,7 +53,8 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
     The stops on the gap and the cutoff are checked after an iteration that added columns
     and has a lower bound, in this order: the cutoff, the absolute gap, the relative gap, the
     integer objective; the first one reached gives the status. :class:`ColumnGeneration`
-    refuses a negative gap (``ValueError``).
+    refuses a negative gap, and ``StatisticsParams.search`` without ``pricers``
+    (``ValueError``).
     """
 
     def __init__(
@@ -66,6 +70,7 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
         relative_gap: float | None = None,
         cutoff: float | None = None,
         integer_objective: bool | None = None,
+        log_frequency: int | None = None,
         on_iteration: Callable[[IterationInfo], None] | None = None,
         on_converged: Callable[[ConvergenceContext], ConvergenceAction] | None = None,
     ) -> None:
@@ -86,6 +91,8 @@ class ColumnGenerationParams(_CppColumnGenerationParams):
             self.cutoff = cutoff
         if integer_objective is not None:
             self.integer_objective = integer_objective
+        if log_frequency is not None:
+            self.log_frequency = log_frequency
         self.tolerances = make_tolerances(tolerances) if isinstance(tolerances, str) else tolerances
         self.initialization = (
             make_initialization(initialization)

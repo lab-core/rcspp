@@ -341,6 +341,44 @@ about an integer solution. A `cutoff` is the cost of a solution already known, f
 or another search: once the bound reaches it, no solution here is cheaper, which proves the known
 one optimal or, in a branch-and-price tree, prunes a node.
 
+#### What each iteration did
+
+`on_iteration` receives an `IterationInfo` after every iteration. The iteration number, the LP
+value, the bound, the columns added and in the master, and the time since the start are always
+there. `StatisticsParams` adds more, each group behind its own switch, and leaves its fields
+`None` when off:
+
+| switch | `IterationInfo` fields | cost per iteration |
+|---|---|---|
+| `timers` (on by default) | `relaxation_seconds`, `pricing_seconds` | two clock reads each |
+| `pricers` | `pricers`: one `PricerIterationInfo` per pricer (status, columns, best reduced cost, time, and the stages a `GraphPricer` ran) | one clock read per pricer and stage |
+| `search` (needs `pricers`) | in each stage: the labels the search extended, the bidirectional search's half-way point and join | none more |
+| `duals` | `duals`, one per row | one copy |
+| `master_values` | `master_values`: the ids and values of the columns the LP solution uses, read before the new columns go in | one read of every column's value |
+| `columns` | `added_columns`: the iteration's new columns, each with its path | none more |
+
+The time of the layer's own work is the elapsed time's increase minus the LP and pricing times.
+A pricer written in Python fills `PricingResult.search_details` when the request asks for it
+(`PricingRequest.search_details`), or leaves it empty.
+
+`log_frequency` logs a line every that many iterations, and the last one, then how the run ended,
+to the logger `rcspp.column_generation` at level INFO:
+
+<!-- docs test: fragment -->
+
+```python
+import logging
+
+from rcspp.column_generation import StatisticsParams
+
+logging.basicConfig(level=logging.INFO)
+params = ColumnGenerationParams(
+    log_frequency=10,
+    statistics=StatisticsParams(pricers=True, duals=True),
+    on_iteration=lambda info: print(info.iteration, info.pricers[0].min_reduced_cost),
+)
+```
+
 ### Several pricers
 
 Each pricer is one block of the master, e.g. one vehicle type: give each its own graph and its own

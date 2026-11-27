@@ -154,6 +154,12 @@ void init_graph(py::module_& m) {
                       "may not be optimal, even when status is 'complete': 'complete' then means "
                       "only that the labels that were kept were all processed. Reported by every "
                       "algorithm.")
+        .def_readonly("extended_labels",
+                      &SolveResult::extended_labels,
+                      "How many labels this solve extended, a measure of work that does not "
+                      "depend on the machine. Counted by the labelling searches (simple, astar, "
+                      "pushing, pulling) in every direction; a bidirectional solve adds its two "
+                      "searches. 0 from greedy, tabu and diversification, which do not count.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })

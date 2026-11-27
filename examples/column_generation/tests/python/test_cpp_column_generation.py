@@ -54,6 +54,7 @@ from cpp_column_generation import (  # noqa: E402
     PricingChanges,
     PricingRequest,
     PricingResult,
+    PricingStageInfo,
     PricingStatus,
     RelativeTolerances,
     RelaxationParams,
@@ -67,6 +68,8 @@ from cpp_column_generation import (  # noqa: E402
     default_relative_gap,
     master_solver_self_test,
 )
+
+from rcspp._core.graph import AlgorithmStatus  # noqa: E402
 
 PATH_COST = 10.0
 
@@ -711,6 +714,97 @@ def test_the_stop_options_read_back_and_a_negative_gap_is_refused() -> None:
 
         with pytest.raises(ValueError, match="relative_gap"):
             ColumnGeneration(master, ColumnGenerationParams(relative_gap=value))
+
+
+def test_the_statistics_cross_the_boundary() -> None:
+    every = StatisticsParams(
+        pricers=True, search=True, duals=True, master_values=True, columns=True
+    )
+    result, seen = run_with_a_gap_of_six(statistics=every)
+    assert result.status == ColumnGenerationStatus.Optimal
+    first, second = seen
+
+    assert first.relaxation_seconds is not None and first.pricing_seconds is not None
+    assert first.pricers is not None and len(first.pricers) == 1
+    (pricer,) = first.pricers
+    assert pricer.status == PricingStatus.Optimal and pricer.new_columns == 1
+    # The path's -1.5, minus the convexity dual 1.
+    assert pricer.min_reduced_cost == -2.5
+    assert pricer.seconds >= 0.0 and pricer.search_details == ()
+    assert second.pricers is not None and second.pricers[0].min_reduced_cost is None
+
+    assert first.duals is not None
+    np.testing.assert_array_equal(first.duals, [0.0, 1.0])
+    # The scripted solver gives no value: no column is used.
+    assert first.master_values is not None
+    ids, values = first.master_values
+    assert ids.dtype == np.uint64 and ids.size == 0 and values.size == 0
+
+    assert first.added_columns is not None and len(first.added_columns) == 1
+    assert first.added_columns[0].id == 0 and first.added_columns[0].tag == ColumnTag.Real
+    assert second.added_columns == ()
+
+
+def test_the_statistics_are_off_by_default_but_the_times() -> None:
+    _, seen = run_with_a_gap_of_six()
+
+    for info in seen:
+        assert info.relaxation_seconds is not None and info.pricing_seconds is not None
+        assert info.pricers is None and info.duals is None
+        assert info.master_values is None and info.added_columns is None
+
+    _, seen = run_with_a_gap_of_six(statistics=StatisticsParams(timers=False))
+    assert all(info.relaxation_seconds is None for info in seen)
+
+
+def test_the_search_counts_need_the_pricers() -> None:
+    master = MasterProblem(ScriptedMasterSolver())
+    params = ColumnGenerationParams(statistics=StatisticsParams(search=True))
+
+    with pytest.raises(ValueError, match="search"):
+        ColumnGeneration(master, params)
+
+
+def test_a_python_pricers_details_reach_the_hook() -> None:
+    stage = PricingStageInfo(
+        stage=0, status=AlgorithmStatus.Complete, new_columns=0, seconds=0.5, extended_labels=7
+    )
+    solver = ScriptedMasterSolver()
+    master = MasterProblem(solver)
+    master.add_rows(1, RowSense.GreaterEqual, 1.0)
+    requests: list[PricingRequest] = []
+
+    def respond(duals: FloatArray, request: PricingRequest) -> PricingResult:
+        requests.append(request)
+        result = proven_none()
+        result.search_details = [stage]
+        return result
+
+    master.add_pricer(ScriptedPricer(respond))
+    seen: list[IterationInfo] = []
+    params = ColumnGenerationParams(
+        statistics=StatisticsParams(pricers=True, search=True), on_iteration=seen.append
+    )
+    ColumnGeneration(master, params).run()
+
+    assert requests[0].search_details
+    assert seen[0].pricers is not None
+    (details,) = seen[0].pricers[0].search_details
+    assert (details.stage, details.status, details.seconds) == (0, AlgorithmStatus.Complete, 0.5)
+    assert details.extended_labels == 7 and details.bidirectional is None
+
+
+def test_the_log_lines_come_out_of_the_cpp_loop(capfd: pytest.CaptureFixture[str]) -> None:
+    run_with_a_gap_of_six(log_frequency=1)
+    out = capfd.readouterr().out
+
+    assert "iteration 1 " in out and "bound 4  gap 6 (60.00%)" in out
+    assert "iteration 2 " in out
+    assert "Optimal after 2 iterations" in out
+    assert ColumnGenerationParams(log_frequency=5).log_frequency == 5
+
+    run_with_a_gap_of_six()
+    assert "iteration" not in capfd.readouterr().out
 
 
 # ── Tolerances and initializations written in Python ─────────────────────────

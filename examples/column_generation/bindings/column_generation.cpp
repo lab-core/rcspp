@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -605,35 +606,82 @@ void init_column_generation(py::module_& m) {
 
     const PricingRequest request_defaults;
     py::class_<PricingRequest>(m, "PricingRequest", "What the loop asks of one pricing call.")
-        .def(py::init([](double reduced_cost_threshold, double timeout_s) {
+        .def(py::init([](double reduced_cost_threshold, double timeout_s, bool search_details) {
                  return PricingRequest{.reduced_cost_threshold = reduced_cost_threshold,
-                                       .timeout_s = timeout_s};
+                                       .timeout_s = timeout_s,
+                                       .search_details = search_details};
              }),
              py::kw_only(),
              py::arg("reduced_cost_threshold") = request_defaults.reduced_cost_threshold,
-             py::arg("timeout_s") = request_defaults.timeout_s)
+             py::arg("timeout_s") = request_defaults.timeout_s,
+             py::arg("search_details") = request_defaults.search_details)
         .def_readwrite("reduced_cost_threshold",
                        &PricingRequest::reduced_cost_threshold,
                        "Return only columns whose reduced cost (without the convexity dual) is "
                        "below this value.")
-        .def_readwrite("timeout_s", &PricingRequest::timeout_s);
+        .def_readwrite("timeout_s", &PricingRequest::timeout_s)
+        .def_readwrite("search_details",
+                       &PricingRequest::search_details,
+                       "Whether the run reads PricingResult.search_details; a pricer may skip "
+                       "them otherwise.");
+
+    py::class_<PricingStageInfo>(m,
+                                 "PricingStageInfo",
+                                 "What one stage of a pricing call did, in search_details.")
+        .def(py::init([](size_t stage,
+                         AlgorithmStatus status,
+                         size_t new_columns,
+                         double seconds,
+                         std::optional<size_t>
+                             extended_labels,
+                         std::optional<BidirectionalStats>
+                             bidirectional) {
+                 return PricingStageInfo{.stage = stage,
+                                         .status = status,
+                                         .new_columns = new_columns,
+                                         .seconds = seconds,
+                                         .extended_labels = extended_labels,
+                                         .bidirectional = std::move(bidirectional)};
+             }),
+             py::kw_only(),
+             py::arg("stage"),
+             py::arg("status"),
+             py::arg("new_columns"),
+             py::arg("seconds"),
+             py::arg("extended_labels") = py::none(),
+             py::arg("bidirectional") = py::none())
+        .def_readonly("stage", &PricingStageInfo::stage, "The stage's position, from 0.")
+        .def_readonly("status", &PricingStageInfo::status, "How the stage's search ended.")
+        .def_readonly("new_columns", &PricingStageInfo::new_columns)
+        .def_readonly("seconds", &PricingStageInfo::seconds)
+        .def_readonly("extended_labels",
+                      &PricingStageInfo::extended_labels,
+                      "Labels the search extended; None when the run does not collect it.")
+        .def_readonly("bidirectional",
+                      &PricingStageInfo::bidirectional,
+                      "A bidirectional search's half-way point and join; None from another "
+                      "search, or when the run does not collect it.");
 
     const PricingResult result_defaults;
     py::class_<PricingResult>(m, "PricingResult", "What one pricing call returns.")
         .def(py::init([](std::vector<Solution> columns,
                          PricingStatus status,
                          double min_reduced_cost_bound,
-                         bool exact_stage) {
+                         bool exact_stage,
+                         std::vector<PricingStageInfo>
+                             search_details) {
                  return PricingResult{.columns = std::move(columns),
                                       .status = status,
                                       .min_reduced_cost_bound = min_reduced_cost_bound,
-                                      .exact_stage = exact_stage};
+                                      .exact_stage = exact_stage,
+                                      .search_details = std::move(search_details)};
              }),
              py::kw_only(),
              py::arg("columns") = std::vector<Solution>{},
              py::arg("status") = result_defaults.status,
              py::arg("min_reduced_cost_bound") = result_defaults.min_reduced_cost_bound,
-             py::arg("exact_stage") = result_defaults.exact_stage)
+             py::arg("exact_stage") = result_defaults.exact_stage,
+             py::arg("search_details") = std::vector<PricingStageInfo>{})
         .def_readwrite("columns",
                        &PricingResult::columns,
                        "The new columns (a copy: assign a new list to change them); each "
@@ -643,7 +691,12 @@ void init_column_generation(py::module_& m) {
         .def_readwrite("exact_stage",
                        &PricingResult::exact_stage,
                        "Only an exact call that is Optimal or Infeasible, or a call answering "
-                       "NotApplicable, proves that no improving column exists.");
+                       "NotApplicable, proves that no improving column exists.")
+        .def_readwrite("search_details",
+                       &PricingResult::search_details,
+                       "The stages the call ran, in order (a copy: assign a new list to change "
+                       "them); filled when the request asks for them, empty from a pricer "
+                       "without stages.");
 
     const PricingChanges changes_defaults;
     py::class_<PricingChanges>(m, "PricingChanges", "What changed in the pricing problem.")
@@ -864,10 +917,38 @@ void init_column_generation(py::module_& m) {
 
     const StatisticsParams statistics_defaults;
     py::class_<StatisticsParams>(m, "StatisticsParams", "Which statistics a run collects.")
-        .def(py::init([](bool timers) { return StatisticsParams{.timers = timers}; }),
+        .def(py::init([](bool timers,
+                         bool pricers,
+                         bool search,
+                         bool duals,
+                         bool master_values,
+                         bool columns) {
+                 return StatisticsParams{.timers = timers,
+                                         .pricers = pricers,
+                                         .search = search,
+                                         .duals = duals,
+                                         .master_values = master_values,
+                                         .columns = columns};
+             }),
              py::kw_only(),
-             py::arg("timers") = statistics_defaults.timers)
-        .def_readwrite("timers", &StatisticsParams::timers);
+             py::arg("timers") = statistics_defaults.timers,
+             py::arg("pricers") = statistics_defaults.pricers,
+             py::arg("search") = statistics_defaults.search,
+             py::arg("duals") = statistics_defaults.duals,
+             py::arg("master_values") = statistics_defaults.master_values,
+             py::arg("columns") = statistics_defaults.columns)
+        .def_readwrite("timers", &StatisticsParams::timers)
+        .def_readwrite("pricers",
+                       &StatisticsParams::pricers,
+                       "What each pricer did at each iteration (IterationInfo.pricers).")
+        .def_readwrite("search",
+                       &StatisticsParams::search,
+                       "The search engine's counts in each stage's details; needs pricers.")
+        .def_readwrite("duals", &StatisticsParams::duals, "The duals of each iteration.")
+        .def_readwrite("master_values",
+                       &StatisticsParams::master_values,
+                       "The nonzero values of each iteration's LP solution.")
+        .def_readwrite("columns", &StatisticsParams::columns, "The columns each iteration added.");
 
     py::class_<Statistics>(m, "Statistics", "Counters and times of one run.")
         .def_readonly("generated_columns", &Statistics::generated_columns)
@@ -877,6 +958,23 @@ void init_column_generation(py::module_& m) {
         .def_readonly("relaxation_seconds", &Statistics::relaxation_seconds)
         .def_readonly("pricing_seconds", &Statistics::pricing_seconds);
 
+    py::class_<PricerIterationInfo>(m,
+                                    "PricerIterationInfo",
+                                    "What one pricer did at one iteration, measured by the loop.")
+        .def_readonly("status", &PricerIterationInfo::status)
+        .def_readonly("new_columns", &PricerIterationInfo::new_columns)
+        .def_readonly("min_reduced_cost",
+                      &PricerIterationInfo::min_reduced_cost,
+                      "The most negative reduced cost of the columns it returned, its convexity "
+                      "dual included; None when it returned none.")
+        .def_readonly("seconds", &PricerIterationInfo::seconds)
+        .def_property_readonly(
+            "search_details",
+            [](const PricerIterationInfo& info) {
+                return py::tuple(py::cast(info.search_details));
+            },
+            "Its own account of the call: for a GraphPricer, the stages it ran.");
+
     py::class_<IterationInfo>(m, "IterationInfo", "What the iteration hook sees (a copy).")
         .def_readonly("iteration", &IterationInfo::iteration)
         .def_readonly("objective", &IterationInfo::objective)
@@ -885,7 +983,53 @@ void init_column_generation(py::module_& m) {
                       "The Lagrangian bound at this iteration's duals; -inf when unknown.")
         .def_readonly("new_columns", &IterationInfo::new_columns)
         .def_readonly("total_columns", &IterationInfo::total_columns)
-        .def_readonly("elapsed_seconds", &IterationInfo::elapsed_seconds);
+        .def_readonly("elapsed_seconds", &IterationInfo::elapsed_seconds)
+        .def_readonly("relaxation_seconds",
+                      &IterationInfo::relaxation_seconds,
+                      "Time of this iteration's LP solve; None without timers.")
+        .def_readonly("pricing_seconds",
+                      &IterationInfo::pricing_seconds,
+                      "Time of this iteration's pricing, the columns' addition included; None "
+                      "without timers.")
+        .def_property_readonly(
+            "pricers",
+            [](const IterationInfo& info) -> py::object {
+                if (!info.pricers.has_value()) {
+                    return py::none();
+                }
+                return py::tuple(py::cast(*info.pricers));
+            },
+            "One PricerIterationInfo per pricer; None unless StatisticsParams.pricers.")
+        .def_property_readonly(
+            "duals",
+            [](const IterationInfo& info) -> py::object {
+                if (!info.duals.has_value()) {
+                    return py::none();
+                }
+                return to_array(std::span<const double>(*info.duals));
+            },
+            "The LP's duals; None unless StatisticsParams.duals.")
+        .def_property_readonly(
+            "master_values",
+            [](const IterationInfo& info) -> py::object {
+                if (!info.master_values.has_value()) {
+                    return py::none();
+                }
+                const auto& [ids, values] = *info.master_values;
+                return py::make_tuple(to_array(std::span<const ColumnId>(ids)),
+                                      to_array(std::span<const double>(values)));
+            },
+            "The ids and values of the columns the LP solution uses, read before the "
+            "iteration's columns were added; None unless StatisticsParams.master_values.")
+        .def_property_readonly(
+            "added_columns",
+            [](const IterationInfo& info) -> py::object {
+                if (!info.added_columns.has_value()) {
+                    return py::none();
+                }
+                return py::tuple(py::cast(*info.added_columns));
+            },
+            "The columns this iteration added; None unless StatisticsParams.columns.");
 
     py::class_<ConvergenceContext>(
         m,
@@ -921,6 +1065,7 @@ void init_column_generation(py::module_& m) {
                          double relative_gap,
                          double cutoff,
                          bool integer_objective,
+                         size_t log_frequency,
                          std::function<void(IterationInfo)>
                              on_iteration,
                          std::function<ConvergenceAction(ConvergenceContext&)>
@@ -935,6 +1080,7 @@ void init_column_generation(py::module_& m) {
                                                .relative_gap = relative_gap,
                                                .cutoff = cutoff,
                                                .integer_objective = integer_objective,
+                                               .log_frequency = log_frequency,
                                                .on_converged = std::move(on_converged)};
                  set_iteration_hook(params, std::move(on_iteration));
                  return params;
@@ -950,6 +1096,7 @@ void init_column_generation(py::module_& m) {
              py::arg("relative_gap") = params_defaults.relative_gap,
              py::arg("cutoff") = params_defaults.cutoff,
              py::arg("integer_objective") = params_defaults.integer_objective,
+             py::arg("log_frequency") = params_defaults.log_frequency,
              py::arg("on_iteration") = py::none(),
              py::arg("on_converged") = py::none())
         .def_readwrite("max_iterations", &ColumnGenerationParams::max_iterations)
@@ -987,6 +1134,10 @@ void init_column_generation(py::module_& m) {
                        &ColumnGenerationParams::integer_objective,
                        "Integer costs: the lower bound rounds up, for the cutoff and for a stop "
                        "(IntegerObjectiveGap) when it reaches the LP value rounded up.")
+        .def_readwrite("log_frequency",
+                       &ColumnGenerationParams::log_frequency,
+                       "Log a line every this many iterations, the last one too, and one when the "
+                       "run ends, through the engine's logger at level INFO; 0 logs nothing.")
         .def_property(
             "on_iteration",
             [](const ColumnGenerationParams& params) { return params.on_iteration; },

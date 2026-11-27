@@ -14,7 +14,7 @@ from typing import Any, TypeAlias, cast
 
 from .._core.graph import Algorithm, AlgorithmParams, AlgorithmStatus, SearchDirection, SolveResult
 from ..graph import BucketAlgorithmParams, ResourceGraph, _algorithm, _chosen_direction
-from .pricer import Pricer, PricingRequest, PricingResult, PricingStatus
+from .pricer import Pricer, PricingRequest, PricingResult, PricingStageInfo, PricingStatus
 from .types import FloatArray
 
 # Algorithms that may miss a better path even when they finish.
@@ -243,7 +243,8 @@ class GraphPricer(Pricer):
             The paths below the threshold as columns, each with its original cost and
             rows. The status is ``Optimal`` and ``min_reduced_cost_bound`` the best path
             found (the threshold when there is none) only after an exact stage
-            finished; otherwise ``SolverLimit`` and ``-inf``.
+            finished; otherwise ``SolverLimit`` and ``-inf``. When the request asks for
+            ``search_details``, one :class:`PricingStageInfo` per stage run.
 
         Raises:
             RuntimeError: When the graph has no source or no sink.
@@ -265,20 +266,24 @@ class GraphPricer(Pricer):
 
         start = time.perf_counter()
         *first, last = self._resolved_stages
+        details: list[PricingStageInfo] = []
 
         for index, stage in enumerate(first):
             self._last_stage_index = index
-            result = self._search(stage, request, start)
+            result = self._search(index, stage, request, start, details)
 
             # Only an exact stage that finished is optimal.
             proven = result.status == PricingStatus.Optimal
             out_of_time = time.perf_counter() - start >= request.timeout_s
 
             if result.columns or proven or out_of_time:
+                result.search_details = tuple(details)
                 return result
 
         self._last_stage_index = len(first)
-        return self._search(last, request, start)
+        result = self._search(len(first), last, request, start, details)
+        result.search_details = tuple(details)
+        return result
 
     def cost_scale(self) -> float:
         """The largest absolute arc cost (original costs, not reduced ones)."""
@@ -287,17 +292,38 @@ class GraphPricer(Pricer):
         return max((abs(graph.get_arc(arc_id).cost) for arc_id in graph.arc_ids()), default=0.0)
 
     def _search(
-        self, stage: _ResolvedStage, request: PricingRequest, start: float
+        self,
+        index: int,
+        stage: _ResolvedStage,
+        request: PricingRequest,
+        start: float,
+        details: list[PricingStageInfo],
     ) -> PricingResult:
-        """Runs one stage within what is left of the request's time."""
+        """Runs one stage within what is left of the request's time; adds what it did to
+        ``details`` when the request asks for them."""
+        stage_start = time.perf_counter()
         stage_request = StageRequest(
             upper_bound=request.reduced_cost_threshold,
-            timeout_s=max(0.0, request.timeout_s - (time.perf_counter() - start)),
+            timeout_s=max(0.0, request.timeout_s - (stage_start - start)),
             preprocess=self._preprocess,
             cost_index=self._cost_index,
         )
         searched = stage.search(self._graph, stage_request)
-        return _to_pricing_result(searched, stage.exact, request.reduced_cost_threshold)
+        result = _to_pricing_result(searched, stage.exact, request.reduced_cost_threshold)
+
+        if request.search_details:
+            details.append(
+                PricingStageInfo(
+                    stage=index,
+                    status=searched.status,
+                    new_columns=len(result.columns),
+                    seconds=time.perf_counter() - stage_start,
+                    extended_labels=searched.extended_labels,
+                    bidirectional=searched.bidirectional,
+                )
+            )
+
+        return result
 
     def _resolved(self, stage: PricingStage) -> _ResolvedStage:
         """The stage as a search: its own, or its algorithm's (as ``ResourceGraph.solve``

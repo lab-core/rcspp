@@ -245,6 +245,12 @@ class SolveResult:
         """
 
     @property
+    def extended_labels(self) -> int:
+        """
+        How many labels this solve extended, a measure of work that does not depend on the machine. Counted by the labelling searches (simple, astar, pushing, pulling) in every direction; a bidirectional solve adds its two searches. 0 from greedy, tabu and diversification, which do not count.
+        """
+
+    @property
     def memory_pressure_triggered(self) -> bool:
         """
         Whether memory pressure dropped labels during this solve. If so, the result may not be optimal, even when status is 'complete': 'complete' then means only that the labels that were kept were all processed. Reported by every algorithm.

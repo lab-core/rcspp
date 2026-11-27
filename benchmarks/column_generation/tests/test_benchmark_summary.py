@@ -481,3 +481,12 @@ def test_flags_with_commas_read_back_from_the_csv(tmp_path: Path):
 
     [line] = read_csv(tmp_path / "summary.csv")
     assert line["flags"] == "rounds differ: status, iterations"
+
+
+def test_cells_that_record_each_iteration_are_flagged(tmp_path: Path):
+    recording = {**options(), "statistics": {"iterations": ["times"]}}
+    write_benchmark(tmp_path, {RUN: recording}, rounds=1)
+    write_round(round_folder(tmp_path, RUN, 1), result(), metadata())
+
+    row = cell_row(read_folder(tmp_path).cells[0])
+    assert row["flags"].startswith("records each iteration")

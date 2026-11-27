@@ -306,6 +306,8 @@ New features are summarised, with a pointer to where they are documented.
   `complete` status does not rule out.
 - **`Algorithm::get_number_of_extended_labels()`**: the labels the last solve extended, a
   machine-independent measure of work.
+- **`SolveResult.extended_labels`** (C++ and Python): the same count on the result, so Python can
+  read it. A bidirectional solve adds its two searches; greedy, tabu and diversification report 0.
 - **The C++ pool classes have a public Python home**: `SolutionPool`, `FilteredSolutionPool`,
   `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
@@ -359,6 +361,19 @@ New features are summarised, with a pointer to where they are documented.
   four as `column_generation` options, with `instance.vehicles`, the row limiting the routes that
   the bound needs, and records `lower_bound` in `result.json`. See "The lower bound and early
   stops" in `docs/advanced/column-generation.md`.
+- **What each column generation iteration did, and a progress log.** `IterationInfo` gains the
+  iteration's LP and pricing times, and, each behind its own `StatisticsParams` switch (all off by
+  default), what each pricer did (`pricers`: a `PricerIterationInfo` with its status, columns, best
+  reduced cost, time and, for a `GraphPricer`, the stages it ran), the engine's counts in each
+  stage (`search`), the duals (`duals`), the LP solution's nonzero values (`master_values`) and the
+  columns added (`columns`). A pricer written in Python may fill `PricingResult.search_details`
+  when `PricingRequest.search_details` asks. `ColumnGenerationParams.log_frequency` logs a line
+  every that many iterations to the logger `rcspp.column_generation`. The C++ column generation
+  example has the same, in C++ and through its bindings, its log through the engine's logger. The
+  column generation benchmark records them in `iterations.jsonl`, one line per iteration written as
+  the run goes, with the groups `statistics.iterations` lists, and takes
+  `column_generation.log_frequency`. See "What each iteration did" in
+  `docs/advanced/column-generation.md`.
 
 ### Fixed
 

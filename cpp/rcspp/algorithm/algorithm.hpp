@@ -349,11 +349,13 @@ class Algorithm {
 
         /// @brief Adds diagnostics to the result, just before it is returned.
         ///
-        /// The base reports memory pressure; overrides must call `Base::annotate(result)`.
+        /// The base reports memory pressure and the extended labels; overrides must call
+        /// `Base::annotate(result)`.
         ///
         /// @param result The result about to be returned; never null.
         virtual void annotate(SolveResult* result) const {
             result->memory_pressure_triggered = memory_pressure_triggered_;
+            result->extended_labels = number_of_extended_labels_;
         }
 
         /// @brief Called by @ref check_memory each time a periodic memory check finds the

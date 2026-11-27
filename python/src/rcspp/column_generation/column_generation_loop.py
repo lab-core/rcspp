@@ -2,6 +2,7 @@
 #  All rights reserved.
 """The column generation loop: solve the master LP, price its duals, add columns."""
 
+import logging
 import math
 import time
 from collections.abc import Generator
@@ -15,11 +16,14 @@ from .convergence import ConvergenceAction, ConvergenceContext
 from .master_initialization import MasterInitialization
 from .master_problem import MasterProblem
 from .params import ColumnGenerationParams
-from .pricer import PricingRequest, PricingStatus
+from .pricer import PricingRequest, PricingResult, PricingStatus
 from .registry import make_initialization, make_tolerances
-from .statistics import IterationInfo, Statistics
+from .statistics import IterationInfo, PricerIterationInfo, Statistics, StatisticsParams
 from .tolerances import ToleranceContext, Tolerances
-from .types import FloatArray, IntegerParams, SolverStatus
+from .types import FloatArray, IdArray, IntegerParams, SolverStatus
+
+#: Where the progress log goes (``ColumnGenerationParams.log_frequency``).
+logger = logging.getLogger("rcspp.column_generation")
 
 
 class ColumnGenerationStatus(Enum):
@@ -240,6 +244,9 @@ class ColumnGeneration:
         lower_bound = -math.inf
         iterations = generated_columns = 0
         paths_allowed = self._paths_allowed()
+        statistics = params.statistics
+        wants_info = params.on_iteration is not None or params.log_frequency > 0
+        last_info: IterationInfo | None = None
 
         while True:
             # Limits.
@@ -257,6 +264,8 @@ class ColumnGeneration:
             relaxation = replace(
                 params.relaxation, timeout_s=min(params.relaxation.timeout_s, remaining)
             )
+
+            relaxation_before = relaxing.seconds
 
             with relaxing.measure():
                 solver_status = _checked(solver.solve_relaxation(relaxation))
@@ -276,27 +285,49 @@ class ColumnGeneration:
                     f"{duals.size}"
                 )
 
+            # The LP solution, read before the new columns change the model.
+            master_values = (
+                self._nonzero_values() if wants_info and statistics.master_values else None
+            )
+
             # Price the duals and add the columns found.
+            columns_before = master.number_of_columns
+            relaxation_seconds = relaxing.seconds - relaxation_before
+            pricing_before = pricing.seconds
+
             with pricing.measure():
-                new_columns, proven, bound_terms = self._price(
-                    duals, start, reduced_cost_tolerance, paths_allowed
+                new_columns, proven, bound_terms, pricers = self._price(
+                    duals, start, reduced_cost_tolerance, paths_allowed, wants_info
                 )
 
             generated_columns += new_columns
             iteration_bound = objective + bound_terms
             lower_bound = max(lower_bound, iteration_bound)
 
-            if params.on_iteration is not None:
-                params.on_iteration(
-                    IterationInfo(
-                        iteration=iterations,
-                        objective=objective,
-                        lower_bound=iteration_bound,
-                        new_columns=new_columns,
-                        total_columns=master.number_of_columns,
-                        elapsed_seconds=time.perf_counter() - start,
-                    )
+            if wants_info:
+                timers = statistics.timers
+                last_info = IterationInfo(
+                    iteration=iterations,
+                    objective=objective,
+                    lower_bound=iteration_bound,
+                    new_columns=new_columns,
+                    total_columns=master.number_of_columns,
+                    elapsed_seconds=time.perf_counter() - start,
+                    relaxation_seconds=relaxation_seconds if timers else None,
+                    pricing_seconds=pricing.seconds - pricing_before if timers else None,
+                    pricers=pricers,
+                    duals=duals.copy() if statistics.duals else None,
+                    master_values=master_values,
+                    added_columns=(
+                        tuple(master.columns[columns_before:]) if statistics.columns else None
+                    ),
                 )
+
+                if params.log_frequency > 0 and iterations % params.log_frequency == 0:
+                    _log_iteration(last_info)
+
+                if params.on_iteration is not None:
+                    params.on_iteration(last_info)
 
             # New columns: solve again, unless the bound is already close enough.
             if new_columns > 0:
@@ -342,7 +373,7 @@ class ColumnGeneration:
 
             break
 
-        return ColumnGenerationResult(
+        result = ColumnGenerationResult(
             status=status,
             objective=objective,
             lower_bound=lower_bound,
@@ -356,6 +387,15 @@ class ColumnGeneration:
                 pricing_seconds=pricing.seconds,
             ),
         )
+
+        if params.log_frequency > 0:
+            # The last iteration, unless its line is out already, then how the run ended.
+            if last_info is not None and last_info.iteration % params.log_frequency != 0:
+                _log_iteration(last_info)
+
+            _log_end(result)
+
+        return result
 
     def _initialize(self) -> None:
         """On this loop's first run: sets the tolerances' inputs, and initializes the
@@ -377,10 +417,12 @@ class ColumnGeneration:
         start: float,
         reduced_cost_tolerance: float,
         paths_allowed: list[float],
-    ) -> tuple[int, bool, float]:
+        wants_info: bool,
+    ) -> tuple[int, bool, float, tuple[PricerIterationInfo, ...] | None]:
         """Prices every pricer once and adds what they find: the number of columns added,
-        whether pricing proved that no column improves, and what the pricers add to the LP
-        value to give the Lagrangian bound (``-inf`` when unknown).
+        whether pricing proved that no column improves, what the pricers add to the LP
+        value to give the Lagrangian bound (``-inf`` when unknown), and what each pricer did
+        when the run collects it (``None`` otherwise).
 
         The bound: for any solution of the full master, cost = LP value + the sum over the
         columns of reduced cost * value. A pricer's columns cost at least its best reduced
@@ -388,6 +430,9 @@ class ColumnGeneration:
         so each pricer adds (paths allowed) * (its best reduced cost) when that is negative.
         """
         master = self._master
+        statistics = self._params.statistics
+        collect = wants_info and statistics.pricers
+        pricers: list[PricerIterationInfo] = []
         new_columns = 0
         proven = True
         bound_terms = 0.0
@@ -396,12 +441,18 @@ class ColumnGeneration:
             # A column improves when its reduced cost, convexity dual included, is negative.
             convexity = entry.convexity_row
             convexity_dual = float(duals[convexity]) if convexity is not None else 0.0
+            pricing_start = time.perf_counter()
             request = PricingRequest(
                 reduced_cost_threshold=convexity_dual - reduced_cost_tolerance,
-                timeout_s=max(0.0, self._params.timeout_s - (time.perf_counter() - start)),
+                timeout_s=max(0.0, self._params.timeout_s - (pricing_start - start)),
+                search_details=collect,
             )
 
             priced = entry.pricer.price(duals, request)
+
+            if collect:
+                seconds = time.perf_counter() - pricing_start
+                pricers.append(_pricer_info(priced, convexity_dual, seconds, statistics))
 
             # Only an exact stage that finished proves there is no improving column. No path at
             # all (Infeasible) proves it too: no column of any cost exists. A pricer with
@@ -433,7 +484,7 @@ class ColumnGeneration:
             if best < 0.0 and paths > 0.0:
                 bound_terms += paths * best
 
-        return new_columns, proven, bound_terms
+        return new_columns, proven, bound_terms, tuple(pricers) if collect else None
 
     def _paths_allowed(self) -> list[float]:
         """How many paths each pricer's convexity row allows: its upper bound, ``inf``
@@ -505,6 +556,13 @@ class ColumnGeneration:
         ids = np.array([column.id for column in self._master.columns], dtype=np.uint64)
         return np.asarray(self._master.solver.primal(ids), dtype=np.float64)
 
+    def _nonzero_values(self) -> tuple[IdArray, FloatArray]:
+        """The ids and values of the columns the last LP solution uses."""
+        ids = np.arange(self._master.number_of_columns, dtype=np.uint64)
+        values = np.asarray(self._master.solver.primal(ids), dtype=np.float64)
+        used = values != 0.0
+        return ids[used], values[used]
+
     def _uses_artificial_columns(self) -> bool:
         """Whether the last LP solution uses an artificial column."""
         ids = self._master.artificial_column_ids
@@ -514,3 +572,73 @@ class ColumnGeneration:
 
         values = np.asarray(self._master.solver.primal(ids), dtype=np.float64)
         return bool((values > self._tolerances.feasibility(self._context)).any())
+
+
+# MARK: Statistics and the log
+
+
+def _pricer_info(
+    priced: PricingResult, convexity_dual: float, seconds: float, statistics: StatisticsParams
+) -> PricerIterationInfo:
+    """What a pricer did, from its answer; the engine's counts dropped unless
+    collected."""
+    details = priced.search_details
+
+    if not statistics.search:
+        details = tuple(
+            replace(stage, extended_labels=None, bidirectional=None) for stage in details
+        )
+
+    return PricerIterationInfo(
+        status=priced.status,
+        new_columns=len(priced.columns),
+        min_reduced_cost=(
+            min(column.cost for column in priced.columns) - convexity_dual
+            if priced.columns
+            else None
+        ),
+        seconds=seconds,
+        search_details=details,
+    )
+
+
+def _log_iteration(info: IterationInfo) -> None:
+    """One line of the progress log."""
+    known = info.lower_bound > -math.inf
+    gap = info.objective - info.lower_bound
+    relative = f" ({gap / abs(info.objective):.2%})" if info.objective != 0.0 else ""
+    logger.info(
+        "iteration %d  %.2f s  LP %s  pricing %s  columns +%d / %d  LP value %.6g  bound %s  "
+        "gap %s",
+        info.iteration,
+        info.elapsed_seconds,
+        _seconds(info.relaxation_seconds),
+        _seconds(info.pricing_seconds),
+        info.new_columns,
+        info.total_columns,
+        info.objective,
+        f"{info.lower_bound:.6g}" if known else "-",
+        f"{gap:.6g}{relative}" if known else "-",
+    )
+
+
+def _log_end(result: ColumnGenerationResult) -> None:
+    """The last line of the progress log: how the run ended."""
+    statistics = result.statistics
+    logger.info(
+        "%s after %d iterations, %.2f s (LP %.2f s, pricing %.2f s), %d columns generated, "
+        "LP value %s, bound %s",
+        result.status.name,
+        result.iterations,
+        statistics.total_seconds,
+        statistics.relaxation_seconds,
+        statistics.pricing_seconds,
+        statistics.generated_columns,
+        "-" if result.objective is None else f"{result.objective:.6g}",
+        f"{result.lower_bound:.6g}" if result.lower_bound > -math.inf else "-",
+    )
+
+
+def _seconds(seconds: float | None) -> str:
+    """A time of the log; ``-`` when not measured."""
+    return "-" if seconds is None else f"{seconds:.3f} s"

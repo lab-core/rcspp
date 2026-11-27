@@ -6,12 +6,13 @@ and from its ``command.txt``; every layer gives the same column generation. The
 ``cpp-bindings`` runner's tests skip when the build has no column generation example; the
 ``cpp-native`` runner's own tests are in ``test_benchmark_cpp_native.py``."""
 
+import json
 import math
 import shlex
 import subprocess  # nosec B404: the runner's own recorded command
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import cpp_bindings_runner
 import cpp_native_runner
@@ -972,3 +973,121 @@ def test_a_package_run_runs_on_the_cpp_bindings(build: Path, tmp_path: Path):
 
     assert run_folder.read_run_file(tmp_path / "cpp-bindings")["layer"] == "cpp-bindings"
     assert same(again, SAME_COLUMN_GENERATION) == same(first, SAME_COLUMN_GENERATION)
+
+
+# MARK: Each iteration
+
+#: Every group a run may record.
+EVERY_GROUP = '["times", "pricers", "search", "duals", "master_values", "columns"]'
+
+
+def iteration_lines(folder: Path) -> list[dict[str, Any]]:
+    text = (folder / run_folder.ITERATIONS_FILE).read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines()]
+
+
+def test_each_iteration_is_recorded_with_the_groups_listed(layer: str, build: Path, tmp_path: Path):
+    result = run(
+        layer, build, tmp_path, "--instance", "C101_5", "--statistics.iterations", EVERY_GROUP
+    )
+    lines = iteration_lines(tmp_path)
+
+    assert [line["iteration"] for line in lines] == list(range(1, result["iterations"] + 1))
+    first = lines[0]
+    assert first["relaxation_seconds"] >= 0.0 and first["pricing_seconds"] >= 0.0
+    (pricer,) = first["pricers"]
+    assert pricer["status"] == "Optimal" and pricer["new_columns"] == first["new_columns"]
+    (stage,) = pricer["stages"]
+    assert stage["status"] == "Complete" and stage["extended_labels"] > 0
+    assert stage["bidirectional"] is None
+    assert len(first["duals"]) == 6
+    assert all(value > 0.0 for _, value in first["master_values"])
+    assert len(first["added_columns"]) == first["new_columns"]
+    assert {"id", "cost", "path", "rows"} == set(first["added_columns"][0])
+    # Without a fleet row the bound is unknown until the proof, which gives the LP value.
+    assert first["lower_bound"] is None
+    assert lines[-1]["new_columns"] == 0 and lines[-1]["lower_bound"] == lines[-1]["objective"]
+
+
+def test_only_the_groups_listed_are_recorded(layer: str, build: Path, tmp_path: Path):
+    run(layer, build, tmp_path, "--instance", "C101_5", "--statistics.iterations", '["duals"]')
+    keys = set(iteration_lines(tmp_path)[0])
+
+    assert keys == {
+        "iteration",
+        "objective",
+        "lower_bound",
+        "new_columns",
+        "total_columns",
+        "elapsed_seconds",
+        "duals",
+    }
+
+
+def test_no_iterations_file_by_default(layer: str, build: Path, tmp_path: Path):
+    run(layer, build, tmp_path, "--instance", "C101_5")
+    assert not (tmp_path / run_folder.ITERATIONS_FILE).exists()
+
+
+def test_the_log_goes_to_the_runs_output(
+    layer: str, build: Path, tmp_path: Path, capfd: pytest.CaptureFixture[str]
+):
+    result = run(
+        layer, build, tmp_path, "--instance", "C101_5", "--column_generation.log_frequency", "1"
+    )
+    output = capfd.readouterr()
+    text = output.out + output.err
+
+    assert "iteration 1 " in text
+    assert f"Optimal after {result['iterations']} iterations" in text
+
+
+def test_every_layer_records_the_same_iterations(build: Path, tmp_path: Path):
+    """Without their times, the lines of the layers over one HiGHS build are the same on
+    C101_25 with a fleet row; across builds, the last line's LP and bound.
+
+    The package solves with the highspy wheel, the example's layers with the HiGHS built
+    with it: two builds can take other iterations to the same LP (see
+    test_every_layer_gives_the_same_run).
+    """
+    layers = ["package"]
+
+    if has_example():
+        layers.append("cpp-bindings")
+
+    if has_cpp_native(build):
+        layers.append("cpp-native")
+
+    times = {"elapsed_seconds", "relaxation_seconds", "pricing_seconds", "seconds"}
+
+    def without_times(value: Any) -> Any:
+        if isinstance(value, dict):
+            table = cast(dict[str, Any], value)
+            return {key: without_times(item) for key, item in table.items() if key not in times}
+
+        if isinstance(value, list):
+            return [without_times(item) for item in cast(list[Any], value)]
+
+        return pytest.approx(value, rel=1e-9) if isinstance(value, float) else value
+
+    lines: dict[str, list[dict[str, Any]]] = {}
+
+    for layer in layers:
+        master = ("--master", "highs") if layer == "cpp-native" else ()
+        run_layer(
+            layer,
+            build,
+            tmp_path / layer,
+            *("--instance", "C101_25", "--instance.vehicles", "25", *master),
+            *("--statistics.iterations", EVERY_GROUP),
+        )
+        lines[layer] = iteration_lines(tmp_path / layer)
+
+    # The example's layers solve with one HiGHS build: the same lines.
+    for layer in layers[2:]:
+        assert without_times(lines[layer]) == without_times(lines["cpp-bindings"]), layer
+
+    for layer in layers[1:]:
+        for name in ("objective", "lower_bound"):
+            last = lines["package"][-1][name]
+            assert lines[layer][-1][name] == pytest.approx(last, rel=1e-9), (layer, name)

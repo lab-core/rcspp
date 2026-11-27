@@ -260,6 +260,10 @@ def test_the_graph_options_are_flags():
             "master option TimeLimit is set by every solve, from the program's own flags: use "
             "--timeout",
         ),
+        (["--iterations", "times,labels"], "--iterations: 'labels' is not one of times"),
+        (["--iterations", "search"], "--iterations: search needs pricers"),
+        (["--iterations-file", "out.jsonl"], "--iterations-file comes with --iterations"),
+        (["--log-frequency", "-1"], "--log-frequency"),
     ],
 )
 def test_the_program_refuses_wrong_flags(program: Path, flags: list[str], message: str):

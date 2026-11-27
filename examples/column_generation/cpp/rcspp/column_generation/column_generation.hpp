@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "rcspp/column_generation/master_initialization.hpp"
@@ -74,6 +75,9 @@ struct ColumnGenerationParams {
         /// first one reached gives the status. They compare with the reduced-cost tolerance's
         /// margin.
         bool integer_objective = false;
+        /// @brief Log a line every this many iterations, the last one too, and one when the run
+        ///        ends, through the engine's logger at level INFO; 0 logs nothing.
+        size_t log_frequency = 0;
         /// @brief Called after every iteration; read-only.
         std::function<void(const IterationInfo&)> on_iteration;
         /// @brief Called after each proven convergence; may change a pricer and ask to continue.
@@ -140,7 +144,8 @@ class ColumnGeneration {
         ///
         /// @param master The master, with its rows, pricers and any starting columns.
         /// @param params Options.
-        /// @throws std::invalid_argument When a gap is negative or not a number.
+        /// @throws std::invalid_argument When a gap is negative or not a number, or the search
+        ///                               statistics are asked without the pricers'.
         explicit ColumnGeneration(MasterProblem& master, ColumnGenerationParams params = {});
 
         /// @brief Runs column generation until convergence or a limit, then has the master
@@ -170,6 +175,8 @@ class ColumnGeneration {
                 // What the pricers add to the LP value to give the Lagrangian bound (-infinity
                 // when unknown).
                 double bound_terms;
+                // What each pricer did, when the run collects it.
+                std::optional<std::vector<PricerIterationInfo>> pricers;
         };
 
         // The loop itself: solve, price, add columns, until convergence or a limit.
@@ -181,7 +188,8 @@ class ColumnGeneration {
 
         // Prices every pricer once and adds what they find.
         PricingRound price(std::span<const double> duals, const Timer& total_timer,
-                           double reduced_cost_tolerance, std::span<const double> paths_allowed);
+                           double reduced_cost_tolerance, std::span<const double> paths_allowed,
+                           bool wants_info);
 
         // How many paths each pricer's convexity row allows: its upper bound, infinity without a
         // row. Read once per run and after a restart, as a master solver may copy its model to
@@ -198,6 +206,9 @@ class ColumnGeneration {
         [[nodiscard]] ToleranceContext compute_tolerance_context() const;
 
         [[nodiscard]] std::vector<double> column_values() const;
+
+        // The ids and values of the columns the last LP solution uses.
+        [[nodiscard]] std::pair<std::vector<ColumnId>, std::vector<double>> nonzero_values() const;
 
         [[nodiscard]] bool uses_artificial_columns() const;
 

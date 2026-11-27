@@ -3,11 +3,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <limits>
+#include <optional>
 #include <span>
 #include <vector>
 
 #include "rcspp/algorithm/solution.hpp"
+#include "rcspp/algorithm/solve_result.hpp"
 
 namespace rcspp::column_generation {
 
@@ -27,6 +30,27 @@ struct PricingRequest {
         double reduced_cost_threshold = 0.0;
         /// @brief Wall-clock limit in seconds.
         double timeout_s = std::numeric_limits<double>::infinity();
+        /// @brief Whether the run reads @c PricingResult::search_details; a pricer may skip
+        ///        them otherwise.
+        bool search_details = false;
+};
+
+/// @brief What one stage of a pricing call did, in @c PricingResult::search_details.
+struct PricingStageInfo {
+        /// @brief The stage's position in the pricer's stages, from 0.
+        size_t stage = 0;
+        /// @brief How the stage's search ended.
+        AlgorithmStatus status = AlgorithmStatus::Complete;
+        /// @brief Columns the stage returned (below the threshold).
+        size_t new_columns = 0;
+        /// @brief Time of the stage's search, in seconds.
+        double seconds = 0.0;
+        /// @brief Labels the search extended (@c SolveResult::extended_labels); empty when the
+        ///        run does not collect it.
+        std::optional<size_t> extended_labels;
+        /// @brief A bidirectional search's half-way point and join; empty from another search,
+        ///        or when the run does not collect it.
+        std::optional<BidirectionalStats> bidirectional;
 };
 
 /// @brief What one pricing call returns.
@@ -43,6 +67,10 @@ struct PricingResult {
         ///        @c Optimal or @c Infeasible (no path at all), or a call answering
         ///        @c NotApplicable, proves that no improving column exists.
         bool exact_stage = false;
+        /// @brief The stages the call ran, in order, the last one the stage it ended with;
+        ///        filled when @c PricingRequest::search_details asks for it, and empty from a
+        ///        pricer without stages.
+        std::vector<PricingStageInfo> search_details;
 };
 
 /// @brief What changed in the pricing problem since the last call.

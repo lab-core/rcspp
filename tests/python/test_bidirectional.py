@@ -208,6 +208,27 @@ def test_a_forward_solve_has_no_bidirectional_diagnostics():
     assert result.bidirectional is None
 
 
+def test_the_result_counts_the_extended_labels():
+    """The labelling searches count their extensions in every direction; greedy does not
+    count and reports 0."""
+    windows = {node_id: (0.0, 1000.0) for node_id in range(5)}
+    arcs = [(1.0, 10.0, i, i + 1) for i in range(4)]
+
+    for direction in ("forward", "backward"):
+        result = _time_window_graph(windows, arcs).solve(algorithm="simple", direction=direction)
+        assert result.extended_labels > 0, direction
+
+    result = _time_window_graph(windows, arcs).solve(
+        direction="bidirectional",
+        params=_bidirectional_params(20.0, critical_resource_index=1),
+    )
+    assert result.extended_labels > 0
+
+    result = _time_window_graph(windows, arcs).solve(algorithm="greedy")
+    assert result.solutions
+    assert result.extended_labels == 0
+
+
 def test_half_way_point_reaches_the_algorithm():
     """Half-way points below and above the path's total clock all return the optimum."""
     windows = {node_id: (0.0, 1000.0) for node_id in range(5)}
