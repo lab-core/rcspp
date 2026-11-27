@@ -107,3 +107,4 @@ Departures from the plan above, and what the runs showed:
 - 2026-11-27: CI on #128 (the first full run above #114): macOS missed the `absolute_gap = 10` stop (`F-167`). The stack
   rebased onto `main` with fixes (`D-374`); #128 is now `723c34c2`, `4ac48ca9` and `5b03395c` (the quick file's gap
   stops on C101_25 with a fleet of 25: `absolute_gap = 60`, `relative_gap = 0.3`; the quick test 8 passed locally).
+- 2026-11-27: a second round of CI fixes (#97's end-sample test, #124's gap check); #128 is now `9617552a`.

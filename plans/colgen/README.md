@@ -388,7 +388,14 @@ these; pre-commit on each, #127's test and the quick file run locally on the old
 `run-ci` re-added on the 16 PRs (CI Full queued); GitHub's stack removed by the user (`F-166`). Plan branch on
 `5b03395c` (backup `backup/colgen-plan-before-main-rebase-3`). The other chat's local
 `feature/column-generation-debug-checks` (in `../rcspp-dev`) sits on the old #128 `0baf6bcd`: it needs `git rebase
---onto 5b03395c 0baf6bcd` (its own or the user's call, `D-373`). **Next:** read CI on the 16 PRs.
+--onto 5b03395c 0baf6bcd` (its own or the user's call, `D-373`).
+CI on the 16 PRs read 2026-11-27: #61-#99 green; Windows Debug and the layer tests fixed; left: #124's gap test
+(the check still at 5 %, my slip in `850b61be`) and #97's end-sample test, flaky on quiet runners (4 jobs in 100).
+Fixed on #97 `d1f60ceb` (a busy process during the runs), #124's commit amended `7539bbc6` (`gap = 0.3` in both
+places); #97-#128 rebased and pushed (8 branches; #128 `9617552a`), `run-ci` re-added, CI watched; locally package
+705, benchmark 557, the end-sample test 30 of 30. The first of these rebases also moved another chat's local
+`feature/column-generation-analysis` (it pointed into the range): restored at once to `5b03395c` from its reflog.
+Plan branch on `9617552a` (backup `backup/colgen-plan-before-ci-fixes`). **Next:** read CI on #97-#128.
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
 `feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues in
 `benchmark-results/colgen/presentation/benchmark/`. Review questions answered: masters per layer, checks
