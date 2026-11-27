@@ -13,8 +13,16 @@ from enum import Enum, auto
 import numpy as np
 
 from .convergence import ConvergenceAction, ConvergenceContext
+from .debug_checks import (
+    KeptColumns,
+    check_dual_signs,
+    check_master_reduced_costs,
+    check_objective,
+    check_pricer_reduced_costs,
+    keep_new_columns,
+)
 from .master_initialization import MasterInitialization
-from .master_problem import MasterProblem
+from .master_problem import ColumnTag, MasterProblem
 from .params import ColumnGenerationParams
 from .pricer import PricingRequest, PricingResult, PricingStatus
 from .registry import make_initialization, make_tolerances
@@ -182,6 +190,12 @@ class ColumnGeneration:
         self._context = ToleranceContext()
         self._initialized = False
 
+        # What the debug checks read: the master's columns, kept between runs; the rows' bounds
+        # and the cost of the user's own variables, read once per run (None until then).
+        self._kept_columns = KeptColumns()
+        self._row_bounds: tuple[FloatArray, FloatArray] | None = None
+        self._user_cost: float | None = None
+
     def run(self) -> ColumnGenerationResult:
         """Runs column generation until convergence or a limit, then has the master
         solver restore the user's model (:meth:`MasterSolver.restore_user_model`), also
@@ -191,6 +205,7 @@ class ColumnGeneration:
             ValueError: When the master solver gives a number of duals other than the rows.
             TypeError: When an LP solve of the master solver answers anything but a
                 :class:`SolverStatus`.
+            DebugCheckError: When a check of ``params.debug_checks`` fails.
         """
         try:
             return self._iterate()
@@ -230,8 +245,11 @@ class ColumnGeneration:
         start = time.perf_counter()
         relaxing = _Stopwatch(params.statistics.timers)
         pricing = _Stopwatch(params.statistics.timers)
+        checks = params.debug_checks
+        checks_solution = checks.dual_signs or checks.master_reduced_costs or checks.objective
 
         self._initialize()
+        self._row_bounds = self._user_cost = None
 
         # Never below the LP solver's own tolerance, or a column it leaves out would come back
         # forever.
@@ -285,6 +303,9 @@ class ColumnGeneration:
                     f"{duals.size}"
                 )
 
+            if checks_solution:
+                self._check_solution(iterations, objective, duals, reduced_cost_tolerance)
+
             # The LP solution, read before the new columns change the model.
             master_values = (
                 self._nonzero_values() if wants_info and statistics.master_values else None
@@ -297,7 +318,7 @@ class ColumnGeneration:
 
             with pricing.measure():
                 new_columns, proven, bound_terms, pricers = self._price(
-                    duals, start, reduced_cost_tolerance, paths_allowed, wants_info
+                    duals, start, reduced_cost_tolerance, paths_allowed, wants_info, iterations
                 )
 
             generated_columns += new_columns
@@ -362,6 +383,7 @@ class ColumnGeneration:
                 if params.on_converged(context) == ConvergenceAction.Continue:
                     lower_bound = -math.inf
                     paths_allowed = self._paths_allowed()
+                    self._row_bounds = self._user_cost = None
                     continue
 
             # An artificial column still in use means no real solution exists.
@@ -418,6 +440,7 @@ class ColumnGeneration:
         reduced_cost_tolerance: float,
         paths_allowed: list[float],
         wants_info: bool,
+        iteration: int,
     ) -> tuple[int, bool, float, tuple[PricerIterationInfo, ...] | None]:
         """Prices every pricer once and adds what they find: the number of columns added,
         whether pricing proved that no column improves, what the pricers add to the LP
@@ -431,6 +454,7 @@ class ColumnGeneration:
         """
         master = self._master
         statistics = self._params.statistics
+        check_columns = self._params.debug_checks.pricer_reduced_costs
         collect = wants_info and statistics.pricers
         pricers: list[PricerIterationInfo] = []
         new_columns = 0
@@ -461,6 +485,12 @@ class ColumnGeneration:
             nothing_to_price = priced.status == PricingStatus.NotApplicable
             proved = nothing_to_price or (priced.exact_stage and finished)
             proven = proven and proved
+
+            if check_columns:
+                check_pricer_reduced_costs(
+                    priced.columns, duals, reduced_cost_tolerance, iteration, index
+                )
+
             new_columns += len(priced.columns)
             master.add_columns(index, priced.columns)
 
@@ -485,6 +515,47 @@ class ColumnGeneration:
                 bound_terms += paths * best
 
         return new_columns, proven, bound_terms, tuple(pricers) if collect else None
+
+    def _check_solution(
+        self, iteration: int, objective: float, duals: FloatArray, tolerance: float
+    ) -> None:
+        """The debug checks of an LP solution: its duals' signs, the reduced costs of the
+        master's columns, its value."""
+        checks = self._params.debug_checks
+        master = self._master
+        solver = master.solver
+
+        # The rows' bounds, read again when rows were added.
+        if checks.dual_signs:
+            if self._row_bounds is None or self._row_bounds[0].size != duals.size:
+                lower, upper = solver.row_bounds()
+                self._row_bounds = (
+                    np.asarray(lower, dtype=np.float64),
+                    np.asarray(upper, dtype=np.float64),
+                )
+
+            check_dual_signs(duals, *self._row_bounds, tolerance, iteration)
+
+        if not (checks.master_reduced_costs or checks.objective):
+            return
+
+        keep_new_columns(self._kept_columns, master)
+        ids = np.arange(master.number_of_columns, dtype=np.uint64)
+        values = np.asarray(solver.primal(ids), dtype=np.float64)
+
+        if checks.master_reduced_costs:
+            feasibility = self._tolerances.feasibility(self._context)
+            check_master_reduced_costs(
+                self._kept_columns, duals, values, tolerance, feasibility, iteration
+            )
+
+        # The LP value is its columns' cost only when the user's own variables cost nothing.
+        if checks.objective:
+            if self._user_cost is None:
+                self._user_cost = solver.largest_user_cost()
+
+            if self._user_cost == 0.0:
+                check_objective(self._kept_columns, values, objective, tolerance, iteration)
 
     def _paths_allowed(self) -> list[float]:
         """How many paths each pricer's convexity row allows: its upper bound, ``inf``
@@ -544,7 +615,8 @@ class ColumnGeneration:
             scale = max(scale, entry.pricer.cost_scale())
 
         for column in master.columns:
-            scale = max(scale, abs(column.solution.column.cost))
+            if column.tag == ColumnTag.Real:
+                scale = max(scale, abs(column.solution.column.cost))
 
         # Starting columns the user built in their own model.
         scale = max(scale, master.solver.largest_user_cost())

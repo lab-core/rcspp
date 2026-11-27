@@ -331,7 +331,17 @@ def test_add_artificial_columns() -> None:
         layer.ColumnTag.Artificial,
     ]
     assert columns[1].pricer is None
-    assert columns[2].solution.column.rows == []
+
+    # Each keeps its column, without a path.
+    kept = [
+        (
+            column.solution.column.cost,
+            [(row.index, row.coefficient) for row in column.solution.column.rows],
+        )
+        for column in columns[1:]
+    ]
+    assert kept == [(5.0, [(0, 1.0)]), (5.0, [(1, -1.0)])]
+    assert columns[2].solution.path_arc_ids == []
     assert [(column.id, column.cost, column.entries) for column in solver.columns[1:]] == [
         (1, 5.0, [(0, 1.0)]),
         (2, 5.0, [(1, -1.0)]),
