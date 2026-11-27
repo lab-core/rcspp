@@ -227,7 +227,8 @@ struct AlgorithmBaseParams {
         ///
         /// Larger values reduce measurement overhead; smaller values react
         /// faster to memory spikes.  Must be > 0. Counted like max_iterations, within one phase:
-        /// a phase shorter than this never reads the memory.
+        /// a phase shorter than this never reads the memory. Diversification reads it after each
+        /// of its inner solves instead, whatever this interval.
         size_t memory_check_interval = kDefaultMemoryCheckInterval;
 
         /// @brief Pressure threshold as a fraction of the effective memory limit.

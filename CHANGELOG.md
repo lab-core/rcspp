@@ -26,6 +26,9 @@ New features are summarised, with a pointer to where they are documented.
     the graph, and never fewer than 1000, which a labelling search counts in labels taken, instead
     of 20 (dives, for Greedy). On the golden instances it returns what it did; where 20 dives ran
     out, the inner search now goes further, and a path longer than 1000 arcs is still found.
+  - An inner solve takes fewer labels than `memory_check_interval` on any graph under 2,500 nodes,
+    so it does not read the memory itself: `strategy::Diversification<>` reads it after each inner
+    solve, and stops at the limit (`MemoryLimit`). The old Greedy read it every 4096 steps.
 
   `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
   a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,

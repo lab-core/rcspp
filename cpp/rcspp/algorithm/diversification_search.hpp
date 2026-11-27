@@ -136,6 +136,13 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
                 // decrement tenures and restore arcs whose tenure expired
                 tabu_.age([&](size_t arc_id) { graph_copy_->restore_arc(arc_id); });
+
+                // An inner solve is far shorter than memory_check_interval, so its own loop never
+                // reads the memory: read it once per inner solve, and stop at the limit (the
+                // status then reads MemoryLimit).
+                if (this->memory_limit_.is_exceeded()) {
+                    break;
+                }
             }
 
             LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");

@@ -484,6 +484,20 @@ TEST(DiversificationSearchTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
+/// @brief DiversificationSearch reads the memory after each inner solve, whose own loop is too
+///        short to: past the limit, it stops after the first, with the first path and the
+///        MemoryLimit status (it went on to the second path before).
+TEST(DiversificationSearchTest, StopsAtTheMemoryLimitBetweenInnerSolves) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kDivIters;
+    params.max_memory_gb = 1e-9;  // always exceeded
+    const auto result = g->solve<strategy::Diversification<>>(params);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::MemoryLimit);
+}
+
 /// @brief DiversificationSearch: tabu_exempt_node_ids preserves arcs involving those nodes.
 TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
