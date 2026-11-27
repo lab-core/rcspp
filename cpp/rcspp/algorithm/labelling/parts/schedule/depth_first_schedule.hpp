@@ -87,22 +87,27 @@ class DepthFirstSchedule {
         /// @brief The labels waiting to be handed out.
         [[nodiscard]] size_t size() const { return stack_.size() + children_.size(); }
 
-        /// @brief Takes a newly kept label: a child of the label being extended, until
-        ///        @ref place_children.
+        /// @brief Takes a newly kept label and holds it apart, with the other children of the
+        ///        label being extended, until @ref place_children places them. (The start
+        ///        labels, pushed before any label is extended, are placed by the first
+        ///        @ref next.)
         void push(const StoredLabel<ResourceType>& stored) { children_.push_back(stored); }
 
-        /// @brief Places the children pushed since the last placing: erases from its node
-        ///        (through @p erase) and releases each child the filter drops, sorts the others by
-        ///        key (stable: their arcs' order breaks ties), and puts them on top of the stack,
-        ///        the lowest key to be handed out first.
+        /// @brief Places the children pushed since the last call. It drops those the filter
+        ///        rejects, sorts the others by key, and puts them on top of the stack, so that the
+        ///        lowest key is handed out first.
         ///
-        /// The search stored every child at its node before this runs, so a dropped child must
-        /// be erased there too, or a retention that stores labels would keep a released label. A
-        /// dropped child that a later sibling's admission has already evicted (dominated) is no
-        /// longer at its node, so it is released without being erased again. A dropped child was
-        /// admitted first, so labels it dominated at its node were evicted and stay evicted.
+        /// The sort is stable: children with equal keys stay in the order of their arcs.
         ///
-        /// @param erase Callable `(const LabelIterator&)` erasing a label from its node.
+        /// A dropped child is erased from its node (through @p erase), then released. It must
+        /// be erased because the search stored every child at its node before this call, and a
+        /// retention that stores labels would otherwise keep a released label. A dropped child
+        /// that a later sibling has already evicted (it is marked dominated) is no longer at its
+        /// node, so it is only released. The labels a dropped child evicted when it was admitted
+        /// stay evicted.
+        ///
+        /// @param context The search's context, which the filter and the key read.
+        /// @param erase   Callable `(const LabelIterator&)` erasing a label from its node.
         template <typename EraseCallable>
         void place_children(detail::SearchContext<ResourceType>& context,
                             const EraseCallable& erase) {
@@ -122,8 +127,8 @@ class DepthFirstSchedule {
             children_.clear();
         }
 
-        /// @brief Resets the per-node counts and hands out next what the quota stored aside, in
-        ///        the order it was cut.
+        /// @brief Starts the per-node counts again, and puts the labels stored aside on top of
+        ///        the stack, to be handed out next in the order they were stored aside.
         void prepare_next_phase(detail::SearchContext<ResourceType>& /*context*/) {
             taken_.restart();
             std::vector<StoredLabel<ResourceType>> restored;

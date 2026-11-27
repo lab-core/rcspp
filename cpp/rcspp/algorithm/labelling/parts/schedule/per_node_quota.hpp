@@ -21,9 +21,9 @@ namespace rcspp::parts {
 ///
 /// The schedules that hand out one label at a time (FIFO, best-first, depth-first) use this
 /// class. The node-by-node schedules apply the quota differently. @ref SweepSchedule cuts a
-/// node's queue to
-/// it each time it visits the node, so per visit rather than per phase, end nodes included.
-/// @ref PullSchedule cuts a node's new labels to it after each pull, except at an end node.
+/// node's queue to the quota each time it visits the node, so per visit rather than per phase,
+/// end nodes included. @ref PullSchedule cuts a node's new labels to the quota after each pull,
+/// except at an end node.
 class PerNodeQuota {
     public:
         /// @brief No label taken yet, at any of @p number_of_nodes nodes.

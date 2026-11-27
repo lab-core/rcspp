@@ -107,11 +107,14 @@ concept PullingSchedule =
         } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
     };
 
-/// @brief A schedule that places a label's children: once the step has extended a label along
-///        every arc, @c place_children(context, erase) orders the labels pushed since (the label's
-///        children) among the labels waiting, and erases (through @p erase) and releases those a
-///        child filter drops. A depth-first schedule places children; the others order each
-///        label as it is pushed.
+/// @brief A schedule that places a label's children all at once, after the label is extended.
+///
+/// Most schedules order each label as soon as it is pushed. A depth-first schedule cannot: it
+/// must compare a label's children with each other first. So once the step has extended a label
+/// along every arc, it calls @c place_children(context, erase). This orders the labels pushed
+/// since the last call (the label's children) among the waiting labels. It may also drop some
+/// children (a child filter): it erases each dropped child from its node through @p erase,
+/// unless the child was already evicted, and releases it.
 template <typename ScheduleType, typename ResourceType>
 concept PlacesChildren =
     requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {

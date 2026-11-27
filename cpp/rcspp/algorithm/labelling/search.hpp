@@ -249,7 +249,7 @@ struct Search {
             switch (verdict) {
                 case Verdict::Extend:
                     return;
-                case Verdict::Keep:  // at an end node, or past the half-way point: stays stored
+                case Verdict::Keep:  // stays stored, unless the retention keeps nothing behind
                     if constexpr (parts::releases_taken_labels_v<retention_type>) {
                         pool->release_with_ref_count(taken.label);
                     }
