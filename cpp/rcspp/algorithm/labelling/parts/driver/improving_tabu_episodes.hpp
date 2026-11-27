@@ -30,9 +30,20 @@ namespace rcspp::parts {
 /// episode's arcs, as in @ref TabuEpisodes, for one less.
 class ImprovingTabuEpisodes {
     public:
+        /// @brief A driver that reads @p params: the iteration budget, the tenure, its noise and
+        ///        seed, the exempt nodes, the tolerance, and how many episodes without an
+        ///        improvement grow the tenure.
+        ///
+        /// @param params The algorithm's params; must outlive the driver.
         explicit ImprovingTabuEpisodes(const AlgorithmBaseParams& params)
             : params_(&params), tabu_(params, ArcMask::State::Soft) {}
 
+        /// @brief Starts a solve: no arc tabu yet, no best cost, the search reading the tabu
+        ///        arcs' mask, and each run ending at its first path.
+        ///
+        /// @param search The driven search.
+        /// @return Whether to run: false when @c max_iterations is not finite (logged). With 0,
+        ///         the construction alone runs.
         template <typename SearchType>
         bool begin(SearchType& search) {
             tabu_detail::begin(tabu_, search);
@@ -47,6 +58,13 @@ class ImprovingTabuEpisodes {
             return true;
         }
 
+        /// @brief Ends the construction or an episode: records the best cost, makes the path's
+        ///        arcs tabu and adapts the tenure, or decides the solve is over; then reseeds the
+        ///        next episode.
+        ///
+        /// @param search         The driven search.
+        /// @param number_of_runs The runs so far, the construction included.
+        /// @return Whether to run another episode.
         template <typename SearchType>
         bool after_run(SearchType& search, size_t number_of_runs) {
             const RunEnd& run = search.last_run();

@@ -62,9 +62,18 @@ void add(detail::TabuArcs& tabu, SearchType& search, const std::vector<size_t>& 
 /// says which stop.
 class TabuEpisodes {
     public:
+        /// @brief A driver that reads @p params: the iteration budget, the tenure, its noise and
+        ///        seed, and the exempt nodes.
+        ///
+        /// @param params The algorithm's params; must outlive the driver.
         explicit TabuEpisodes(const AlgorithmBaseParams& params)
             : params_(&params), tabu_(params, ArcMask::State::Soft) {}
 
+        /// @brief Starts a solve: no arc tabu yet, the search reading the tabu arcs' mask, and
+        ///        each run ending at its first path.
+        ///
+        /// @param search The driven search.
+        /// @return Whether to run: false when @c max_iterations is 0, or not finite (logged).
         template <typename SearchType>
         bool begin(SearchType& search) {
             tabu_detail::begin(tabu_, search);
@@ -76,6 +85,12 @@ class TabuEpisodes {
             return params_->max_iterations > 0;
         }
 
+        /// @brief Ends an episode: makes its path's arcs tabu and adapts the tenure, or decides
+        ///        the solve is over; then ages the tenures and reseeds the next episode.
+        ///
+        /// @param search         The driven search.
+        /// @param number_of_runs The episodes run so far, this one included.
+        /// @return Whether to run another episode.
         template <typename SearchType>
         bool after_run(SearchType& search, size_t number_of_runs) {
             const RunEnd& run = search.last_run();

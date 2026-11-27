@@ -37,6 +37,10 @@ class Driven : public Base {
     public:
         using resource_type = typename Base::search_type::resource_type;
 
+        /// @brief The search, built as the base is, and its driver, built from the params.
+        ///
+        /// @param resource_factory The factory the search's labels are built with.
+        /// @param params           The algorithm's params, which the driver reads.
         template <typename ResourceFactoryType, typename ParamsType>
         Driven(ResourceFactoryType* resource_factory, ParamsType params)
             : Base(resource_factory, std::move(params)), driver_(this->params_) {

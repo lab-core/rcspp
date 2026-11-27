@@ -17,6 +17,9 @@ namespace rcspp::parts {
 ///        child is kept, so the dive can always go on (aspiration by default). The others keep
 ///        their order.
 struct TabuChildFilter {
+        /// @brief Moves the children reached along a soft arc of @c context.arc_mask from
+        ///        @p children to @p rejected, unless every child was; with no mask, or one with
+        ///        no arc masked, drops none.
         template <typename ResourceType>
         void select(std::vector<StoredLabel<ResourceType>>& children,
                     std::vector<StoredLabel<ResourceType>>& rejected,
