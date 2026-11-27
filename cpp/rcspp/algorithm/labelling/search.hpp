@@ -65,8 +65,9 @@ namespace rcspp::detail {
 //     point, and the join pairs their labels into paths (join).
 //   - Driven runs one search several times under a driver (parts::Driver: the tabu searches),
 //     changing it between runs; each run runs up to max_phases phases.
-//   - A heuristic (Greedy, BoundGuidedGreedy, the tabu searches) dives: it keeps no labels at
-//     the nodes (parts::KeepWhileWaiting) and goes depth first (parts::DepthFirstSchedule).
+//   - A heuristic (Greedy, BoundGuidedGreedy, the tabu searches) dives: it goes depth first
+//     (parts::DepthFirstSchedule) to reach an end node fast, keeps every feasible label
+//     (parts::AdmitAll), and stores no labels at the nodes (parts::KeepWhileWaiting).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -252,10 +253,10 @@ struct Search {
         ///        nothing for @c Keep, release for @c Release, erase then release for
         ///        @c EraseAndRelease.
         ///
-        /// Under a retention that stores nothing (@c parts::releases_taken_labels_v, a
-        /// heuristic's), a
-        /// @c Keep label is released too. It is an end-node label, and the step has already
-        /// recorded it (such a retention records at take).
+        /// Under a retention that keeps nothing behind (@c parts::releases_taken_labels_v, such
+        /// as @c parts::KeepWhileWaiting), a @c Keep label is released too. Such a label is at an
+        /// end node, and the step has already recorded it: such a retention records a path when
+        /// its label is taken (@c records_at_take).
         ///
         /// @param taken   The label and its position in its node's container.
         /// @param verdict What to do with it.

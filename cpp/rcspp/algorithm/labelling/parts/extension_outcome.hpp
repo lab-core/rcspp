@@ -15,9 +15,10 @@ enum class ExtensionOutcome : std::uint8_t {
     /// the admission rule rejected the extended label (dominated, or over the k-best limit),
     /// which was released
     Rejected,
-    /// the extended label was kept and handed on: extended in turn or, at an end node, read as a
-    /// path, when it is taken or once the search ends, as the retention says (a heuristic's child
-    /// filter may still drop it: @c parts::DepthFirstSchedule::place_children)
+    /// the extended label was kept: stored, and pushed to the schedule. Later it is extended in
+    /// turn or, at an end node, recorded as a path (when it is taken, or when the search ends,
+    /// as the retention says). A child filter may still drop it right after
+    /// (@c parts::DepthFirstSchedule::place_children).
     Accepted,
 };
 

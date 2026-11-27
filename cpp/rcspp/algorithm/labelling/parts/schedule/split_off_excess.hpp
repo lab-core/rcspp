@@ -9,15 +9,17 @@
 
 namespace rcspp::detail {
 
-/// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
-///        meaning non-dominated first, then cheaper first.
+/// @brief Cuts a queue of waiting labels down to its @p keep best entries, and returns the
+///        others. Non-dominated labels count as better than dominated ones, and cheaper labels
+///        as better than costlier ones.
 ///
-/// What happens to the entries cut is the caller's: a dominated one is usually released, a
-/// non-dominated one stored aside for the next phase, or abandoned on a bidirectional side.
+/// The caller decides what to do with the entries cut. Usually a dominated one is released,
+/// and a non-dominated one is stored aside for the next phase (or abandoned, on a
+/// bidirectional side).
 ///
 /// @tparam EntryType A queue entry (@c parts::StoredLabel): a label and its position in its
 ///                   node's container.
-/// @param queue The queue; sorted, best first, when anything is cut.
+/// @param queue The queue. If any entry is cut, it is left sorted, best first.
 /// @param keep  How many entries stay.
 /// @return The entries cut, best first; empty when @p queue held at most @p keep.
 template <typename EntryType>
