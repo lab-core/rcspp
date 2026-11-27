@@ -1,12 +1,14 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""Benchmark folders written by hand, for the tests of the summary and of the
-comparison:
+"""Benchmark folders written by hand, for the tests of the summary, the comparison and
+the analysis:
 
-a run's options, a result, a round's ``metadata.json``, and the folders that hold them.
+a run's options, a result, a round's ``metadata.json``, its ``iterations.jsonl``, and the
+folders that hold them.
 """
 
 import csv
+import json
 from pathlib import Path
 from typing import Any
 
@@ -146,6 +148,28 @@ def write_rounds(
     for number, found in enumerate(results, start=1):
         folder = round_folder(path, name, number)
         write_round(folder, found, metadata(master=master), run_options)
+
+
+def iteration_line(iteration: int, **changes: Any) -> dict[str, Any]:
+    """A line of ``iterations.jsonl`` with its fields that are always there, and
+    `changes`."""
+    found: dict[str, Any] = {
+        "iteration": iteration,
+        "objective": 1000.0 / iteration,
+        "lower_bound": None,
+        "new_columns": 10,
+        "total_columns": 25 + 10 * iteration,
+        "elapsed_seconds": 0.1 * iteration,
+    }
+    found.update(changes)
+    return found
+
+
+def write_iterations(folder: Path, lines: list[dict[str, Any]], tail: str = "") -> None:
+    """A round's ``iterations.jsonl``, one line per iteration, then `tail` as it is (a
+    line cut off, say)."""
+    text = "".join(json.dumps(line) + "\n" for line in lines) + tail
+    (folder / run_folder.ITERATIONS_FILE).write_text(text, encoding="utf-8")
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
