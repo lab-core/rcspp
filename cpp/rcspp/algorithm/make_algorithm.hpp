@@ -118,7 +118,8 @@ using interleave_of_t = typename decltype(interleave_of<Strategy>())::type;
 /// @brief Whether @p Strategy names a driver (`using driver = ...`), which runs its search several
 ///        times in one solve.
 template <typename Strategy>
-concept DrivenStrategy = requires { typename Strategy::driver; };  // NOLINT(whitespace/newline)
+// NOLINTNEXTLINE(whitespace/newline): cpplint reads a one-line requires as two commands
+concept DrivenStrategy = requires { typename Strategy::driver; };
 
 /// @brief The single-direction search @p Strategy builds in @p Direction: a
 ///        @ref LabellingAlgorithm, run by its driver when it names one (@ref Driven).
