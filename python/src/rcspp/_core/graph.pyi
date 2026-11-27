@@ -98,7 +98,7 @@ class Arc:
 
 class Algorithm:
     """
-    The algorithm ResourceGraph.solve runs; solve also takes its name in snake_case. The exact labelling algorithms, in every direction: Simple (labels taken first in, first out), Pushing (node by node, in sweep order), Pulling (node by node, each pulling from its neighbours) and AStar (lowest cost plus a lower bound on the cost still to pay first). The heuristics, which search forward or backward: Greedy (depth first, cheapest child first), BoundGuidedGreedy (Greedy's dive with the children taken by cost plus that lower bound; meant with prune_by_threshold) and Tabu (Greedy's dive in episodes, the arcs of each path tabu for the next episodes; max_iterations counts episodes and must be finite). A heuristic with no max_iterations tries every path.
+    The algorithm ResourceGraph.solve runs; solve also accepts its name in snake_case. Simple, Pushing, Pulling and AStar are the exact labelling algorithms, and search in every direction. Simple takes labels first in, first out. Pushing goes node by node, in sweep order. Pulling visits node by node, pulling labels from the neighbours. AStar takes first the label with the lowest cost plus a lower bound on the cost still to pay. Greedy, BoundGuidedGreedy and Tabu are heuristics, which search forward or backward. Greedy dives depth first, cheapest child first; with no max_iterations, it tries every path. BoundGuidedGreedy is Greedy's dive with the children taken by cost plus that lower bound; use it with prune_by_threshold. Tabu repeats Greedy's dive in episodes, each stopping at its first path, whose arcs are then tabu for the next episodes. Its max_iterations counts episodes and must be set: with no limit, Tabu runs nothing.
 
     Members:
 
@@ -481,7 +481,7 @@ class AlgorithmParams:
     @property
     def prune_by_threshold(self) -> bool:
         """
-        Whether a search drops a label whose cost plus a lower bound on the cost still to pay from its node is at or above the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Read by every algorithm (simple, pushing, pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; bound_guided_greedy is meant to be used with it. With no upper_bound, only labels that can reach no end node are dropped. Needs an additive cost: every resource the cost reads uses TrivialCostFunction, or ValueCostFunction under an addition (AdditionExtensionFunction), and each arc must add its share whatever the label, which the solve tests; another raises ValueError when solve() starts.
+        Whether a search drops a label that cannot lead to a path cheaper than the solve's upper_bound (default False). A label is dropped when its cost plus a lower bound on the cost still to pay from its node is at or above upper_bound. The paths returned are the same; fewer labels are extended. With no upper_bound, only labels that cannot reach an end node are dropped. Every algorithm reads it (simple, pushing, pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; bound_guided_greedy is meant to be used with it. The cost must be additive: every resource the cost reads uses TrivialCostFunction, or ValueCostFunction under an AdditionExtensionFunction with no min_value. Each arc must also add its share whatever the label, which the solve tests. If either fails, solve() raises ValueError when it starts.
         """
 
     @prune_by_threshold.setter

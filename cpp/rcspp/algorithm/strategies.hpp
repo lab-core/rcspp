@@ -87,15 +87,16 @@ struct Pulling {
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
 
-/// @brief A greedy dive: depth first, the cheapest child first. Every feasible label is kept,
-///        with no dominance test (@c parts::AdmitAll), but only while it waits to be taken:
-///        nothing stays at the nodes behind the dive (@c parts::KeepWhileWaiting). At a dead end
-///        the dive goes back to the last label still waiting. Each path to an end node is
-///        recorded when its label is taken. Forward, from the sources, or backward, from the
-///        sinks; not bidirectionally.
+/// @brief A greedy dive: a depth-first search that takes the cheapest child first. It searches
+///        forward from the sources or backward from the sinks, not bidirectionally.
+///
+/// Every feasible label is kept, with no dominance test (@c parts::AdmitAll), but only while it
+/// waits to be taken: no label stays at the nodes behind the dive (@c parts::KeepWhileWaiting).
+/// At a dead end, the dive goes back to the last label still waiting. A path is recorded when
+/// its label at an end node is taken.
 ///
 /// @c max_iterations counts the labels taken. With no limit (the default), Greedy tries every
-/// path, and so finds the optimum, with work that grows with the number of paths.
+/// path, so it finds the optimum, but its work grows with the number of paths.
 struct Greedy {
         template <typename ResourceType, typename Direction>
         using schedule = parts::DepthFirstSchedule<ResourceType>;
@@ -106,12 +107,13 @@ struct Greedy {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Greedy's dive with each label's children taken by cost plus completion bound (g + h,
-///        A*'s key; @c parts::CostPlusBoundKey), lowest first, so each step heads toward the
-///        cheapest completion. A heuristic: no dominance, and a path found is not a proof unless
-///        the dive runs out of paths. Meant with @c prune_by_threshold, which drops, under the
-///        same bound, the labels that cannot beat the upper bound. Forward or backward; not
-///        bidirectionally.
+/// @brief Greedy's dive, but each label's children are taken by cost plus completion bound
+///        (g + h, A*'s key; @c parts::CostPlusBoundKey), lowest first, so that the dive heads
+///        toward the cheapest completion. Forward or backward, not bidirectionally.
+///
+/// Like Greedy, it is a heuristic: it has no dominance test, and its result is a proof only if
+/// the dive runs out of paths. It is meant to be used with @c prune_by_threshold, which uses the
+/// same bound to drop the labels that cannot beat the upper bound.
 ///
 /// @c max_iterations counts the labels taken, as in Greedy. The completion bound is A*'s (see
 /// AStar), computed at the start of each solve.
@@ -125,14 +127,17 @@ struct BoundGuidedGreedy {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
-///        the next @c tabu_tenure − 1 episodes, plus an adaptive extra that grows after an episode
-///        that found nothing new and shrinks after one that did (@c parts::TabuEpisodes): a child
-///        reached along a tabu arc is dropped unless every child is (@c parts::TabuChildFilter).
-///        Forward or backward; a driven strategy never searches bidirectionally.
+/// @brief A tabu search: Greedy's dive, run in episodes. Each episode stops at the first path it
+///        finds, and the arcs of that path are then tabu for the next episodes, so that the
+///        next dives look elsewhere. Forward or backward, never bidirectionally.
 ///
-/// @c max_iterations counts episodes, and must be finite: with no limit the solve logs an error
-/// and runs no episode; 0 runs no episode either (the solve returns nothing).
+/// An arc stays tabu for @c tabu_tenure − 1 episodes, plus an adaptive extra that grows after
+/// an episode that found nothing new and shrinks after one that found a new path
+/// (@c parts::TabuEpisodes). The dive drops a child reached along a tabu arc, unless every child
+/// is (@c parts::TabuChildFilter).
+///
+/// @c max_iterations counts episodes, and must be finite. With no limit, the solve logs an error
+/// and runs no episode. With 0, it runs no episode either, and returns nothing.
 struct Tabu {
         template <typename ResourceType, typename Direction>
         using schedule =
@@ -144,15 +149,18 @@ struct Tabu {
         using driver = parts::TabuEpisodes;
 };
 
-/// @brief Tabu's episodes after a first dive with no arc tabu, the construction
-///        (@c parts::ImprovingTabuEpisodes). Each @c non_improving_episodes_before_growth
-///        episodes in a row that find no path strictly cheaper than the best so far lengthen the
-///        tabu tenure; an episode that does find one shortens it. Each episode still ends at its
-///        first path, whatever it costs. Forward or backward.
+/// @brief Tabu's episodes after a first dive with no arc tabu (the construction), with a tenure
+///        that adapts to whether the episodes improve on the best path
+///        (@c parts::ImprovingTabuEpisodes). Forward or backward.
 ///
-/// @c max_iterations counts the episodes after the construction, and must be finite (otherwise
-/// the solve logs an error and runs nothing); 0 runs the construction alone, and returns its
-/// path.
+/// An episode improves when it finds a path strictly cheaper than the best so far; the tabu
+/// tenure then shortens. After @c non_improving_episodes_before_growth episodes in a row that
+/// do not improve, the tenure grows. Each episode still stops at its first path, whatever it
+/// costs.
+///
+/// @c max_iterations counts the episodes after the construction, and must be finite: with no
+/// limit, the solve logs an error and runs nothing. With 0, only the construction runs, and its
+/// path is returned.
 struct ImprovingTabu {
         template <typename ResourceType, typename Direction>
         using schedule =

@@ -567,9 +567,9 @@ class ResourceGraph:
                 ``SearchDirection``). The exact labelling algorithms (``'simple'``,
                 ``'pushing'``, ``'pulling'``, ``'astar'``) search in each; the heuristics
                 (``'greedy'``, ``'bound_guided_greedy'``, ``'tabu'``) search forward or
-                backward, and raise
-                ``ValueError`` for ``'bidirectional'``. A bidirectional search goes forward from the
-                sources and backward from the sinks, and joins the two halves in
+                backward, and raise ``ValueError`` for ``'bidirectional'``. A bidirectional
+                search goes forward from the sources and backward from the sinks, and joins the
+                two halves in
                 the middle: set ``params.critical_resource_index`` (the clock)
                 and ``params.half_way_point`` (where the halves meet; with 0, the
                 default, the solve is correct but slower than a forward one), and
