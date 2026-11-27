@@ -1,257 +1,293 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
+"""The Python VRP example (examples/python): its instance reader, its pricing graph, its
+column generation over each master and its command line."""
 
-# flake8: noqa
-
-import math
+import importlib.util
 import os
 import random
 import sys
+from pathlib import Path
 
-_here = os.path.dirname(os.path.abspath(__file__))
-# rcspp package lives under python/src/; the vrp example package under examples/python/.
-sys.path.insert(0, os.path.join(_here, "..", "..", "python", "src"))
-sys.path.insert(0, os.path.join(_here, "..", "..", "examples", "python"))
-sys.path.insert(0, _here)
+import pytest
 
-from vrp.instance import Customer, Instance
-from vrp.vrp import VRP
+_HERE = os.path.dirname(os.path.abspath(__file__))
+# rcspp from the source tree; the example's vrp package and script from examples/python.
+sys.path.insert(0, os.path.join(_HERE, "..", "..", "python", "src"))
+sys.path.insert(0, os.path.join(_HERE, "..", "..", "examples", "python"))
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+import solve_vrp  # noqa: E402
+from vrp.column_generation import (  # noqa: E402
+    column_generation,
+    integer_routes,
+    master_solver,
+    starting_routes,
+)
+from vrp.graph import pricing_graph, sink  # noqa: E402
+from vrp.instance import Customer, Instance, find_instance, read_solomon  # noqa: E402
 
-INSTANCES_DIR = os.path.join(os.path.dirname(__file__), "../../instances")
+from rcspp._core.graph import Solution  # noqa: E402
+from rcspp.column_generation import (  # noqa: E402
+    ColumnGenerationStatus,
+    IterationInfo,
+    SolverStatus,
+)
 
 
-def make_tiny_instance() -> Instance:
-    """3-customer depot-rooted instance built entirely in memory.
+def has_gurobi_license() -> bool:
+    """Whether gurobipy is installed and Gurobi can build a model on this machine."""
+    if importlib.util.find_spec("gurobipy") is None:
+        return False
 
-    Layout (depot at 0,0):     depot (0): (0, 0)  demand=0   tw=[0, 1000]  service=0
-    cust  (1): (1, 0)  demand=10  tw=[0,  500]  service=10     cust  (2): (0, 1)
-    demand=10  tw=[0,  500]  service=10     cust  (3): (1, 1)  demand=10  tw=[0,  500]
-    service=10 Capacity = 50  (all customers fit in one vehicle).
-    """
-    inst = Instance(nb_vehicles=3, capacity=50, name="tiny")
-    inst.add_customer(
-        0, 0.0, 0.0, demand=0, ready_time=0, due_time=1000, service_time=0, depot=True
+    import gurobipy
+
+    try:
+        gurobipy.Model().dispose()
+    except gurobipy.GurobiError:
+        return False
+
+    return True
+
+
+MASTERS = [
+    pytest.param(
+        "highspy",
+        marks=pytest.mark.skipif(
+            importlib.util.find_spec("highspy") is None, reason="highspy not installed"
+        ),
+    ),
+    pytest.param(
+        "gurobipy", marks=pytest.mark.skipif(not has_gurobi_license(), reason="no Gurobi licence")
+    ),
+]
+
+
+def customer(
+    number: int, x: float, y: float, due_time: float = 500.0, demand: float = 10.0
+) -> Customer:
+    return Customer(number, x, y, demand, 0.0, due_time, 10.0)
+
+
+def tiny_instance(capacity: float = 50.0) -> Instance:
+    """The depot at (0, 0) and three customers around it, all in one vehicle's
+    capacity."""
+    depot = Customer(0, 0.0, 0.0, 0.0, 0.0, 1000.0, 0.0)
+    return Instance(
+        "tiny",
+        3,
+        capacity,
+        [depot, customer(1, 1.0, 0.0), customer(2, 0.0, 1.0), customer(3, 1.0, 1.0)],
     )
-    inst.add_customer(
-        1, 1.0, 0.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
-    )
-    inst.add_customer(
-        2, 0.0, 1.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
-    )
-    inst.add_customer(
-        3, 1.0, 1.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
-    )
-    return inst
 
 
-def _sink_id(vrp_instance: Instance) -> int:
-    return len(vrp_instance.get_customers_by_id())
+def customers_of(route: Solution, instance: Instance) -> list[int]:
+    return [node for node in route.path_node_ids if node not in (0, sink(instance))]
 
 
-# ── Test 1: graph construction does not raise ─────────────────────────────────
+# MARK: Instance
 
 
-def test_graph_construction():
-    """VRP object can be created from a tiny in-memory instance."""
-    inst = make_tiny_instance()
-    vrp = VRP(inst)
-    rg = vrp._VRP__resource_graph  # name-mangled attribute
-    # 4 customers + 1 artificial sink = 5 nodes
-    assert rg.number_of_nodes() == 5, f"Expected 5 nodes, got {rg.number_of_nodes()}"
-    # No arc should point back to the source (depot, id=0)
-    sink = _sink_id(inst)
-    for arc_id in rg.arc_ids():
-        arc = rg.get_arc(arc_id)
-        assert (
-            arc.destination().id != 0
-        ), f"Arc {arc_id} points to the depot source (node 0), which is forbidden"
+def test_read_solomon() -> None:
+    instance = read_solomon(find_instance("C101_25"))
+
+    assert instance.name == "C101_25"
+    assert instance.vehicles == 25
+    assert instance.capacity == 200
+    assert len(instance.customers) == 26
+    assert instance.depot == Customer(0, 40.0, 50.0, 0.0, 0.0, 1236.0, 0.0)
+    assert instance.customers[1] == Customer(1, 45.0, 68.0, 10.0, 912.0, 967.0, 90.0)
 
 
-# ── Test 2: subproblem solves and returns feasible routes ─────────────────────
+def test_find_instance_by_name_or_path() -> None:
+    found = find_instance("C101_5")
+
+    assert found.name == "C101_5.txt"
+    assert find_instance("C101_5.txt") == found
+    assert find_instance(str(found)) == found
+
+    with pytest.raises(FileNotFoundError):
+        find_instance("no_such_instance")
 
 
-def test_subproblem_zero_duals():
-    """Subproblem with zero duals finds at least one feasible route."""
-    inst = make_tiny_instance()
-    vrp = VRP(inst)
-    sols = vrp.solve_subproblem()
+def test_read_solomon_refuses_a_file_without_customers(tmp_path: Path) -> None:
+    path = tmp_path / "empty.txt"
+    path.write_text("EMPTY\n\nVEHICLE\nNUMBER CAPACITY\n 3 50\n")
 
-    assert len(sols) >= 1, "Expected at least one solution from the subproblem"
-    sink = _sink_id(inst)
-    depot_id = inst.get_depot_customer().id
-
-    for s in sols:
-        path = s.path_node_ids
-        assert path[0] == depot_id, f"Path must start at depot, got {path}"
-        assert path[-1] == sink, f"Path must end at sink ({sink}), got {path}"
-        assert s.cost >= 0.0, f"Cost must be non-negative, got {s.cost}"
+    with pytest.raises(ValueError):
+        read_solomon(path)
 
 
-# ── Test 3: subproblem with positive duals lowers reduced costs ───────────────
+# MARK: Graph
 
 
-def test_subproblem_with_duals():
-    """Reduced costs decrease when positive dual values are applied."""
-    inst = make_tiny_instance()
-    vrp = VRP(inst)
+def test_graph_shape() -> None:
+    instance = tiny_instance()
+    graph = pricing_graph(instance)
 
-    sols_zero = vrp.solve_subproblem()
-    assert sols_zero, "No solution with zero duals"
-    cost_zero = sols_zero[0].cost
+    # The depot, three customers and the sink; the depot to each customer, each customer to the
+    # two others and to the sink (add_arc refuses an arc into the source or out of the sink).
+    assert graph.number_of_nodes() == 5
+    assert graph.number_of_arcs() == 3 + 3 * 3
 
-    # Give every demand customer a dual of 1.0 → reduced costs drop by 1 per
-    # customer visited.
+
+def test_subproblem_with_zero_duals() -> None:
+    instance = tiny_instance()
+    result = pricing_graph(instance).solve()
+
+    assert len(result) >= 1
+
+    for route in result.solutions:
+        assert route.path_node_ids[0] == 0
+        assert route.path_node_ids[-1] == sink(instance)
+        assert route.cost >= 0.0
+
+
+def test_duals_lower_the_reduced_costs() -> None:
+    instance = tiny_instance()
+    graph = pricing_graph(instance)
+    best = graph.solve().solutions[0].cost
+
+    # One dual per master row, row i - 1 for customer i.
     random.seed(25)
-    duals = {cid: random.uniform(1, 100) for cid in inst.get_demand_customers_id()}
-    sols_dual = vrp.solve_subproblem(duals)
-    assert sols_dual, "No solution with dual values"
-    cost_dual = sols_dual[0].cost
+    graph.update_reduced_costs({row: random.uniform(1, 100) for row in range(3)})
 
-    assert (
-        cost_dual <= cost_zero - 1e-9
-    ), f"Positive duals should reduce the best cost: {cost_dual} > {cost_zero}"
+    assert graph.solve().solutions[0].cost <= best - 1e-9
 
 
-# ── Test 4: time-window feasibility ──────────────────────────────────────────
+def test_time_windows() -> None:
+    """A customer that cannot be reached before its due time is on no route."""
+    depot = Customer(0, 0.0, 0.0, 0.0, 0.0, 1000.0, 0.0)
+    late = customer(2, 5.0, 0.0, due_time=0.0)
+    instance = Instance("windows", 1, 100.0, [depot, customer(1, 1.0, 0.0), late])
+
+    for route in pricing_graph(instance).solve().solutions:
+        assert 2 not in route.path_node_ids
 
 
-def test_time_window_infeasibility():
-    """A customer with a tight time window that cannot be reached is excluded."""
-    inst = Instance(nb_vehicles=1, capacity=100, name="tw_test")
-    # Depot at (0,0); time horizon [0, 1000]
-    inst.add_customer(
-        0, 0.0, 0.0, demand=0, ready_time=0, due_time=1000, service_time=0, depot=True
+def test_capacity() -> None:
+    """With room for one customer, no route visits two."""
+    instance = tiny_instance(capacity=15.0)
+    routes = pricing_graph(instance).solve().solutions
+
+    assert routes
+
+    for route in routes:
+        assert len(customers_of(route, instance)) <= 1
+
+
+def test_subproblem_on_c101_5() -> None:
+    instance = read_solomon(find_instance("C101_5"))
+    routes = pricing_graph(instance).solve().solutions
+
+    assert routes
+
+    for route in routes:
+        assert route.path_node_ids[0] == 0
+        assert route.path_node_ids[-1] == sink(instance)
+
+
+# MARK: Column generation
+
+
+def test_starting_routes_cover_one_customer_each() -> None:
+    instance = tiny_instance()
+    routes = starting_routes(instance)
+
+    assert [list(route.path_node_ids) for route in routes] == [[0, 1, 4], [0, 2, 4], [0, 3, 4]]
+    assert [[row.index for row in route.column.rows] for route in routes] == [[0], [1], [2]]
+    assert routes[0].column.cost == pytest.approx(2.0)
+
+
+def test_unknown_master() -> None:
+    with pytest.raises(ValueError, match="unknown master"):
+        master_solver("cplex", 3)
+
+
+@pytest.mark.parametrize("master", MASTERS)
+def test_column_generation_on_the_tiny_instance(master: str) -> None:
+    instance = tiny_instance()
+    problem, loop = column_generation(instance, pricing_graph(instance), master)
+    result = loop.run()
+
+    assert result.status == ColumnGenerationStatus.Optimal
+
+    status, routes = integer_routes(loop, problem)
+
+    assert status == SolverStatus.Optimal
+    assert sorted(customer for route in routes for customer in route.customers) == [1, 2, 3]
+    assert problem.solver.objective() == pytest.approx(sum(route.distance for route in routes))
+
+
+@pytest.mark.parametrize("master", MASTERS)
+def test_column_generation_on_c101_25(master: str) -> None:
+    instance = read_solomon(find_instance("C101_25"))
+    iterations: list[IterationInfo] = []
+    problem, loop = column_generation(
+        instance, pricing_graph(instance), master, on_iteration=iterations.append
     )
-    # Customer reachable in time
-    inst.add_customer(
-        1, 1.0, 0.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
-    )
-    # Customer with due_time=0 → must arrive at time 0 but travel takes >0
-    inst.add_customer(
-        2, 5.0, 0.0, demand=10, ready_time=0, due_time=0, service_time=10, depot=False
-    )
+    result = loop.run()
 
-    vrp = VRP(inst)
-    sols = vrp.solve_subproblem()
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == pytest.approx(191.8136197786562, rel=1e-6)
+    assert len(iterations) == result.iterations
 
-    # No solution may visit customer 2 (due_time=0 makes it unreachable)
-    for s in sols:
-        assert (
-            2 not in s.path_node_ids
-        ), f"Customer 2 has due_time=0 and should be infeasible, but appears in {s.path_node_ids}"
+    # Every customer on exactly one route of the integer plan.
+    status, routes = integer_routes(loop, problem)
 
-
-# ── Test 5: capacity feasibility ─────────────────────────────────────────────
-
-
-def test_capacity_feasibility():
-    """Paths exceeding vehicle capacity are pruned."""
-    inst = Instance(nb_vehicles=1, capacity=15, name="cap_test")
-    inst.add_customer(
-        0, 0.0, 0.0, demand=0, ready_time=0, due_time=1000, service_time=0, depot=True
-    )
-    # Each customer has demand 10; capacity=15 → at most 1 customer per route.
-    inst.add_customer(
-        1, 1.0, 0.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
-    )
-    inst.add_customer(
-        2, 2.0, 0.0, demand=10, ready_time=0, due_time=500, service_time=10, depot=False
+    assert status == SolverStatus.Optimal
+    assert sorted(customer for route in routes for customer in route.customers) == list(
+        range(1, 26)
     )
 
-    vrp = VRP(inst)
-    sols = vrp.solve_subproblem()
 
-    assert sols, "Expected at least one solution"
-    for s in sols:
-        demand_nodes = [n for n in s.path_node_ids if n not in (0, _sink_id(inst))]
-        assert (
-            len(demand_nodes) <= 1
-        ), f"Capacity=15 allows only 1 customer per route, but path visits {demand_nodes}"
+def test_max_solutions_caps_each_pricing_call() -> None:
+    pytest.importorskip("highspy")
+    instance = read_solomon(find_instance("C101_25"))
+    new_columns: list[int] = []
+    _, loop = column_generation(
+        instance,
+        pricing_graph(instance),
+        "highspy",
+        max_solutions=5,
+        on_iteration=lambda info: new_columns.append(info.new_columns),
+    )
+    result = loop.run()
 
-
-# ── Test 6: file-based instance (C101_5) ─────────────────────────────────────
-
-
-def test_c101_5_subproblem():
-    """Subproblem on the C101_5 benchmark instance returns valid solutions."""
-    instance_path = os.path.join(INSTANCES_DIR, "C101_5.txt")
-    if not os.path.exists(instance_path):
-        print(f"  [skip] {instance_path} not found")
-        return
-
-    from vrp.instance_reader import InstanceReader
-
-    inst = InstanceReader(instance_path).read()
-    vrp = VRP(inst)
-
-    sols = vrp.solve_subproblem()
-    assert sols, "Expected at least one solution for C101_5"
-
-    sink = _sink_id(inst)
-    depot_id = inst.get_depot_customer().id
-    for s in sols:
-        path = s.path_node_ids
-        assert path[0] == depot_id, f"Path must start at depot"
-        assert path[-1] == sink, f"Path must end at sink"
-        assert s.cost >= 0.0
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == pytest.approx(191.8136197786562, rel=1e-6)
+    assert max(new_columns) <= 5
 
 
-# ── Test 7: column generation (requires mip) ──────────────────────────────────
+# MARK: Command line
 
 
-def test_cg_tiny():
-    """Full column generation on the tiny instance converges and covers all
-    customers."""
-    import pytest
+def test_command_line_subproblem_only(capsys: pytest.CaptureFixture[str]) -> None:
+    solve_vrp.main(["C101_5", "--subproblem-only"])
+    output = capsys.readouterr().out
 
-    # On Windows, mip auto-detects Gurobi via a registry path that may be None.
-    # LoadLibrary(None) / NoneType-iteration errors then surface in __del__
-    # (teardown) rather than at import time, so we must skip before importing
-    # mip at all.
-    if sys.platform == "win32":
-        pytest.skip("mip/Gurobi not available on Windows CI runners")
-
-    try:
-        import mip  # noqa: F401
-    except Exception:
-        pytest.skip("mip not available on this platform")
-
-    inst = make_tiny_instance()
-    vrp = VRP(inst)
-    try:
-        mp_sol = vrp.solve()
-    except Exception as exc:
-        pytest.skip(f"MIP solver unavailable: {exc}")
-
-    assert mp_sol.cost > 0, f"IP cost must be positive, got {mp_sol.cost}"
-
-    demand_ids = set(inst.get_demand_customers_id())
-    paths_by_id = {p.id: p for p in vrp._VRP__paths}
-    covered = set()
-    for pid, val in mp_sol.value_by_var_id.items():
-        if val > 0.5:
-            covered.update(nid for nid in paths_by_id[pid].visited_nodes if nid in demand_ids)
-    assert covered == demand_ids, f"Uncovered customers: {demand_ids - covered}"
+    assert "C101_5: 5 customers" in output
+    assert "Routes found: " in output
 
 
-# ── Run all tests ─────────────────────────────────────────────────────────────
+def test_command_line_full_run(capsys: pytest.CaptureFixture[str]) -> None:
+    pytest.importorskip("highspy")
+    solve_vrp.main(["C101_25", "--master", "highspy"])
+    output = capsys.readouterr().out
 
-if __name__ == "__main__":
-    tests = [
-        ("graph construction", test_graph_construction),
-        ("subproblem with zero duals", test_subproblem_zero_duals),
-        ("subproblem with positive duals", test_subproblem_with_duals),
-        ("time-window infeasibility", test_time_window_infeasibility),
-        ("capacity feasibility", test_capacity_feasibility),
-        ("C101_5 benchmark instance", test_c101_5_subproblem),
-        ("column generation (tiny)", test_cg_tiny),
-    ]
+    assert "iteration    1" in output
+    assert "Optimal: LP 191.8136" in output
+    assert "Integer solve: Optimal" in output
 
-    for name, fn in tests:
-        print(f"Test: {name} ... ", end="", flush=True)
-        fn()
-        print("PASSED")
 
-    print(f"\nAll {len(tests)} VRP tests passed.")
+def test_command_line_without_integer_solve(capsys: pytest.CaptureFixture[str]) -> None:
+    pytest.importorskip("highspy")
+    solve_vrp.main(["C101_5", "--master", "highspy", "--no-integer"])
+
+    assert "Integer solve" not in capsys.readouterr().out
+
+
+def test_command_line_needs_a_master(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        solve_vrp.main(["C101_5"])
+
+    assert "--master is required" in capsys.readouterr().err
