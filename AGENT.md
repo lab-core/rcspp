@@ -443,11 +443,13 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 5. **`strategy::Diversification` requires `max_iterations`** — without a finite
    limit the outer loop never terminates.
 
-6. **Label containers** — `LabelList` (default) is O(N) per dominance check.
-   Use `LabelBuckets` + `BucketAlgorithmParams` for problems with many labels
-   per node (e.g. > 100 non-dominated labels). `CostOrderedLabelList` keeps
-   the labels in cost order and, when the composition dominance function
-   declares `cost_order_tolerance()`, skips the tests the costs rule out.
+6. **Label containers** — `CostOrderedLabelList` (default) keeps the labels in
+   cost order and skips the dominance tests the costs rule out, when the
+   dominance function declares `cost_order_tolerance()` or, for the default
+   component-wise dominance, the order is inferred; otherwise it is O(N) per
+   dominance check, as `LabelList` is. Use `LabelBuckets` +
+   `BucketAlgorithmParams` for problems with many labels per node (e.g. > 100
+   non-dominated labels).
 
 7. **`clone()` is not free** — it deep-copies all nodes, arcs, and the
    resource factory.  Prefer `remove_arcs` / `restore_arcs` over clone-per-node

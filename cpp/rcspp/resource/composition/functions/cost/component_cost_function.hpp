@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <optional>
+#include <typeinfo>
+
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
@@ -50,6 +53,26 @@ class ComponentCostFunction
             -> bool override {
             return resource_composition.template get_component<ResourceTypeIndex>(resource_index_)
                 .is_cost_additive();
+        }
+
+        /// @brief The cost order of the one component this function reads: its
+        ///        @c Resource::component_cost_order_tolerance (or @c
+        ///        back_component_cost_order_tolerance).
+        ///
+        /// @param resource_composition Any node's resource.
+        /// @param backward             Whether the components backward-dominate.
+        /// @return The tolerance, or @c std::nullopt; none for a class derived from this one,
+        ///         which may compute its cost otherwise.
+        [[nodiscard]] auto component_wise_cost_order_tolerance(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
+            bool backward) const -> std::optional<double> override {
+            if (typeid(*this) != typeid(ComponentCostFunction)) {
+                return std::nullopt;
+            }
+            const auto& component =
+                resource_composition.template get_component<ResourceTypeIndex>(resource_index_);
+            return backward ? component.back_component_cost_order_tolerance()
+                            : component.component_cost_order_tolerance();
         }
 
     private:

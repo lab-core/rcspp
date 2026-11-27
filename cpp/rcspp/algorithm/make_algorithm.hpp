@@ -32,6 +32,7 @@
 #include "rcspp/algorithm/labelling/search.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
+#include "rcspp/label/default_label_container.hpp"
 #include "rcspp/label/label_list.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/utils.hpp"
@@ -226,12 +227,27 @@ constexpr void check_parts() {
                   "on_extension(label, arc, outcome)");
 }
 
-/// @brief Checks each part of @p Strategy against its concept, in each direction it searches, and
-///        names the first that fails. The driver is checked when its search is built
-///        (@c Driven's constructor).
+/// @brief The container a search in @p Direction keeps for the params' @p LabelContainerType, for
+///        the part checks: @ref directed_container_t, or, when the container has no form for
+///        @p Direction (which @ref make_algorithm refuses at run time), the default's.
+template <typename LabelContainerType, typename ResourceType, typename Direction>
+struct checked_container {
+        using type = DefaultLabelContainer<ResourceType, Direction>;
+};
+
+template <typename LabelContainerType, typename ResourceType, typename Direction>
+    requires has_directed_container_v<LabelContainerType, Direction>
+struct checked_container<LabelContainerType, ResourceType, Direction> {
+        using type = directed_container_t<LabelContainerType, Direction>;
+};
+
+/// @brief Checks each part of @p Strategy against its concept, in each direction it searches, with
+///        the container the search keeps, and names the first that fails. The driver is checked
+///        when its search is built (@c Driven's constructor).
 ///
 /// A class strategy has no parts to check.
-template <typename Strategy, typename ResourceType>
+template <typename Strategy, typename ResourceType,
+          typename LabelContainerType = DefaultLabelContainer<ResourceType>>
 constexpr void check_strategy() {
     if constexpr (!ClassStrategy<Strategy>) {
         static_assert(
@@ -245,8 +261,10 @@ constexpr void check_strategy() {
                       "...;` would be ignored");
         using Forward = search_parts_t<Strategy, ResourceType, ForwardDirection>;
         using Backward = search_parts_t<Strategy, ResourceType, BackwardDirection>;
-        using ForwardList = LabelList<ResourceType>;
-        using BackwardList = LabelList<ResourceType, BackwardDirection>;
+        using ForwardList =
+            typename checked_container<LabelContainerType, ResourceType, ForwardDirection>::type;
+        using BackwardList =
+            typename checked_container<LabelContainerType, ResourceType, BackwardDirection>::type;
         check_parts<Forward, ResourceType, ForwardList>();
         if constexpr (can_search<Strategy>(SearchDirection::Backward) ||
                       can_search<Strategy>(SearchDirection::Bidirectional)) {
@@ -313,7 +331,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
                       "(ResourceFactory<ResourceType>*, AlgorithmParams<LabelContainerType>)");
         return std::make_unique<Class>(resource_factory, std::move(params));
     } else {
-        check_strategy<Strategy, R>();
+        check_strategy<Strategy, R, LC>();
         using Forward = search_parts_t<Strategy, R, ForwardDirection>;
         switch (direction) {
             case SearchDirection::Forward:

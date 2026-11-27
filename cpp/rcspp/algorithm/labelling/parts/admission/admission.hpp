@@ -11,8 +11,8 @@
 #include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
 #include "rcspp/algorithm/limits.hpp"
+#include "rcspp/label/default_label_container.hpp"
 #include "rcspp/label/label.hpp"
-#include "rcspp/label/label_list.hpp"
 
 namespace rcspp::parts {
 
@@ -55,9 +55,9 @@ struct AdmissionContext {
 ///
 /// @tparam AdmissionType The rule.
 /// @tparam ResourceType  The resource type carried by labels.
-/// @tparam NodeViewType  The node view it is handed; a list's by default.
+/// @tparam NodeViewType  The node view it is handed; the default container's by default.
 template <typename AdmissionType, typename ResourceType,
-          typename NodeViewType = NodeView<LabelList<ResourceType>>>
+          typename NodeViewType = NodeView<DefaultLabelContainer<ResourceType>>>
 concept Admission = requires(const AdmissionType admission, const Label<ResourceType>& candidate,
                              NodeViewType& node, const AdmissionContext& context) {
     { admission.admit(candidate, node, context) } -> std::same_as<bool>;

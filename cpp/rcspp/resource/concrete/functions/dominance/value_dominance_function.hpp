@@ -5,10 +5,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <optional>
 #include <type_traits>
+#include <typeinfo>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -56,5 +60,26 @@ class ValueDominanceFunction
             return lhs_resource.leq(rhs_resource.get_value() + delta);
         }
         // clang-format on
+
+        /// @brief The tolerance of @c check_dominance's comparison: machine epsilon for a
+        ///        @c double value (`value_leq` accepts `a <= b + epsilon`), 0 for an integer one.
+        ///
+        /// Empty for any other value type, whose comparison this function does not know, and for
+        /// a class derived from this one, which may test otherwise.
+        ///
+        /// @return The tolerance, or @c std::nullopt.
+        [[nodiscard]] auto value_order_tolerance() const -> std::optional<double> override {
+            if (typeid(*this) != typeid(ValueDominanceFunction)) {
+                return std::nullopt;
+            }
+            constexpr bool kNumerical = is_numerical_resource_v<ResourceType>;
+            if constexpr (kNumerical && std::is_same_v<ValueType, double>) {
+                return std::numeric_limits<double>::epsilon();
+            } else if constexpr (kNumerical && std::is_integral_v<ValueType>) {
+                return 0.0;
+            } else {
+                return std::nullopt;
+            }
+        }
 };
 }  // namespace rcspp

@@ -122,7 +122,7 @@ limit or number of solutions in place of the params'.
 <!-- docs-check: given std::vector<double> duals; double time_left_s = 10.0; -->
 
 ```cpp
-using Labels = LabelList<ResourceTypeComposition<RealResource, IntResource>>;
+using Labels = CostOrderedLabelList<ResourceTypeComposition<RealResource, IntResource>>;
 AlgorithmParams<Labels> params;
 params.release_after_solve = false;  // keep the labels for the next iteration
 auto pricing = graph.create_algorithm<strategy::Pulling>(params);

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <typeinfo>
+
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
@@ -16,6 +18,12 @@ namespace rcspp {
 /// A composed resource @p lhs is considered to dominate @p rhs if and only if every
 /// constituent sub-resource in @p lhs dominates (via `operator<=`) the corresponding
 /// sub-resource in @p rhs.
+///
+/// It declares no cost order of its own, but needs every component's dominance
+/// (@ref requires_component_dominance), so the composition infers one from the components and the
+/// cost function (@c CostFunction::component_wise_cost_order_tolerance): with the graph's default
+/// cost, component 0's value under @c ValueDominanceFunction, a dominance implies a cost at most
+/// machine epsilon above, and @c CostOrderedLabelList skips the pairs the costs rule out.
 ///
 /// @tparam ResourceTypes The individual resource types forming the composition.
 template <typename... ResourceTypes>
@@ -57,6 +65,16 @@ class CompositionDominanceFunction
                 [](const auto& lhs_res, const auto& rhs_res) {
                     return lhs_res.back_dominates(rhs_res);
                 });
+        }
+
+        /// @brief True: a dominance needs every component's, forward and backward.
+        ///
+        /// For this class only, not for one derived from it, which may test otherwise: a derived
+        /// function whose test is as strict, or stricter, overrides this to return @c true.
+        ///
+        /// @return @c true unless @c *this is of a derived class.
+        [[nodiscard]] auto requires_component_dominance() const -> bool override {
+            return typeid(*this) == typeid(CompositionDominanceFunction);
         }
 };
 }  // namespace rcspp

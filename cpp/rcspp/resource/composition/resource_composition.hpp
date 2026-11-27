@@ -263,26 +263,58 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->dominance_function_->check_back_dominance(*this, rhs_resource);
         }
 
-        /// @brief The dominance function's promise on the cost (@c DominanceFunction::
-        ///        cost_order_tolerance): an @c eps such that `*this <= other` implies
-        ///        `get_cost() <= other.get_cost() + eps`; empty when it promises nothing.
+        /// @brief The promise on the cost: an @c eps such that `*this <= other` implies
+        ///        `get_cost() <= other.get_cost() + eps`; empty when there is none.
+        ///
+        /// The dominance function's own (@c DominanceFunction::cost_order_tolerance) when it
+        /// declares one; otherwise, when a dominance needs every component's
+        /// (@c DominanceFunction::requires_component_dominance), the cost function's inference
+        /// from the components (@c CostFunction::component_wise_cost_order_tolerance).
         ///
         /// @return The tolerance, or @c std::nullopt.
         [[nodiscard]] auto cost_order_tolerance() const -> std::optional<double> {
-            return this->dominance_function_->cost_order_tolerance();
+            if (auto declared = this->dominance_function_->cost_order_tolerance()) {
+                return declared;
+            }
+            return inferred_cost_order_tolerance(/*backward=*/false);
         }
 
-        /// @brief The same promise for @ref back_dominates
-        ///        (@c DominanceFunction::back_cost_order_tolerance).
+        /// @brief The same promise for @ref back_dominates: the dominance function's
+        ///        @c DominanceFunction::back_cost_order_tolerance, or else the inference, from the
+        ///        components' backward dominance.
         ///
         /// @return The tolerance, or @c std::nullopt.
         [[nodiscard]] auto back_cost_order_tolerance() const -> std::optional<double> {
-            return this->dominance_function_->back_cost_order_tolerance();
+            if (auto declared = this->dominance_function_->back_cost_order_tolerance()) {
+                return declared;
+            }
+            return inferred_cost_order_tolerance(/*backward=*/true);
         }
 
         /// @brief The dominance function's type, as a message names it.
         [[nodiscard]] auto dominance_function_name() const -> std::string {
             return short_type_name(*this->dominance_function_);
+        }
+
+        /// @brief Where @ref cost_order_tolerance (or, @p backward, @ref
+        ///        back_cost_order_tolerance) comes from, as a message names it: the dominance
+        ///        function's declaration, or the inference from the cost function.
+        ///
+        /// @param backward Whether to name the backward promise's source.
+        [[nodiscard]] auto cost_order_source(bool backward) const -> std::string {
+            const bool declared =
+                backward ? this->dominance_function_->back_cost_order_tolerance().has_value()
+                         : this->dominance_function_->cost_order_tolerance().has_value();
+            if (declared) {
+                return "the dominance function " + dominance_function_name() +
+                       (backward ? " (back_cost_order_tolerance)" : " (cost_order_tolerance)");
+            }
+            return "the cost order inferred for the dominance function " +
+                   dominance_function_name() + " from the cost function " +
+                   short_type_name(*this->cost_function_) +
+                   (backward ? " (component_wise_cost_order_tolerance, backward)"
+                             : " (component_wise_cost_order_tolerance)") +
+                   " and the components' value_order_tolerance";
         }
 
         /// @brief Returns the total cost of this composed resource.
@@ -377,6 +409,18 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
                     ": a component changed without invalidating the kept cost (see "
                     "invalidate_cost)");
             }
+        }
+
+        /// @brief The cost order inferred from the components, when the dominance function needs
+        ///        every component's dominance; empty otherwise.
+        ///
+        /// @param backward Whether to infer it for @ref back_dominates.
+        [[nodiscard]] auto inferred_cost_order_tolerance(bool backward) const
+            -> std::optional<double> {
+            if (!this->dominance_function_->requires_component_dominance()) {
+                return std::nullopt;
+            }
+            return this->cost_function_->component_wise_cost_order_tolerance(*this, backward);
         }
 
         // The cost function's value for the components as they were when it was last evaluated;

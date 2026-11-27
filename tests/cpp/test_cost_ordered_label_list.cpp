@@ -4,7 +4,9 @@
 // CostOrderedLabelList: the container itself (the order, the erasures, the scans the promise
 // lets it skip), and the searches on it against the same searches on LabelList, with and without a
 // dominance function that declares a cost order: the same extensions, labels and solutions, fewer
-// dominance tests, and a wrong promise caught by RCSPP_VERIFY_COST_ORDER (the Debug builds).
+// dominance tests, and a wrong promise caught by RCSPP_VERIFY_COST_ORDER (the Debug builds). Then
+// the promise CompositionDominanceFunction infers from the components and the cost function, and
+// the default container.
 //
 // Its own translation unit: the searches on the new container instantiate what nothing else needs.
 
@@ -14,11 +16,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -28,6 +32,22 @@
 #include "util/random_instance.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
+
+namespace cost_order_test {
+/// @brief The members a search calls, for labels of one resource type, whose resources make no
+///        composition promise: they compile (never called).
+template <typename Direction>
+[[maybe_unused]] void store_single_type_label(CostOrderedLabelList<RealResource, Direction>& labels,
+                                              Label<RealResource>& label) {
+    if (!labels.is_dominated(label)) {
+        (void)labels.remove_dominated_labels(label);
+        labels.add_label(&label);
+    }
+}
+template void store_single_type_label(CostOrderedLabelList<RealResource>&, Label<RealResource>&);
+template void store_single_type_label(CostOrderedLabelList<RealResource, BackwardDirection>&,
+                                      Label<RealResource>&);
+}  // namespace cost_order_test
 
 namespace cost_order_test {
 
@@ -51,7 +71,8 @@ struct Counts {
 
 /// @brief Component-wise dominance (@c CompositionDominanceFunction), declaring a cost order
 ///        (the same forward and backward, or one each), and counting its tests into @p counts if
-///        given, with those outside the declared tolerance of their direction.
+///        given, with those outside the declared tolerance of their direction. A derived class,
+///        so it infers no promise unless told to (@ref infer_from_components).
 template <typename... ResourceTypes>
 class DeclaringDominance
     : public Clonable<DeclaringDominance<ResourceTypes...>,
@@ -88,6 +109,11 @@ class DeclaringDominance
             return back_tolerance_;
         }
 
+        /// @brief Declares requires_component_dominance (it tests as the base does), so that,
+        ///        declaring no tolerance, it has one inferred.
+        void infer_from_components() { infers_ = true; }
+        [[nodiscard]] bool requires_component_dominance() const override { return infers_; }
+
     private:
         void count(const ResourceClass& lhs, const ResourceClass& rhs,
                    std::optional<double> tolerance) const {
@@ -103,6 +129,7 @@ class DeclaringDominance
         std::optional<double> tolerance_;
         std::optional<double> back_tolerance_;
         std::shared_ptr<Counts> counts_;
+        bool infers_ = false;
 };
 
 /// @brief A dominance that lets a label dominate one costing up to @p slack less (the costs
@@ -380,6 +407,89 @@ size_t tests_to_check(ContainerType& container, ResourceGraph<RealResource>& gra
     return counts.tests;
 }
 
+/// @brief A cost that is not the value (half of it): @c CostKind::Unspecified, so its component
+///        tells nothing of the cost order.
+class HalfCost : public Clonable<HalfCost, CostFunction<RealResource>> {
+    public:
+        [[nodiscard]] double get_cost(const RealResource& resource) const override {
+            return resource.get_value() / 2.0;
+        }
+};
+
+/// @brief Value dominance within @p slack (`a <= b + slack`), promising the value order
+///        @p declared: a wrong promise when @p declared is below @p slack.
+class SlackValueDominance : public Clonable<SlackValueDominance, DominanceFunction<RealResource>> {
+    public:
+        explicit SlackValueDominance(double slack = 0.0, std::optional<double> declared = 0.0)
+            : slack_(slack), declared_(declared) {}
+        [[nodiscard]] bool check_dominance(const RealResource& lhs,
+                                           const RealResource& rhs) override {
+            return lhs.get_value() <= rhs.get_value() + slack_;
+        }
+        bool fast_check_dominance(const RealResource& lhs, const RealResource& rhs,
+                                  double delta) override {
+            return lhs.get_value() <= rhs.get_value() + slack_ + delta;
+        }
+        [[nodiscard]] std::optional<double> value_order_tolerance() const override {
+            return declared_;
+        }
+
+    private:
+        double slack_;
+        std::optional<double> declared_;
+};
+
+/// @brief Adds a real component to @p graph: added along arcs, with @p cost and @p dominance.
+inline void add_component(ResourceGraph<RealResource>& graph,
+                          std::unique_ptr<CostFunction<RealResource>> cost,
+                          std::unique_ptr<DominanceFunction<RealResource>> dominance) {
+    graph.add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                     std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                     std::move(cost),
+                                     std::move(dominance));
+}
+
+/// @brief A value cost under value dominance.
+inline void add_value_cost(ResourceGraph<RealResource>& graph) {
+    add_component(graph,
+                  std::make_unique<ValueCostFunction<RealResource>>(),
+                  std::make_unique<ValueDominanceFunction<RealResource>>());
+}
+
+/// @brief A zero cost under value dominance (a clock, a load).
+inline void add_zero_cost(ResourceGraph<RealResource>& graph) {
+    add_component(graph,
+                  std::make_unique<TrivialCostFunction<RealResource>>(),
+                  std::make_unique<ValueDominanceFunction<RealResource>>());
+}
+
+/// @brief An empty graph whose cost sums every component's (@c CompositionCostFunction), with
+///        the default dominance.
+inline std::unique_ptr<ResourceGraph<RealResource>> summing_graph() {
+    return std::make_unique<ResourceGraph<RealResource>>(
+        std::make_unique<CompositionExtensionFunction<RealResource>>(),
+        std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
+        std::make_unique<CompositionCostFunction<RealResource>>(),
+        std::make_unique<CompositionDominanceFunction<RealResource>>());
+}
+
+/// @brief A promise forward and one backward.
+using Promises = std::pair<std::optional<double>, std::optional<double>>;
+
+/// @brief @p graph's promises, read off a node's resource as the container reads them.
+inline Promises promises(ResourceGraph<RealResource>& graph) {
+    const auto resource = graph.get_resource_factory().create_resource(/*node_id=*/0);
+    return {resource->cost_order_tolerance(), resource->back_cost_order_tolerance()};
+}
+
+/// @brief A promise of @p tolerance in both directions.
+inline Promises both(std::optional<double> tolerance) {
+    return {tolerance, tolerance};
+}
+
+/// @brief Machine epsilon, the tolerance of value dominance on a real value (value_leq).
+constexpr double kEpsilon = std::numeric_limits<double>::epsilon();
+
 }  // namespace cost_order_test
 
 /// @brief The labels are kept cheapest first, labels of equal cost in the order they were stored;
@@ -483,10 +593,10 @@ TEST(CostOrderedLabelList, SearchesMatchLabelListWithAPromise) {
     cot::expect_same_searches([] { return cot::declaring_graph<RealResource>(cot::kTolerance); });
 }
 
-/// @brief Without a promise (the default dominance function), the same.
+/// @brief Without a promise (a dominance function that declares none and infers none), the same.
 TEST(CostOrderedLabelList, SearchesMatchLabelListWithoutAPromise) {
     namespace cot = cost_order_test;
-    cot::expect_same_searches([] { return std::make_unique<ResourceGraph<RealResource>>(); });
+    cot::expect_same_searches([] { return cot::declaring_graph<RealResource>(std::nullopt); });
 }
 
 /// @brief With a promise, a search on CostOrderedLabelList makes fewer dominance tests than on
@@ -705,5 +815,312 @@ TEST(CostOrderedLabelList, CappedRelaxedAndHeuristicSearchesMatchLabelList) {
         cot::expect_same_solve<strategy::Diversification<strategy::Tabu>>(
             *built.graph,
             [](auto& params) { params.max_iterations = 5; });
+    }
+}
+
+/// @brief The default model (the graph's default cost, component 0's value, and component-wise
+///        dominance) has its promise inferred: machine epsilon for a real cost, 0 for an integer
+///        one, in both directions; a model whose costs are all zero, 0.
+TEST(CostOrderInference, TheDefaultModelInfersItsCostOrder) {
+    namespace cot = cost_order_test;
+    {
+        ResourceGraph<RealResource> graph;
+        presets::add_cost_resource<RealResource>(graph);
+        presets::add_window_resource<RealResource>(graph, {{0, {0.0, 10.0}}});
+        EXPECT_EQ(cot::promises(graph), cot::both(cot::kEpsilon));
+        const auto resource = graph.get_resource_factory().create_resource(/*node_id=*/0);
+        EXPECT_NE(resource->cost_order_source(false).find("inferred"), std::string::npos)
+            << resource->cost_order_source(false);
+    }
+    {
+        ResourceGraph<IntResource> graph;
+        presets::add_cost_resource<IntResource>(graph);
+        const auto resource = graph.get_resource_factory().create_resource(/*node_id=*/0);
+        EXPECT_EQ(resource->cost_order_tolerance(), std::optional<double>(0.0));
+        EXPECT_EQ(resource->back_cost_order_tolerance(), std::optional<double>(0.0));
+    }
+    {
+        ResourceGraph<UIntResource> graph;
+        presets::add_cost_resource<UIntResource>(graph);
+        const auto resource = graph.get_resource_factory().create_resource(/*node_id=*/0);
+        EXPECT_EQ(resource->cost_order_tolerance(), std::optional<double>(0.0));
+        EXPECT_EQ(resource->back_cost_order_tolerance(), std::optional<double>(0.0));
+    }
+    {
+        ResourceGraph<RealResource> graph;
+        cot::add_zero_cost(graph);
+        cot::add_zero_cost(graph);
+        EXPECT_EQ(cot::promises(graph), cot::both(0.0));
+    }
+}
+
+/// @brief The cost component tells the order only when its cost is its value and its dominance
+///        orders values: a cost of another kind, or a dominance that declares no value order,
+///        gives none; a dominance that swaps backward (a limit) gives none backward.
+TEST(CostOrderInference, TheCostComponentMustBeAValueUnderAValueOrder) {
+    namespace cot = cost_order_test;
+    {
+        ResourceGraph<RealResource> graph;
+        cot::add_component(graph,
+                           std::make_unique<cot::HalfCost>(),
+                           std::make_unique<ValueDominanceFunction<RealResource>>());
+        EXPECT_EQ(cot::promises(graph), cot::both(std::nullopt));
+    }
+    {
+        ResourceGraph<RealResource> graph;
+        cot::add_component(graph,
+                           std::make_unique<ValueCostFunction<RealResource>>(),
+                           std::make_unique<cot::SlackValueDominance>(0.0, std::nullopt));
+        EXPECT_EQ(cot::promises(graph), cot::both(std::nullopt));
+    }
+    {
+        ValueDominanceFunction<RealResource> dominance;
+        EXPECT_EQ(dominance.value_order_tolerance(), std::optional<double>(cot::kEpsilon));
+        EXPECT_EQ(dominance.back_value_order_tolerance(), std::optional<double>(cot::kEpsilon));
+        dominance.set_back_dominance_reversed(true);
+        EXPECT_EQ(dominance.value_order_tolerance(), std::optional<double>(cot::kEpsilon));
+        EXPECT_EQ(dominance.back_value_order_tolerance(), std::nullopt);
+        EXPECT_EQ(TrivialDominanceFunction<RealResource>().value_order_tolerance(), std::nullopt);
+    }
+    {
+        // A value cost whose backward value is a limit (a time window's: add_resource swaps the
+        // backward comparison): the promise holds forward only.
+        ResourceGraph<RealResource> graph;
+        const std::map<size_t, std::pair<double, double>> windows = {{0, {0.0, 10.0}}};
+        graph.add_resource<RealResource>(
+            std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
+            std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        EXPECT_EQ(cot::promises(graph), cot::Promises(cot::kEpsilon, std::nullopt));
+    }
+    {
+        // A class derived from ValueDominanceFunction may test otherwise: it promises nothing.
+        class Derived : public Clonable<Derived,
+                                        ValueDominanceFunction<RealResource>,
+                                        DominanceFunction<RealResource>> {};
+        EXPECT_EQ(Derived().value_order_tolerance(), std::nullopt);
+    }
+}
+
+/// @brief A cost that sums the components' (@c CompositionCostFunction) keeps the tolerance of
+///        its one nonzero cost among zero costs, and promises nothing once two are nonzero (the
+///        sum's rounding could break the promise) or one tells nothing.
+TEST(CostOrderInference, ASumKeepsTheToleranceOfItsOneNonzeroCost) {
+    namespace cot = cost_order_test;
+    auto graph = cot::summing_graph();
+    cot::add_zero_cost(*graph);
+    EXPECT_EQ(cot::promises(*graph), cot::both(0.0));
+    cot::add_value_cost(*graph);
+    EXPECT_EQ(cot::promises(*graph), cot::both(cot::kEpsilon));
+    cot::add_value_cost(*graph);
+    EXPECT_EQ(cot::promises(*graph), cot::both(std::nullopt));
+
+    auto untold = cot::summing_graph();
+    cot::add_value_cost(*untold);
+    // A zero cost needs no order: whatever its dominance, it adds 0 to both labels.
+    cot::add_component(*untold,
+                       std::make_unique<TrivialCostFunction<RealResource>>(),
+                       std::make_unique<cot::SlackValueDominance>(0.0, std::nullopt));
+    EXPECT_EQ(cot::promises(*untold), cot::both(cot::kEpsilon));
+    cot::add_component(*untold,
+                       std::make_unique<cot::HalfCost>(),
+                       std::make_unique<ValueDominanceFunction<RealResource>>());
+    EXPECT_EQ(cot::promises(*untold), cot::both(std::nullopt));
+
+    // A class derived from either cost function may compute its cost otherwise (a weight, a sign):
+    // it gives nothing.
+    class DerivedSum : public Clonable<DerivedSum,
+                                       CompositionCostFunction<RealResource>,
+                                       CostFunction<cot::Composed>> {};
+    class DerivedComponent : public ComponentCostFunction<0, RealResource> {
+        public:
+            DerivedComponent() : ComponentCostFunction<0, RealResource>(0) {}
+            [[nodiscard]] auto clone() const
+                -> std::unique_ptr<CostFunction<cot::Composed>> override {
+                return std::make_unique<DerivedComponent>(*this);
+            }
+    };
+    const auto promises_with = [](std::unique_ptr<CostFunction<cot::Composed>> cost) {
+        ResourceGraph<RealResource> derived(
+            std::make_unique<CompositionExtensionFunction<RealResource>>(),
+            std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
+            std::move(cost),
+            std::make_unique<CompositionDominanceFunction<RealResource>>());
+        cot::add_value_cost(derived);
+        return cot::promises(derived);
+    };
+    EXPECT_EQ(promises_with(std::make_unique<DerivedSum>()), cot::both(std::nullopt));
+    EXPECT_EQ(promises_with(std::make_unique<DerivedComponent>()), cot::both(std::nullopt));
+}
+
+/// @brief A declaration comes first; a function derived from CompositionDominanceFunction infers
+///        nothing (it may test otherwise) unless it declares requires_component_dominance; the
+///        messages say whether the promise was declared or inferred.
+TEST(CostOrderInference, ADeclarationComesFirstAndADerivedFunctionInfersOnlyIfItSays) {
+    namespace cot = cost_order_test;
+    auto declared = cot::two_component_graph(cot::kTolerance);
+    EXPECT_EQ(cot::promises(*declared), cot::both(cot::kTolerance));
+    const auto source =
+        declared->get_resource_factory().create_resource(/*node_id=*/0)->cost_order_source(false);
+    EXPECT_NE(source.find("DeclaringDominance"), std::string::npos) << source;
+    EXPECT_EQ(source.find("inferred"), std::string::npos) << source;
+
+    auto silent = cot::two_component_graph(std::nullopt);
+    EXPECT_EQ(cot::promises(*silent), cot::both(std::nullopt));
+
+    auto inferring = std::make_unique<cot::DeclaringDominance<RealResource>>(std::nullopt);
+    inferring->infer_from_components();
+    auto told = cot::two_component_graph(
+        std::unique_ptr<DominanceFunction<cot::Composed>>(std::move(inferring)));
+    EXPECT_EQ(cot::promises(*told), cot::both(cot::kEpsilon));
+}
+
+/// @brief With the default model's inferred promise, every single-direction search does on
+///        CostOrderedLabelList what it does on LabelList (as with a declared promise), and the
+///        verification (Debug) finds no pair the inference wrongly ruled out.
+TEST(CostOrderInference, SearchesMatchLabelListWithAnInferredPromise) {
+    namespace cot = cost_order_test;
+    cot::expect_same_searches([] { return std::make_unique<ResourceGraph<RealResource>>(); });
+}
+
+/// @brief The inferred promise saves dominance tests, with the same solutions.
+TEST(CostOrderInference, AnInferredPromiseSavesDominanceTests) {
+    namespace cot = cost_order_test;
+    const auto inferring_graph = [](std::shared_ptr<cot::Counts> counts) {
+        auto dominance = std::make_unique<cot::DeclaringDominance<RealResource>>(std::nullopt,
+                                                                                 std::move(counts));
+        dominance->infer_from_components();
+        return cot::graph_with<RealResource>(
+            std::unique_ptr<DominanceFunction<cot::Composed>>(std::move(dominance)));
+    };
+    size_t saved = 0;
+    for (const auto& config : cot::random_configs()) {
+        SCOPED_TRACE(test_util::describe(config));
+        auto on_list = std::make_shared<cot::Counts>();
+        auto on_order = std::make_shared<cot::Counts>();
+        auto list_graph = test_util::build_instance(config, inferring_graph(on_list)).graph;
+        auto order_graph = test_util::build_instance(config, inferring_graph(on_order)).graph;
+        EXPECT_EQ(cot::promises(*order_graph), cot::both(cot::kEpsilon));
+        const auto expected =
+            list_graph->solve<strategy::Pulling, cot::List>(AlgorithmParams<cot::List>(),
+                                                            /*preprocess=*/false);
+        const auto actual = order_graph->solve<strategy::Pulling, cot::CostOrdered>(
+            AlgorithmParams<cot::CostOrdered>(),
+            /*preprocess=*/false);
+        EXPECT_EQ(cot::solution_set(actual), cot::solution_set(expected));
+        if constexpr (!kVerifyCostOrder) {  // the verification tests the skipped pairs too
+            EXPECT_LE(on_order->tests, on_list->tests);
+            saved += on_list->tests - on_order->tests;
+        }
+    }
+    if constexpr (!kVerifyCostOrder) {
+        EXPECT_GT(saved, 0U) << "the inferred promise should save tests on these instances";
+    }
+}
+
+/// @brief A cost component that promises a wrong value order makes a wrong inferred promise,
+///        which the verification catches, naming the inference, forward and backward. Without the
+///        verification (Release) the search runs and finds the cheapest path.
+TEST(CostOrderInference, AWrongComponentPromiseIsCaughtByTheVerification) {
+    namespace cot = cost_order_test;
+    // Component 0, the graph's cost, dominates within 1 but promises 0; component 1, a time, by
+    // value. Two paths reach the sink 3: through 1, cost 1.5 and time 0; through 2, cost 1 and
+    // time 5. The first dominates the second (1.5 <= 1 + 1, 0 <= 5) although it costs more, a
+    // pair the inferred promise rules out, whichever label is stored first.
+    ResourceGraph<RealResource> graph;
+    cot::add_component(graph,
+                       std::make_unique<ValueCostFunction<RealResource>>(),
+                       std::make_unique<cot::SlackValueDominance>(1.0, 0.0));
+    cot::add_zero_cost(graph);
+    graph.add_node(0, /*source=*/true, /*sink=*/false);
+    graph.add_node(1);
+    graph.add_node(2);
+    graph.add_node(3, /*source=*/false, /*sink=*/true);
+    graph.add_arc<RealResource, RealResource>({1.5, 0.0}, 0, 1);
+    graph.add_arc<RealResource, RealResource>({0.0, 0.0}, 1, 3);
+    graph.add_arc<RealResource, RealResource>({1.0, 5.0}, 0, 2);
+    graph.add_arc<RealResource, RealResource>({0.0, 0.0}, 2, 3);
+    EXPECT_EQ(cot::promises(graph), cot::both(0.0));
+    for (const auto direction : {SearchDirection::Forward, SearchDirection::Backward}) {
+        SCOPED_TRACE(to_string(direction));
+        AlgorithmParams<cot::CostOrdered> params;
+        params.direction = direction;
+        if constexpr (kVerifyCostOrder) {
+            try {
+                (void)graph.solve<strategy::Simple, cot::CostOrdered>(params,
+                                                                      /*preprocess=*/false);
+                ADD_FAILURE() << "the verification should catch the wrong component promise";
+            } catch (const std::logic_error& e) {
+                EXPECT_NE(std::string(e.what()).find("inferred"), std::string::npos) << e.what();
+                EXPECT_NE(std::string(e.what()).find("CompositionDominanceFunction"),
+                          std::string::npos)
+                    << e.what();
+            }
+        } else {
+            // Without the verification the search runs, keeping a label dominance would remove.
+            const auto result =
+                graph.solve<strategy::Simple, cot::CostOrdered>(params, /*preprocess=*/false);
+            ASSERT_FALSE(result.solutions.empty());
+            EXPECT_DOUBLE_EQ(result.solutions.front().cost, 1.0);
+        }
+    }
+}
+
+/// @brief CostOrderedLabelList is the default container, of the algorithms a graph builds and of
+///        its solves, which find what a LabelList search finds.
+TEST(CostOrderInference, TheDefaultContainerIsCostOrdered) {
+    namespace cot = cost_order_test;
+    static_assert(std::is_same_v<DefaultLabelContainer<cot::Composed>, cot::CostOrdered>);
+    static_assert(std::is_same_v<DefaultLabelContainer<cot::Composed, BackwardDirection>,
+                                 CostOrderedLabelList<cot::Composed, BackwardDirection>>);
+    static_assert(
+        std::is_same_v<Algorithm<cot::Composed>, Algorithm<cot::Composed, cot::CostOrdered>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<ResourceGraph<RealResource>&>().create_algorithm()),
+                       std::unique_ptr<Algorithm<cot::Composed, cot::CostOrdered>>>);
+    for (const auto& config : cot::random_configs()) {
+        SCOPED_TRACE(test_util::describe(config));
+        auto by_default = test_util::build_instance(config).graph;
+        auto on_list = test_util::build_instance(config).graph;
+        const auto actual =
+            by_default->solve(AlgorithmBaseParams{}, cot::kInf, /*preprocess=*/false);
+        const auto expected =
+            on_list->solve<strategy::Simple, cot::List>(AlgorithmParams<cot::List>(),
+                                                        /*preprocess=*/false);
+        EXPECT_EQ(actual.status, expected.status);
+        EXPECT_EQ(cot::solution_set(actual), cot::solution_set(expected));
+    }
+}
+
+/// @brief With the inferred promise, bidirectional searches, and the ng model in every direction,
+///        find on CostOrderedLabelList what they find on LabelList.
+TEST(CostOrderInference, BidirectionalAndNgSearchesMatchLabelListWithAnInferredPromise) {
+    namespace cot = cost_order_test;
+    for (const auto& config : cot::random_configs()) {
+        SCOPED_TRACE(test_util::describe(config));
+        const auto built = test_util::build_instance(config);
+        ASSERT_EQ(cot::promises(*built.graph), cot::both(cot::kEpsilon));
+        const auto set = [&](auto& params) {
+            params.direction = SearchDirection::Bidirectional;
+            params.critical_resource_index = built.clock_index;
+            params.half_way_point = built.clock_is_usable ? built.clock_upper_bound / 2.0 : 0.0;
+        };
+        cot::expect_same_solve<strategy::Simple>(*built.graph, set);
+        cot::expect_same_solve<strategy::Pulling>(*built.graph, set);
+
+        auto ng_config = config;
+        ng_config.with_ng_path = true;
+        const auto ng = test_util::build_ng_instance(ng_config);
+        for (const auto direction : {SearchDirection::Forward,
+                                     SearchDirection::Backward,
+                                     SearchDirection::Bidirectional}) {
+            const auto ng_set = [&](auto& params) {
+                params.direction = direction;
+                params.critical_resource_index = ng.clock_index;
+                params.half_way_point = ng.clock_is_usable ? ng.clock_upper_bound / 2.0 : 0.0;
+            };
+            cot::expect_same_solve<strategy::Simple>(*ng.graph, ng_set);
+        }
     }
 }

@@ -25,6 +25,7 @@
 #include "rcspp/algorithm/labelling/search.hpp"
 #include "rcspp/algorithm/labelling/step.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
+#include "rcspp/label/default_label_container.hpp"
 #include "rcspp/label/label_list.hpp"
 #include "rcspp/utils/logger.hpp"
 
@@ -74,7 +75,7 @@ enum class EarlyStop { None, Timeout, Interrupted, MemoryLimit };
 /// @tparam ForwardPartsType    The forward side's parts (@ref SearchParts).
 /// @tparam BackwardPartsType   The backward side's parts.
 /// @tparam InterleaveType       Which side goes next (@c parts::Interleave).
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
+template <typename ResourceType, typename LabelContainerType = DefaultLabelContainer<ResourceType>,
           typename CriticalResourceType = RealResource,
           typename ForwardPartsType = SearchParts<parts::FifoSchedule<ResourceType>>,
           typename BackwardPartsType = ForwardPartsType,

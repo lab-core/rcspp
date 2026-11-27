@@ -298,9 +298,8 @@ class CostOrderedLabelList final {
                                                             : resource.cost_order_tolerance();
                 if (tolerance.has_value() && !(*tolerance >= 0.0)) {
                     throw std::invalid_argument(
-                        "the dominance function " + resource.dominance_function_name() +
-                        " declares a cost-order tolerance of " + number(*tolerance) +
-                        (Direction::backward ? " (back_cost_order_tolerance)" : "") +
+                        resource.cost_order_source(Direction::backward) +
+                        " gives a cost-order tolerance of " + number(*tolerance) +
                         ": a tolerance must be >= 0, or none (std::nullopt)");
                 }
                 tolerance_ = tolerance;
@@ -342,19 +341,17 @@ class CostOrderedLabelList final {
         ///        costs rule it out.
         [[noreturn]] void throw_broken_promise(const Label<ResourceType>& dominating,
                                                const Label<ResourceType>& dominated) const {
-            std::string name = "the model's dominance function";
-            if constexpr (requires { dominating.get_resource().dominance_function_name(); }) {
-                name =
-                    "the dominance function " + dominating.get_resource().dominance_function_name();
+            std::string source = "the model's dominance function";
+            if constexpr (requires { dominating.get_resource().cost_order_source(true); }) {
+                source = dominating.get_resource().cost_order_source(Direction::backward);
             }
             throw std::logic_error(
-                name + " declares a cost-order tolerance of " + number(*tolerance_) +
-                (Direction::backward ? " (back_cost_order_tolerance)" : "") +
+                source + " gives a cost-order tolerance of " + number(*tolerance_) +
                 ", but a label of cost " + number(dominating.get_cost()) +
-                " dominates one of cost " + number(dominated.get_cost()) + ": its " +
+                " dominates one of cost " + number(dominated.get_cost()) + " (" +
                 (Direction::backward ? "check_back_dominance" : "check_dominance") +
-                " must reject a pair whose first label costs more than the second's cost + the "
-                "tolerance");
+                "): a dominance must reject a pair whose first label costs more than the "
+                "second's cost + the tolerance");
         }
 
         std::vector<Entry> entries_;       ///< the labels, by cost, then in storing order

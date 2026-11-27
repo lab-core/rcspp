@@ -346,20 +346,20 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
 
 // ─── Params → label container ─────────────────────────────────────────────────
 // Calls with_params(AlgorithmParams<LabelContainerType>) with the container py_p asks for:
-// LabelList, or for a PyBucketAlgorithmParams, LabelBuckets<ResourceType, CostResourceType,
-// CompositionType>, where ResourceType is named by py_p.bucket_resource_type (empty: the cost's
-// type; non-numerical types are skipped).
+// DefaultLabelContainer (CostOrderedLabelList), or for a PyBucketAlgorithmParams,
+// LabelBuckets<ResourceType, CostResourceType, CompositionType>, where ResourceType is named by
+// py_p.bucket_resource_type (empty: the cost's type; non-numerical types are skipped).
 
 template <typename ResourceGraphType, typename CompositionType, typename CostResourceType,
           typename... ResourceTypes, typename Callback>
 void with_algorithm_params(ResourceGraphType& rg, const PyAlgorithmParams& params,
                            Callback&& with_params) {
     // One entry point for both kinds of params. With a bucket overload beside it, a call that left
-    // out an argument fell through to the plain one, which ran a LabelList search and ignored the
+    // out an argument fell through to the plain one, which ran a plain search and ignored the
     // bucket settings without a word.
     const auto* bucket_params = dynamic_cast<const PyBucketAlgorithmParams*>(&params);
     if (bucket_params == nullptr) {
-        with_params(params.template to_params<LabelList<CompositionType>>());
+        with_params(params.template to_params<DefaultLabelContainer<CompositionType>>());
         return;
     }
     const auto& py_p = *bucket_params;
